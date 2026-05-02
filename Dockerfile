@@ -262,6 +262,13 @@ RUN --mount=type=cache,target=${SUPERSET_HOME}/.cache/uv \
     uv pip install -e .
 
 RUN uv pip install .[postgres]
+# MoH: ClickHouse drivers pinned to versions matching Open_ETL stack so existing
+# dashboards built against that environment continue to render here.
+RUN uv pip install \
+    "clickhouse-connect==0.7.19" \
+    "clickhouse-sqlalchemy<0.3" \
+    "clickhouse-driver>=0.2.6" \
+    "asynch>=0.2.2"
 RUN python -m compileall /app/superset
 
 USER superset

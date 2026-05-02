@@ -833,7 +833,14 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
                  See [4565] in UPDATING.md"""
             )
 
-        appbuilder.indexview = SupersetIndexView
+        # MoH customization: branded landing page as the FAB index view.
+        # Imported from superset.landing_view (top-level) on purpose — going
+        # through superset.views would trigger views/__init__.py and cascade
+        # into models/core.py at line ~1329, which calls security_manager
+        # before it's been initialized by appbuilder.init_app() below.
+        from superset.landing_view import MoHLandingView
+
+        appbuilder.indexview = MoHLandingView
         appbuilder.security_manager_class = custom_sm
         appbuilder.init_app(self.superset_app, db.session)
 
