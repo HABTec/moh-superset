@@ -1,0 +1,19 @@
+# MoH-specific Python dependencies on top of Apache Superset's base.
+# These are pinned to match the Open_ETL stack so existing dashboards built
+# against that environment continue to render against this Superset instance.
+#
+# Install order on a fresh Ubuntu:
+#   uv pip install -e ".[postgres,clickhouse]"     # Apache extras
+#   uv pip install -r requirements/moh.txt         # MoH overrides + production server
+#
+# Docker users get the same set via the Dockerfile (see RUN block tagged "MoH").
+
+# --- ClickHouse drivers (matches Open_ETL pins) ---
+clickhouse-connect==0.7.19
+clickhouse-sqlalchemy<0.3
+clickhouse-driver>=0.2.6
+asynch>=0.2.2
+
+# --- Production WSGI stack (not installed by default) ---
+gunicorn>=21.0.0
+gevent>=23.0.0

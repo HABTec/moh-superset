@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ featured.title if featured else 'MoH Analytics Portal' }}</title>
+  <style>
+    :root {
+      --accent: #1a5cff;
+      --accent-dark: #0b3fb8;
+      --navy: #0a2540;
+      --muted: #6b7c93;
+      --tile-bg: #eef4ff;
+      --tile-border: #d6e3ff;
+      --page: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--page);
+      color: var(--navy);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header.topbar {
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    header.topbar .logo-img {
+      height: 56px;
+      width: auto;
+      display: block;
+    }
+    header.topbar .brand-text {
+      line-height: 1.1;
+      padding-left: 18px;
+      border-left: 1px solid #d6e3ff;
+    }
+    header.topbar .brand-text .t2 {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    section.hero {
+      text-align: center;
+      padding: 48px 24px 40px;
+    }
+    section.hero h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5.5vw, 4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+    }
+    section.hero h1 .accent { color: var(--accent); }
+    section.hero .sub {
+      margin: 16px auto 0;
+      max-width: 640px;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .tile-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+    }
+    .tile {
+      flex: 1 1 320px;
+      max-width: 340px;
+      min-height: 260px;
+      background: var(--tile-bg);
+      border: 1px solid var(--tile-border);
+      border-radius: 18px;
+      padding: 28px 26px 24px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      position: relative;
+    }
+    .tile:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 32px rgba(26, 92, 255, 0.18);
+      border-color: var(--accent);
+    }
+    .tile h3 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -0.2px;
+    }
+    .tile .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .tile .tile-icon {
+      margin: 18px auto;
+      width: 78px; height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+    .tile .tile-icon svg { width: 100%; height: 100%; }
+    .tile .view-link {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-transform: lowercase;
+    }
+    .tile .view-link .arrow {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .others {
+      max-width: 1000px;
+      margin: 0 auto 72px;
+      padding: 24px;
+      border-top: 1px solid #eef0f5;
+    }
+    .others h2 {
+      font-size: 1rem;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 0 0 14px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .others .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    .others .row a {
+      padding: 8px 18px;
+      border: 1px solid var(--tile-border);
+      border-radius: 999px;
+      text-decoration: none;
+      color: var(--accent-dark);
+      font-size: 0.9rem;
+      background: var(--page);
+      transition: background 0.15s;
+    }
+    .others .row a:hover { background: var(--tile-bg); }
+
+    .empty {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--muted);
+    }
+
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    nav.appnav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+    nav.appnav a {
+      color: var(--navy);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 6px 0;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    nav.appnav a:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    nav.appnav .divider {
+      width: 1px;
+      height: 22px;
+      background: #d6e3ff;
+    }
+    nav.appnav a.logout {
+      color: var(--muted);
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <img class="logo-img" src="/static/assets/images/logomohnewww.png" alt="Ministry of Health">
+  <span class="brand-text">
+    <span class="t2">MOH ANALYTICS PORTAL</span>
+  </span>
+
+  <nav class="appnav">
+    <a href="/dashboard/list/">Dashboards</a>
+    <a href="/chart/list/">Charts</a>
+    <a href="/tablemodelview/list/">Datasets</a>
+    <a href="/sqllab/">SQL Lab</a>
+    <span class="divider"></span>
+    {% if current_user and current_user.is_authenticated %}
+      <a href="/superset/welcome/">{{ current_user.first_name or current_user.username }}</a>
+      <a class="logout" href="/logout/">Sign out</a>
+    {% else %}
+      <a href="/login/">Sign in</a>
+    {% endif %}
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>
+    Transform <span class="accent">Health Data</span> Into<br>
+    <span class="accent">Actionable Insights</span>
+  </h1>
+  {% if featured %}
+    <p class="sub">{{ featured.title }}</p>
+  {% endif %}
+</section>
+
+{% if featured and featured.tabs %}
+  <div class="tile-grid">
+  {% for t in featured.tabs %}
+    <a class="tile" href="{{ featured.url }}#{{ t.id }}" title="Jump to tab: {{ t.title }}">
+      <h3>{{ t.title }}</h3>
+      <p class="subtitle">{{ t.subtitle or 'Explore ' + t.title }}</p>
+
+      <div class="tile-icon">
+        {% if t.icon == 'summary' %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="8" y="36" width="10" height="20" rx="2"/>
+            <rect x="27" y="22" width="10" height="34" rx="2"/>
+            <rect x="46" y="12" width="10" height="44" rx="2"/>
+          </svg>
+        {% elif t.icon == 'quality' %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="32" cy="32" r="24"/>
+            <path d="M20 33 L29 42 L44 24"/>
+          </svg>
+        {% elif t.icon == 'monthly' %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="8" y="12" width="48" height="44" rx="4"/>
+            <path d="M8 24 H56"/>
+            <path d="M20 6 V18"/>
+            <path d="M44 6 V18"/>
+            <circle cx="32" cy="38" r="3" fill="currentColor"/>
+          </svg>
+        {% elif t.icon == 'quarterly' %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 32 C 18 14, 46 14, 58 32" />
+            <text x="10" y="50" font-family="Arial" font-size="11" font-weight="700" fill="currentColor" stroke="none">Q1</text>
+            <text x="24" y="50" font-family="Arial" font-size="11" font-weight="700" fill="currentColor" stroke="none">Q2</text>
+            <text x="38" y="50" font-family="Arial" font-size="11" font-weight="700" fill="currentColor" stroke="none">Q3</text>
+            <text x="51" y="50" font-family="Arial" font-size="11" font-weight="700" fill="currentColor" stroke="none">Q4</text>
+          </svg>
+        {% elif t.icon == 'triangulation' %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="8" y="30" width="14" height="14" rx="2"/>
+            <circle cx="49" cy="20" r="7"/>
+            <path d="M38 50 L48 34 L58 50 Z"/>
+          </svg>
+        {% else %}
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 48 L22 28 L34 38 L56 12"/>
+            <circle cx="22" cy="28" r="3" fill="currentColor"/>
+            <circle cx="34" cy="38" r="3" fill="currentColor"/>
+            <circle cx="56" cy="12" r="3" fill="currentColor"/>
+          </svg>
+        {% endif %}
+      </div>
+
+      <div class="view-link">
+        <span>View {{ t.title }}</span>
+        <span class="arrow">&rarr;</span>
+      </div>
+    </a>
+  {% endfor %}
+  </div>
+{% elif featured %}
+  <div class="tile-grid">
+    <a class="tile" href="{{ featured.url }}">
+      <h3>{{ featured.title }}</h3>
+      <p class="subtitle">{{ featured.description or 'Open dashboard' }}</p>
+      <div class="view-link"><span>Open</span><span class="arrow">&rarr;</span></div>
+    </a>
+  </div>
+{% else %}
+  <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
+{% endif %}
+
+{% if others %}
+  <div class="others">
+    <h2>More Dashboards</h2>
+    <div class="row">
+    {% for d in others %}
+      <a href="{{ d.url }}">{{ d.title }}</a>
+    {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<footer>
+  Powered by <a href="/dashboard/list/">Superset</a> &middot; Ministry of Health Analytics
+</footer>
+
+</body>
+</html>
