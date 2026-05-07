@@ -67,5 +67,42 @@ FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
 }
 
+# ---------------------------------------------------------------------------
+# MCP server (dev mode)
+# ---------------------------------------------------------------------------
+MCP_AUTH_ENABLED = False
+MCP_DEV_USERNAME = "admin"
+
+# Public-facing base URL the MCP server uses when generating explore / SQL Lab
+# / dashboard links it returns to the LLM. The upstream docker dev config
+# (docker/pythonpath_dev/superset_config.py) hardcodes localhost:8888, which is
+# unreachable from the user's browser when SUPERSET_PORT is overridden.
+# Override here so the AI Assistant returns clickable links.
+import os as _os  # noqa: E402
+
+WEBDRIVER_BASEURL_USER_FRIENDLY = _os.environ.get(
+    "MOH_PUBLIC_URL", "http://localhost:8090/"
+)
+# MCP_SERVICE_URL is the *MCP server's own* base URL (used for screenshots,
+# not explore links). Kept for screenshot tools.
+MCP_SERVICE_URL = _os.environ.get("MCP_SERVICE_URL", "http://localhost:8090")
+
+# Show every MCP tool to the model directly instead of hiding them behind a
+# `search_tools` / `call_tool` meta-interface. Tool search is great for token
+# economy with very large catalogs, but with summary mode the model can't see
+# real tool names like `execute_sql` and ends up hallucinating names like
+# `run_code` (which then fail with "Unknown tool"). Listing everything upfront
+# costs ~15-20K extra tokens per turn — acceptable for our admin-only AI page.
+MCP_TOOL_SEARCH_CONFIG = {"enabled": False}
+
+# ---------------------------------------------------------------------------
+# AI Assistant page (admin-only chat at /ai-chat/)
+# Registers the Flask blueprint Superset will mount at app start. The page
+# itself is gated on admin role at request time inside the blueprint.
+# ---------------------------------------------------------------------------
+from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
+
+BLUEPRINTS = [_ai_chat_bp]
+
 # Landing page is wired in Python — see superset/views/landing.py and the
 # one-line swap in superset/initialization/__init__.py (configure_fab).

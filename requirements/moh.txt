@@ -17,3 +17,20 @@ asynch>=0.2.2
 # --- Production WSGI stack (not installed by default) ---
 gunicorn>=21.0.0
 gevent>=23.0.0
+
+# --- Compatibility pin ---
+# Superset 6.x source still references np.product (removed in numpy 2.0).
+# Pin numpy <2.0 until Apache patches superset/utils/pandas_postprocessing/utils.py.
+numpy<2.0
+
+# --- AI Assistant page (admin-only chat at /ai-chat/) ---
+# fastmcp powers the bundled MCP server (also pulled by Apache's
+# requirements/development.txt, listed here so a clean prod install gets it
+# even without the dev requirements file).
+fastmcp>=3.2.4,<4.0
+
+# LLM provider SDKs — load lazily at request time, picked by MOH_AI_PROVIDER
+# env var (gemini default, claude or openai also supported).
+google-genai>=1.0.0
+anthropic>=0.40.0
+openai>=1.50.0
