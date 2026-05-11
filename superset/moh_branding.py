@@ -102,7 +102,23 @@ MCP_TOOL_SEARCH_CONFIG = {"enabled": False}
 # ---------------------------------------------------------------------------
 from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
 
-BLUEPRINTS = [_ai_chat_bp]
+# ---------------------------------------------------------------------------
+# DHIS2 org-unit-tree adapter (read-only API under /api/v1/moh/dhis2/...)
+# Feeds the @dhis2/ui OrganisationUnitTree component used by the custom
+# Native Filter plugin. Defaults match the registered "MOH_Click_Hhouse"
+# Superset DB connection; override any of these in your config to retarget:
+#     MOH_ORG_UNITS_DB_NAME, MOH_ORG_UNITS_SCHEMA, MOH_ORG_UNITS_TABLE,
+#     MOH_ORG_UNITS_ROOT_LEVEL, MOH_ORG_UNITS_MAX_LEVEL
+# ---------------------------------------------------------------------------
+from superset.moh_orgunits_api import moh_orgunits_bp as _moh_orgunits_bp  # noqa: E402
+
+MOH_ORG_UNITS_DB_NAME = "MOH_Click_Hhouse"
+MOH_ORG_UNITS_SCHEMA = "moh"
+MOH_ORG_UNITS_TABLE = "org_units"
+MOH_ORG_UNITS_ROOT_LEVEL = 1  # 1 = Country (Ethiopia at the top of the tree)
+MOH_ORG_UNITS_MAX_LEVEL = 6   # 6 = Health Post (deepest level)
+
+BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp]
 
 # Landing page is wired in Python — see superset/views/landing.py and the
 # one-line swap in superset/initialization/__init__.py (configure_fab).
