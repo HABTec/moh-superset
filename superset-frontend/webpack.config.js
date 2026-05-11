@@ -503,7 +503,9 @@ const config = {
         },
       },
       {
-        test: /node_modules\/(geostyler|geostyler-openlayers-parser|geostyler-mapbox-parser|geostyler-sld-parser)\/.*\.js$/,
+        // Use [\\/] so this works on both POSIX (forward slashes) and Windows
+        // (backslashes) path separators — webpack passes the raw OS path here.
+        test: /node_modules[\\/](geostyler|geostyler-openlayers-parser|geostyler-mapbox-parser|geostyler-sld-parser)[\\/].*\.js$/,
         resolve: {
           fullySpecified: false,
         },

@@ -33,7 +33,7 @@ import os
 # ---------------------------------------------------------------------------
 SQLALCHEMY_DATABASE_URI = os.environ.get(
     "SUPERSET_DATABASE_URI",
-    "postgresql://superset:CHANGE_ME@localhost:5432/superset",
+    "postgresql://superset:root@localhost:5432/superset",
 )
 
 # ---------------------------------------------------------------------------
@@ -65,10 +65,18 @@ THUMBNAIL_CACHE_CONFIG = CACHE_CONFIG
 # Stores SQL Lab query results on the local filesystem. Override RESULTS_BACKEND
 # for distributed deploys (e.g. S3, GCS).
 from flask_caching.backends.filesystemcache import FileSystemCache  # noqa: E402
+import pathlib  # noqa: E402
 
-RESULTS_BACKEND = FileSystemCache(
-    os.environ.get("SUPERSET_RESULTS_DIR", "/var/lib/superset/sqllab")
-)
+# Default to a user-writable directory under $HOME so the config loads on dev
+# machines that don't have /var/lib/superset writable. Override via env var for
+# production (or use S3/GCS via a different backend).
+_default_results_dir = str(pathlib.Path.home() / ".superset" / "sqllab")
+SUPERSET_RESULTS_DIR = os.environ.get("SUPERSET_RESULTS_DIR", _default_results_dir)
+
+# Ensure the directory exists so FileSystemCache doesn't crash on init.
+pathlib.Path(SUPERSET_RESULTS_DIR).mkdir(parents=True, exist_ok=True)
+
+RESULTS_BACKEND = FileSystemCache(SUPERSET_RESULTS_DIR)
 
 # ---------------------------------------------------------------------------
 # Celery — for alerts, scheduled reports, async SQL Lab, thumbnails
