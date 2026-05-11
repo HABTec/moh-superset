@@ -139,3 +139,6 @@ PROJECT.md
 oxc-custom-build/
 *.code-workspace
 *.duckdb
+
+# Runtime Gemini key list (used by superset/moh_ai_chat.py)
+superset/.runtime_gemini_keys

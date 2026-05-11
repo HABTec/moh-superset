@@ -100,143 +100,97 @@ Edit `superset/moh_branding.py` once → both runtimes pick it up on next restar
 
 ## 3. Native Ubuntu installation (no Docker)
 
-Tested on Ubuntu 22.04 LTS. Adapt paths/users for your environment.
+Tested on Ubuntu 22.04 LTS. Run as your normal user (not root); use `sudo` where shown.
 
-### 3.1 System dependencies
+### 3.1 Install
+
+One copy-pasteable block — gets you from a fresh Ubuntu box to a runnable
+Superset, including the AI Assistant deps and Postgres metadata DB:
 
 ```bash
+# 1. System packages
 sudo apt update && sudo apt install -y \
   python3.11 python3.11-venv python3.11-dev \
   build-essential libssl-dev libffi-dev libsasl2-dev libldap2-dev \
   default-libmysqlclient-dev pkg-config \
-  postgresql postgresql-contrib redis-server \
-  git curl
-
-# Node 22 — needed only if you'll rebuild the frontend
+  postgresql postgresql-contrib redis-server git curl
+# Node 22 — only needed if you'll build the React SPA on this box
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
-```
 
-### 3.2 Postgres metadata database
-
-```bash
-sudo -u postgres psql <<'SQL'
-CREATE USER superset WITH PASSWORD 'CHANGE_ME_strong_password';
+# 2. Postgres user + db (set DB_PASS to a strong password before running)
+DB_PASS='CHANGE_ME_strong_password'
+sudo -u postgres psql <<SQL
+CREATE USER superset WITH PASSWORD '${DB_PASS}' CREATEDB;
 CREATE DATABASE superset OWNER superset;
 GRANT ALL PRIVILEGES ON DATABASE superset TO superset;
+\c superset
+GRANT ALL ON SCHEMA public TO superset;
 SQL
-```
 
-### 3.3 Clone the customized fork
-
-```bash
+# 3. Clone, venv, install
 cd ~
 git clone https://github.com/HABTec/moh-superset.git
-cd moh-superset
-git checkout moh-customizations
-```
-
-### 3.4 Python virtualenv + install
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+cd moh-superset && git checkout moh-customizations
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip uv
-
-# Apache extras: postgres + clickhouse (declared in pyproject.toml)
 uv pip install -e ".[postgres,clickhouse]"
+uv pip install -r requirements/moh.txt    # ClickHouse drivers + AI SDKs + numpy<2.0 + gunicorn
 
-# MoH-specific pins (ClickHouse drivers matching Open_ETL + production server)
-uv pip install -r requirements/moh.txt
-```
+# 4. Frontend build (skip if you only need the AI Assistant + landing page)
+( cd superset-frontend && npm ci && npm run build )
 
-### 3.5 Build the frontend (one-time + after JS changes)
-
-```bash
-cd superset-frontend
-npm ci
-npm run build           # outputs to ../superset/static/assets
-cd ..
-```
-
-### 3.6 Copy the config template & configure secrets
-
-The repo ships [`superset_config.example.py`](superset_config.example.py) as a
-template. Copy it to `superset_config.py` (gitignored locally so any hand-edits
-stay on the server) and let it read secrets from environment variables:
-
-```bash
+# 5. Config + env vars
 cp superset_config.example.py superset_config.py
-# Optionally edit superset_config.py — but the env-var defaults usually suffice.
-```
-
-Generate a strong secret key once and persist the env vars:
-
-```bash
 SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(42))")
-
 cat >> ~/.bashrc <<EOF
 
 # --- MoH Superset ---
-export SUPERSET_CONFIG_PATH=$HOME/moh-superset/superset_config.py
-export SUPERSET_SECRET_KEY="$SECRET"
-export SUPERSET_DATABASE_URI="postgresql://superset:CHANGE_ME_strong_password@localhost:5432/superset"
-export SUPERSET_REDIS_HOST=localhost
-export SUPERSET_REDIS_PORT=6379
+export SUPERSET_CONFIG_PATH=\$HOME/moh-superset/superset_config.py
 export FLASK_APP=superset
+export SUPERSET_SECRET_KEY="${SECRET}"
+export SUPERSET_DATABASE_URI="postgresql://superset:${DB_PASS}@localhost:5432/superset"
+export MCP_INTERNAL_URL=http://localhost:5008/mcp
+export MOH_PUBLIC_URL=http://localhost:8088/
+# AI provider — set the matching API key by hand below.
+export MOH_AI_PROVIDER=gemini      # or claude, openai
 EOF
-
+echo 'export GEMINI_API_KEY=AIza...' >> ~/.bashrc   # edit ~/.bashrc to paste the real key
 source ~/.bashrc
+
+# 6. Bootstrap the metadata DB
+superset db upgrade
+superset fab create-admin    # interactive
+superset init
 ```
 
-`superset_config.py` reads each `SUPERSET_*` env var with a safe default — no
-secrets ever land in source.
+### 3.2 Run
 
-### 3.7 Initialize Superset
+Two processes for dev/testing, four for full features (workers + beat handle
+alerts, scheduled reports, async SQL Lab, thumbnails). Each in its own terminal,
+each with `source ~/moh-superset/.venv/bin/activate` first:
 
 ```bash
-source ~/moh-superset/.venv/bin/activate
-cd ~/moh-superset
-
-superset db upgrade           # runs all migrations
-superset fab create-admin     # follow prompts to create the admin user
-superset init                 # creates roles & permissions
-# Optional, only if you want the example dashboards:
-# superset load-examples
-```
-
-### 3.8 Run
-
-**Quick start (dev mode, Flask dev server):**
-```bash
+# Web (terminal 1)
 superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
-```
 
-**Production (gunicorn):**
-```bash
-gunicorn \
-  --bind 0.0.0.0:8088 \
-  --workers 4 \
-  --timeout 120 \
-  --worker-class gevent \
-  "superset.app:create_app()"
-```
+# MCP server (terminal 2 — required for /ai-chat/)
+superset mcp run --host 127.0.0.1 --port 5008
 
-**Celery worker** (for alerts, scheduled reports, async SQL Lab, thumbnails) — separate terminal:
-```bash
-source ~/moh-superset/.venv/bin/activate
+# Celery worker (terminal 3, optional)
 celery -A superset.tasks.celery_app:app worker -O fair -c 4
-```
 
-**Celery beat** (scheduler) — separate terminal:
-```bash
+# Celery beat / scheduler (terminal 4, optional)
 celery -A superset.tasks.celery_app:app beat
 ```
 
-Open http://your-server-ip:8088. The MoH logo, primary color, and landing
-page should all be active.
+Open http://your-server-ip:8088 — the MoH logo and landing page should appear,
+and `/ai-chat/` is the AI Assistant.
 
-### 3.9 Production polish: systemd + nginx
+### 3.3 Production hardening: systemd + nginx
+
+For prod, replace the `superset run` dev server with gunicorn under
+systemd, and put nginx + TLS in front. Skip this for dev/test.
 
 **`/etc/systemd/system/superset.service`** (replace `youruser`):
 ```ini

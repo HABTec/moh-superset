@@ -70,10 +70,16 @@ def _gemini_api_key() -> str | None:
 def _gemini_api_keys() -> list[str]:
     """All Gemini API keys, in priority order.
 
-    Reads `GEMINI_API_KEY` (the primary) plus indexed extras `GEMINI_API_KEY_2`,
-    `GEMINI_API_KEY_3`, ... The runtime tries them in order; if a request fails
-    with a per-key rate-limit / quota error, it retries with the next key.
-    Returns [] if nothing is configured.
+    Sources, concatenated in order:
+    1. `GEMINI_API_KEY` env var (the primary)
+    2. Indexed extras: `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, ...
+    3. Runtime file `superset/.runtime_gemini_keys` — one key per line,
+       blank lines and `#` comments ignored. Editing this file takes effect
+       on the *next request* (no container restart needed) because the file
+       is read fresh every call.
+
+    The handler tries keys in order and rotates to the next on per-key
+    rate-limit / quota errors. Returns [] if nothing is configured.
     """
     keys: list[str] = []
     primary = os.environ.get("GEMINI_API_KEY")
@@ -86,6 +92,16 @@ def _gemini_api_keys() -> list[str]:
             break
         keys.append(k)
         i += 1
+    # Runtime keys file — adds keys without container restart.
+    runtime_file = os.path.join(os.path.dirname(__file__), ".runtime_gemini_keys")
+    try:
+        with open(runtime_file, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    keys.append(line)
+    except FileNotFoundError:
+        pass
     return keys
 
 
@@ -502,8 +518,9 @@ def _extract_text(response) -> str:  # type: ignore[no-untyped-def]
             "(2) Set MOH_AI_MODEL=gemini-2.5-pro in docker/.env-local for stricter "
             "schema handling. (3) Retry — sometimes the next attempt succeeds.)"
         )
-    return ("(model finished with tool calls only — likely hit the 12-call agent loop cap. "
-            "Try a more specific prompt with fewer required steps.)")
+    return ("(model finished with tool calls only — likely hit the 8-call agent loop cap. "
+            "Try a more specific prompt with fewer required steps, or switch provider for "
+            "chart-heavy workloads.)")
 
 
 async def _ask_gemini(prompt: str, history: list[dict]) -> str:
@@ -553,8 +570,12 @@ async def _ask_gemini(prompt: str, history: list[dict]) -> str:
                         config=types.GenerateContentConfig(
                             temperature=0,
                             tools=[session],
+                            # 8 caps the agent loop tight enough that a single key's
+                            # 10-RPM free-tier quota usually survives one full attempt.
+                            # Higher numbers let the model meander into more tool calls
+                            # and hammer the RPM limit, defeating rotation.
                             automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                                maximum_remote_calls=12,
+                                maximum_remote_calls=8,
                             ),
                         ),
                     )
