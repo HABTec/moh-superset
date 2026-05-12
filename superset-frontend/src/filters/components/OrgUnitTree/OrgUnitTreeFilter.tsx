@@ -102,9 +102,11 @@ export default function OrgUnitTreeFilter({
   const maxLevel = Number(formData.maxLevel || 6);
 
   const [treeData, setTreeData] = useState<Node[]>([]);
-  const [pending, setPending] = useState<OrgUnitSelection>(
-    filterState?.value || null,
-  );
+  // Rich object lives only in local state — what we send to Superset is a
+  // simple string array so the filter chip displays cleanly and the SQL
+  // WHERE clause uses the right names.
+  const [pending, setPending] = useState<OrgUnitSelection>(null);
+  const [applied, setApplied] = useState<OrgUnitSelection>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -166,7 +168,6 @@ export default function OrgUnitTreeFilter({
     setPending({ id: u.id, displayName: u.displayName.trim(), level: u.level });
   };
 
-  const applied = filterState?.value || null;
   const dirty = useMemo(
     () => JSON.stringify(pending) !== JSON.stringify(applied),
     [pending, applied],
@@ -174,10 +175,12 @@ export default function OrgUnitTreeFilter({
 
   const apply = () => {
     setDataMask(buildDataMask(pending));
+    setApplied(pending);
   };
 
   const clear = () => {
     setPending(null);
+    setApplied(null);
     setDataMask(buildDataMask(null));
   };
 
@@ -231,13 +234,17 @@ function buildDataMask(sel: OrgUnitSelection) {
     };
   }
   const dim = LEVEL_TO_DIM[sel.level];
+  // filterState.value MUST be a primitive (string / number / array of them)
+  // so Superset's filter chip renders it as text. Putting an object here
+  // makes the chip display "[object Object]".
+  const value: string[] = [sel.displayName];
   if (!dim) {
-    return { filterState: { value: sel }, extraFormData: { filters: [] } };
+    return { filterState: { value }, extraFormData: { filters: [] } };
   }
   return {
-    filterState: { value: sel },
+    filterState: { value },
     extraFormData: {
-      filters: [{ col: dim, op: 'IN', val: [sel.displayName] }],
+      filters: [{ col: dim, op: 'IN', val: value }],
     },
   };
 }
