@@ -24,7 +24,10 @@ VERSION_STRING = "MoH 6.0"
 APP_NAME = "MoH Analytics Portal"
 
 # Logo shown in the top-left of every Superset page.
-APP_ICON = "/static/assets/images/logomohnewww.png"
+# Served by superset/moh_assets.py from superset/templates/superset/ — that
+# directory survives `npm run build` (webpack cleans `static/assets/` but
+# leaves `templates/` alone), so the logo doesn't disappear after deploys.
+APP_ICON = "/moh-static/logomohnewww.png"
 APP_ICON_WIDTH = 150
 LOGO_TARGET_PATH = "/"
 LOGO_TOOLTIP = "MoH Analytics Portal"
@@ -118,7 +121,13 @@ MOH_ORG_UNITS_TABLE = "org_units"
 MOH_ORG_UNITS_ROOT_LEVEL = 2  # 2 = Region (start tree at the 14 Ethiopian regions)
 MOH_ORG_UNITS_MAX_LEVEL = 6   # 6 = Health Post (deepest level)
 
-BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp]
+# ---------------------------------------------------------------------------
+# Brand-asset blueprint — serves the MoH logo (and any future brand assets)
+# from a webpack-safe directory so they survive `npm run build`.
+# ---------------------------------------------------------------------------
+from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
+
+BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp, _moh_assets_bp]
 
 # Landing page is wired in Python — see superset/views/landing.py and the
 # one-line swap in superset/initialization/__init__.py (configure_fab).
