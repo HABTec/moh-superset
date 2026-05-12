@@ -36,7 +36,7 @@ const config: ControlPanelConfig = {
               type: 'TextControl',
               label: t('Root level'),
               description: t('Org unit level shown at the top of the tree (1 = Country, 2 = Region).'),
-              default: '1',
+              default: '2',
               isInt: true,
               renderTrigger: true,
             },

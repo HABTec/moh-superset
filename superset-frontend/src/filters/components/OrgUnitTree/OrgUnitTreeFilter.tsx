@@ -98,7 +98,7 @@ export default function OrgUnitTreeFilter({
   setDataMask,
 }: OrgUnitTreeFilterProps) {
   const apiBaseUrl = formData.apiBaseUrl || '/api/v1/moh/dhis2';
-  const rootLevel = Number(formData.rootLevel || 1);
+  const rootLevel = Number(formData.rootLevel || 2);   // 2 = Region (matches MOH_ORG_UNITS_ROOT_LEVEL)
   const maxLevel = Number(formData.maxLevel || 6);
 
   const [treeData, setTreeData] = useState<Node[]>([]);

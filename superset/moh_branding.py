@@ -115,7 +115,7 @@ from superset.moh_orgunits_api import moh_orgunits_bp as _moh_orgunits_bp  # noq
 MOH_ORG_UNITS_DB_NAME = "MOH_Click_Hhouse"
 MOH_ORG_UNITS_SCHEMA = "moh"
 MOH_ORG_UNITS_TABLE = "org_units"
-MOH_ORG_UNITS_ROOT_LEVEL = 1  # 1 = Country (Ethiopia at the top of the tree)
+MOH_ORG_UNITS_ROOT_LEVEL = 2  # 2 = Region (start tree at the 14 Ethiopian regions)
 MOH_ORG_UNITS_MAX_LEVEL = 6   # 6 = Health Post (deepest level)
 
 BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp]
