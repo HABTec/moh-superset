@@ -102,24 +102,38 @@ Edit `superset/moh_branding.py` once → both runtimes pick it up on next restar
 
 Tested on Ubuntu 22.04 LTS. Run as your normal user (not root); use `sudo` where shown.
 
-### 3.1 Install
+**Read the verification block after every step.** Skipping a verification is
+the #1 cause of "the install said success but the browser is stuck loading"
+problems. The most-skipped step is the **frontend build** — without it the
+React SPA never loads and every page is a blank spinner.
 
-One copy-pasteable block — gets you from a fresh Ubuntu box to a runnable
-Superset, including the AI Assistant deps and Postgres metadata DB:
+### 3.1 System packages
 
 ```bash
-# 1. System packages
 sudo apt update && sudo apt install -y \
   python3.11 python3.11-venv python3.11-dev \
   build-essential libssl-dev libffi-dev libsasl2-dev libldap2-dev \
   default-libmysqlclient-dev pkg-config \
   postgresql postgresql-contrib redis-server git curl
-# Node 22 — only needed if you'll build the React SPA on this box
+
+# Node 22 — REQUIRED. Even if you won't actively develop the React SPA,
+# you must build it once so the browser has assets to load.
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
+```
 
-# 2. Postgres user + db (set DB_PASS to a strong password before running)
-DB_PASS='CHANGE_ME_strong_password'
+**Verify:**
+```bash
+python3.11 --version    # Python 3.11.x
+node --version          # v22.x.x
+psql --version          # 14+
+redis-cli ping          # PONG
+```
+
+### 3.2 Postgres metadata DB
+
+```bash
+DB_PASS='CHANGE_ME_strong_password'   # pick a strong one, you'll reuse it
 sudo -u postgres psql <<SQL
 CREATE USER superset WITH PASSWORD '${DB_PASS}' CREATEDB;
 CREATE DATABASE superset OWNER superset;
@@ -127,22 +141,81 @@ GRANT ALL PRIVILEGES ON DATABASE superset TO superset;
 \c superset
 GRANT ALL ON SCHEMA public TO superset;
 SQL
+```
 
-# 3. Clone, venv, install
+**Verify:**
+```bash
+psql "postgresql://superset:${DB_PASS}@localhost:5432/superset" -c "SELECT 1;"
+# Should print "1" on a single row. If "password authentication failed":
+#   - re-check DB_PASS matches the CREATE USER line above
+#   - check /etc/postgresql/*/main/pg_hba.conf: local entries should be md5 not peer
+```
+
+### 3.3 Clone the fork and switch to your branch
+
+```bash
 cd ~
 git clone https://github.com/HABTec/moh-superset.git
-cd moh-superset && git checkout moh-customizations
-python3.11 -m venv .venv && source .venv/bin/activate
+cd moh-superset
+git checkout moh-customizations
+```
+
+**Verify:**
+```bash
+git log --oneline -1    # should show your most recent moh-customizations commit
+ls superset/moh_branding.py   # if this file is missing you cloned the wrong branch
+```
+
+### 3.4 Python venv + dependencies
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip uv
+
+# Apache extras
 uv pip install -e ".[postgres,clickhouse]"
-uv pip install -r requirements/moh.txt    # ClickHouse drivers + AI SDKs + numpy<2.0 + gunicorn
 
-# 4. Frontend build (skip if you only need the AI Assistant + landing page)
-( cd superset-frontend && npm ci && npm run build )
+# MoH additions (ClickHouse drivers + AI SDKs + numpy<2.0 + gunicorn)
+uv pip install -r requirements/moh.txt
+```
 
-# 5. Config + env vars
-cp superset_config.example.py superset_config.py
+**Verify:**
+```bash
+which python    # should print .../moh-superset/.venv/bin/python
+which superset  # same .venv path
+python -c "import superset; print(superset.__file__)"   # should be in .venv/lib/.../superset/
+```
+
+### 3.5 Frontend build — **REQUIRED**, do not skip
+
+This step compiles the React SPA. Skipping it = every page in the browser is
+a blank spinner because the JS bundles don't exist. Takes 5-10 min on a
+reasonably-sized VM.
+
+```bash
+cd ~/moh-superset/superset-frontend
+npm install     # (or: npm ci, if package-lock.json is present and unmodified)
+# If your VM has < 4 GB RAM, bump Node's heap limit before building:
+#   export NODE_OPTIONS=--max-old-space-size=4096
+npm run build
+cd ~/moh-superset
+```
+
+**Verify (the most important verification in this entire guide):**
+```bash
+ls superset/static/assets/ | head -5
+# Should list many built files including chunk-*.js and a manifest.json. If it
+# prints nothing or "No such file or directory", the build failed silently —
+# re-run npm run build and watch the output for the actual error.
+```
+
+### 3.6 Config file + secrets
+
+```bash
+cp superset_config.example.py superset_config.py    # template → live config
 SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(42))")
+
 cat >> ~/.bashrc <<EOF
 
 # --- MoH Superset ---
@@ -150,44 +223,84 @@ export SUPERSET_CONFIG_PATH=\$HOME/moh-superset/superset_config.py
 export FLASK_APP=superset
 export SUPERSET_SECRET_KEY="${SECRET}"
 export SUPERSET_DATABASE_URI="postgresql://superset:${DB_PASS}@localhost:5432/superset"
+# Optional — only if you'll use the AI Assistant at /ai-chat/
 export MCP_INTERNAL_URL=http://localhost:5008/mcp
 export MOH_PUBLIC_URL=http://localhost:8088/
-# AI provider — set the matching API key by hand below.
-export MOH_AI_PROVIDER=gemini      # or claude, openai
+export MOH_AI_PROVIDER=gemini       # or claude, openai
+# Set the matching API key by hand:
+# export GEMINI_API_KEY=AIza...
 EOF
-echo 'export GEMINI_API_KEY=AIza...' >> ~/.bashrc   # edit ~/.bashrc to paste the real key
 source ~/.bashrc
-
-# 6. Bootstrap the metadata DB
-superset db upgrade
-superset fab create-admin    # interactive
-superset init
 ```
 
-### 3.2 Run
+**Verify:**
+```bash
+echo $SUPERSET_CONFIG_PATH      # should print /home/.../moh-superset/superset_config.py
+echo $FLASK_APP                  # should print "superset"
+test -f "$SUPERSET_CONFIG_PATH" && echo OK || echo FAIL
+python -c "exec(open('$SUPERSET_CONFIG_PATH').read()); print('config loads OK')"
+```
 
-Two processes for dev/testing, four for full features (workers + beat handle
-alerts, scheduled reports, async SQL Lab, thumbnails). Each in its own terminal,
-each with `source ~/moh-superset/.venv/bin/activate` first:
+### 3.7 Bootstrap the metadata DB + create admin
 
 ```bash
-# Web (terminal 1)
-superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
-
-# MCP server (terminal 2 — required for /ai-chat/)
-superset mcp run --host 127.0.0.1 --port 5008
-
-# Celery worker (terminal 3, optional)
-celery -A superset.tasks.celery_app:app worker -O fair -c 4
-
-# Celery beat / scheduler (terminal 4, optional)
-celery -A superset.tasks.celery_app:app beat
+superset db upgrade           # creates all metadata tables — takes 30-60s
+superset fab create-admin     # interactive: pick username, password, email
+superset init                 # populates roles & permissions
 ```
 
-Open http://your-server-ip:8088 — the MoH logo and landing page should appear,
-and `/ai-chat/` is the AI Assistant.
+**Verify:**
+```bash
+psql "$SUPERSET_DATABASE_URI" -c "\dt" | head -20
+# Should list many tables: dashboards, slices, tables, ab_user, ...
 
-### 3.3 Production hardening: systemd + nginx
+psql "$SUPERSET_DATABASE_URI" -c "SELECT username FROM ab_user;"
+# Should show the admin user you just created.
+```
+
+### 3.8 Run
+
+```bash
+# Web (terminal 1) — Flask dev server, picks up Python file changes via watchdog
+source ~/moh-superset/.venv/bin/activate
+superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+```
+
+Wait for `* Running on http://0.0.0.0:8088` in the log.
+
+**Verify (in another terminal):**
+```bash
+curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:8088/health
+# Expected: HTTP 200
+
+curl -sS http://127.0.0.1:8088/static/assets/manifest.json | head -c 80
+# Expected: a JSON snippet starting with {"entrypoints" or similar. If "404 Not Found",
+# section 3.5 (frontend build) did not actually produce assets — go back and re-run.
+```
+
+**Open the browser** to `http://your-vm-ip:8088`:
+- Should show MoH logo + branded login → log in with the admin user → land on the MoH dashboard tiles
+- If it shows an **infinite spinner**: frontend assets are missing. Re-run section 3.5.
+
+### 3.9 Optional supporting services
+
+These extend Superset but are NOT required for the web UI to render:
+
+```bash
+# Celery worker — runs alerts, scheduled reports, async SQL Lab, thumbnails
+celery -A superset.tasks.celery_app:app worker -O fair -c 4
+
+# Celery beat — schedule poller (run alongside the worker)
+celery -A superset.tasks.celery_app:app beat
+
+# MCP server — required only if you'll use the AI Assistant page at /ai-chat/
+superset mcp run --host 127.0.0.1 --port 5008
+```
+
+Open http://your-vm-ip:8088. The MoH branded login, landing page, and dashboards
+should all render. `/ai-chat/` is the AI Assistant (admin-only).
+
+### 3.10 Production hardening: systemd + nginx
 
 For prod, replace the `superset run` dev server with gunicorn under
 systemd, and put nginx + TLS in front. Skip this for dev/test.
@@ -336,6 +449,9 @@ Edit [superset/moh_branding.py](superset/moh_branding.py). Restart Superset:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| Browser stuck on infinite loading spinner, blank page; `curl /health` returns 200 | Frontend assets were never built — `superset/static/assets/` is empty | Run section 3.5: `cd superset-frontend && npm install && npm run build`. Verify with `ls superset/static/assets/ \| head -5`. Restart `superset run` after the build completes |
+| 404 on `/static/assets/manifest.json` | Same as above — no built frontend bundle | See above |
+| `superset run` succeeds but no `/static/assets/` directory exists | `npm run build` was never run, or it errored silently | Re-run with `cd superset-frontend && npm run build 2>&1 \| tee build.log` and read `build.log` for the actual failure |
 | Logo still shows Superset default | Browser cache, or `THEME_DEFAULT` not re-seeded | Hard-refresh; restart `superset` container/service |
 | `Can't load plugin: sqlalchemy.dialects:clickhousedb.connect` | ClickHouse drivers not installed | `uv pip install -r requirements/moh.txt` (or `docker exec ... uv pip install ...` for runtime fix) |
 | `AttributeError: 'NoneType' object has no attribute 'database_after_insert'` | Importing a view too early during FAB setup | Don't import from `superset.views.*` inside `configure_fab()` — use top-level modules like `superset.landing_view` |
