@@ -102,11 +102,12 @@ export default function OrgUnitTreeFilter({
   const maxLevel = Number(formData.maxLevel || 6);
 
   const [treeData, setTreeData] = useState<Node[]>([]);
-  // Rich object lives only in local state — what we send to Superset is a
-  // simple string array so the filter chip displays cleanly and the SQL
-  // WHERE clause uses the right names.
-  const [pending, setPending] = useState<OrgUnitSelection>(null);
-  const [applied, setApplied] = useState<OrgUnitSelection>(null);
+  // Multi-select: pending/applied are arrays of selections. Rich objects
+  // (with id + level) live only in local state — what we send to Superset
+  // is a simple string array per dimension so the filter chip displays
+  // cleanly and dataset SQL gets the right WHERE clauses.
+  const [pending, setPending] = useState<OrgUnitSelection[]>([]);
+  const [applied, setApplied] = useState<OrgUnitSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -163,9 +164,17 @@ export default function OrgUnitTreeFilter({
   );
 
   // -- handlers -------------------------------------------------------------
-  const onSelect = (_: any, info: { node: Node }) => {
-    const u = info.node.unit;
-    setPending({ id: u.id, displayName: u.displayName.trim(), level: u.level });
+  // AntD Tree's onCheck gives us the full node objects when checkStrictly is on,
+  // which is what we need to extract level + displayName per selection.
+  const onCheck = (_: any, info: { checkedNodes: Node[] }) => {
+    const sels: OrgUnitSelection[] = info.checkedNodes
+      .filter(n => n.unit)
+      .map(n => ({
+        id: n.unit.id,
+        displayName: n.unit.displayName.trim(),
+        level: n.unit.level,
+      }));
+    setPending(sels);
   };
 
   const dirty = useMemo(
@@ -179,17 +188,23 @@ export default function OrgUnitTreeFilter({
   };
 
   const clear = () => {
-    setPending(null);
-    setApplied(null);
-    setDataMask(buildDataMask(null));
+    setPending([]);
+    setApplied([]);
+    setDataMask(buildDataMask([]));
   };
+
+  const checkedKeys = useMemo(() => pending.map(p => p.id), [pending]);
 
   return (
     <Wrapper>
       <Header>{t('Org unit')}</Header>
-      {pending && (
+      {pending.length > 0 && (
         <Selected>
-          {pending.displayName} · L{pending.level}
+          {pending.length === 1
+            ? `${pending[0].displayName} · L${pending[0].level}`
+            : `${pending.length} selected: ${pending
+                .map(s => s.displayName)
+                .join(', ')}`}
         </Selected>
       )}
       <TreeBox>
@@ -199,15 +214,23 @@ export default function OrgUnitTreeFilter({
           <Tree
             treeData={treeData}
             loadData={loadChildren as any}
-            selectedKeys={pending ? [pending.id] : []}
-            onSelect={onSelect}
+            // Checkbox-based multi-select; checkStrictly so parent/child are
+            // independent (checking a region does NOT auto-check its zones).
+            checkable
+            checkStrictly
+            checkedKeys={{ checked: checkedKeys, halfChecked: [] }}
+            onCheck={onCheck as any}
             blockNode
             showLine
           />
         )}
       </TreeBox>
       <Actions>
-        <Button size="small" onClick={clear} disabled={!applied && !pending}>
+        <Button
+          size="small"
+          onClick={clear}
+          disabled={applied.length === 0 && pending.length === 0}
+        >
           {t('Clear')}
         </Button>
         <Button
@@ -225,27 +248,44 @@ export default function OrgUnitTreeFilter({
 
 // ----------------------------------------------------------------------------
 
-function buildDataMask(sel: OrgUnitSelection) {
-  if (!sel || sel.level <= 1) {
-    // Country / no selection → clear all org-unit filters
+function buildDataMask(sels: OrgUnitSelection[]) {
+  if (!sels || sels.length === 0) {
     return {
       filterState: { value: null },
       extraFormData: { filters: [] },
     };
   }
-  const dim = LEVEL_TO_DIM[sel.level];
-  // filterState.value MUST be a primitive (string / number / array of them)
-  // so Superset's filter chip renders it as text. Putting an object here
-  // makes the chip display "[object Object]".
-  const value: string[] = [sel.displayName];
-  if (!dim) {
-    return { filterState: { value }, extraFormData: { filters: [] } };
+
+  // Group selections by their dimension (level → region/zone/.../health_post).
+  // Country (level 1) is the implicit "all" and contributes nothing.
+  const byDim: Record<string, string[]> = {};
+  const labels: string[] = [];
+  for (const s of sels) {
+    if (s.level <= 1) continue;
+    const dim = LEVEL_TO_DIM[s.level];
+    if (!dim) continue;
+    (byDim[dim] = byDim[dim] || []).push(s.displayName);
+    labels.push(s.displayName);
   }
+
+  if (labels.length === 0) {
+    return {
+      filterState: { value: null },
+      extraFormData: { filters: [] },
+    };
+  }
+
+  // One filter clause per dimension. The dataset SQL reads each via
+  // filter_values('region') / filter_values('zone') / etc.
+  const filters = Object.entries(byDim).map(([col, val]) => ({
+    col,
+    op: 'IN',
+    val,
+  }));
+
   return {
-    filterState: { value },
-    extraFormData: {
-      filters: [{ col: dim, op: 'IN', val: value }],
-    },
+    filterState: { value: labels },
+    extraFormData: { filters },
   };
 }
 

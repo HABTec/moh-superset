@@ -20,18 +20,20 @@ export type OrgUnitTreeFormData = {
   maxLevel?: number;   // default 6
 };
 
-/** Local state — the node currently selected (pending or applied). */
+/** Local state — one checked node (rich info kept only in component state). */
 export type OrgUnitSelection = {
   id: string;
   displayName: string;
   level: number;
-} | null;
+};
 
 export type OrgUnitTreeFilterProps = PluginFilterStylesProps & {
   formData: OrgUnitTreeFormData;
-  filterState: { value?: OrgUnitSelection };
+  // Superset persists filterState.value as the flat list of selected names
+  // for the chip display. Component holds the rich array separately.
+  filterState: { value?: string[] | null };
   setDataMask: (dataMask: {
-    filterState?: { value?: OrgUnitSelection };
+    filterState?: { value?: string[] | null };
     extraFormData?: { filters?: Array<{ col: string; op: string; val: string[] }> };
   }) => void;
 };
