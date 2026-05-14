@@ -19,11 +19,7 @@
  */
 import { t } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
-import {
-  Button,
-  Tree,
-  type TreeDataNode,
-} from '@superset-ui/core/components';
+import { Tree, type TreeDataNode } from '@superset-ui/core/components';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
@@ -44,13 +40,6 @@ const Wrapper = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 8px;
-`;
-
-const Header = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colorTextSecondary};
-  padding: 0 4px;
 `;
 
 const TreeBox = styled.div`
@@ -61,20 +50,6 @@ const TreeBox = styled.div`
   border-radius: 6px;
   padding: 6px 4px;
   background: ${({ theme }) => theme.colorBgContainer};
-`;
-
-const Actions = styled.div`
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-`;
-
-const Selected = styled.div`
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: ${({ theme }) => theme.colorPrimaryBg};
-  color: ${({ theme }) => theme.colorPrimaryText};
 `;
 
 type Node = TreeDataNode & {
@@ -102,12 +77,11 @@ export default function OrgUnitTreeFilter({
   const maxLevel = Number(formData.maxLevel || 6);
 
   const [treeData, setTreeData] = useState<Node[]>([]);
-  // Multi-select: pending/applied are arrays of selections. Rich objects
-  // (with id + level) live only in local state — what we send to Superset
-  // is a simple string array per dimension so the filter chip displays
-  // cleanly and dataset SQL gets the right WHERE clauses.
-  const [pending, setPending] = useState<OrgUnitSelection[]>([]);
-  const [applied, setApplied] = useState<OrgUnitSelection[]>([]);
+  // Rich objects (with id + level) live only in local state. setDataMask is
+  // called immediately on every check change — Superset's native filter
+  // sidebar provides the global Apply / Clear buttons, so the plugin no
+  // longer needs its own pending/applied tracking or buttons.
+  const [selected, setSelected] = useState<OrgUnitSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -164,8 +138,8 @@ export default function OrgUnitTreeFilter({
   );
 
   // -- handlers -------------------------------------------------------------
-  // AntD Tree's onCheck gives us the full node objects when checkStrictly is on,
-  // which is what we need to extract level + displayName per selection.
+  // Commit on every check change. Superset's native filter sidebar has its
+  // own global Apply / Clear buttons that batch and dispatch dataMasks.
   const onCheck = (_: any, info: { checkedNodes: Node[] }) => {
     const sels: OrgUnitSelection[] = info.checkedNodes
       .filter(n => n.unit)
@@ -174,39 +148,14 @@ export default function OrgUnitTreeFilter({
         displayName: n.unit.displayName.trim(),
         level: n.unit.level,
       }));
-    setPending(sels);
+    setSelected(sels);
+    setDataMask(buildDataMask(sels));
   };
 
-  const dirty = useMemo(
-    () => JSON.stringify(pending) !== JSON.stringify(applied),
-    [pending, applied],
-  );
-
-  const apply = () => {
-    setDataMask(buildDataMask(pending));
-    setApplied(pending);
-  };
-
-  const clear = () => {
-    setPending([]);
-    setApplied([]);
-    setDataMask(buildDataMask([]));
-  };
-
-  const checkedKeys = useMemo(() => pending.map(p => p.id), [pending]);
+  const checkedKeys = useMemo(() => selected.map(s => s.id), [selected]);
 
   return (
     <Wrapper>
-      <Header>{t('Org unit')}</Header>
-      {pending.length > 0 && (
-        <Selected>
-          {pending.length === 1
-            ? `${pending[0].displayName} · L${pending[0].level}`
-            : `${pending.length} selected: ${pending
-                .map(s => s.displayName)
-                .join(', ')}`}
-        </Selected>
-      )}
       <TreeBox>
         {loading && t('Loading…')}
         {error && <div style={{ color: 'red' }}>{error}</div>}
@@ -225,23 +174,6 @@ export default function OrgUnitTreeFilter({
           />
         )}
       </TreeBox>
-      <Actions>
-        <Button
-          size="small"
-          onClick={clear}
-          disabled={applied.length === 0 && pending.length === 0}
-        >
-          {t('Clear')}
-        </Button>
-        <Button
-          size="small"
-          type="primary"
-          onClick={apply}
-          disabled={!dirty}
-        >
-          {t('Apply')}
-        </Button>
-      </Actions>
     </Wrapper>
   );
 }
