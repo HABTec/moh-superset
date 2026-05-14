@@ -68,8 +68,11 @@ FEATURE_FLAGS = {
     "ALERT_REPORTS": True,
     "DATASET_FOLDERS": True,
     "ENABLE_TEMPLATE_PROCESSING": True,
+    "ENABLE_JAVASCRIPT_CONTROLS": True,
+    "EMBEDDED_SUPERSET": True,
+    "ENABLE_GEOCODE": True,
+    "GUEST_TOKEN_JWT_ALGO": "HS256",
 }
-
 # ---------------------------------------------------------------------------
 # MCP server (dev mode)
 # ---------------------------------------------------------------------------

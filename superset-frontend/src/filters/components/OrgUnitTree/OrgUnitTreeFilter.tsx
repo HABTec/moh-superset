@@ -19,11 +19,7 @@
  */
 import { t } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
-import {
-  Button,
-  Tree,
-  type TreeDataNode,
-} from '@superset-ui/core/components';
+import { Tree, type TreeDataNode } from '@superset-ui/core/components';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
@@ -44,13 +40,6 @@ const Wrapper = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 8px;
-`;
-
-const Header = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colorTextSecondary};
-  padding: 0 4px;
 `;
 
 const TreeBox = styled.div`
@@ -61,20 +50,6 @@ const TreeBox = styled.div`
   border-radius: 6px;
   padding: 6px 4px;
   background: ${({ theme }) => theme.colorBgContainer};
-`;
-
-const Actions = styled.div`
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-`;
-
-const Selected = styled.div`
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: ${({ theme }) => theme.colorPrimaryBg};
-  color: ${({ theme }) => theme.colorPrimaryText};
 `;
 
 type Node = TreeDataNode & {
@@ -102,11 +77,11 @@ export default function OrgUnitTreeFilter({
   const maxLevel = Number(formData.maxLevel || 6);
 
   const [treeData, setTreeData] = useState<Node[]>([]);
-  // Rich object lives only in local state — what we send to Superset is a
-  // simple string array so the filter chip displays cleanly and the SQL
-  // WHERE clause uses the right names.
-  const [pending, setPending] = useState<OrgUnitSelection>(null);
-  const [applied, setApplied] = useState<OrgUnitSelection>(null);
+  // Rich objects (with id + level) live only in local state. setDataMask is
+  // called immediately on every check change — Superset's native filter
+  // sidebar provides the global Apply / Clear buttons, so the plugin no
+  // longer needs its own pending/applied tracking or buttons.
+  const [selected, setSelected] = useState<OrgUnitSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -163,35 +138,24 @@ export default function OrgUnitTreeFilter({
   );
 
   // -- handlers -------------------------------------------------------------
-  const onSelect = (_: any, info: { node: Node }) => {
-    const u = info.node.unit;
-    setPending({ id: u.id, displayName: u.displayName.trim(), level: u.level });
+  // Commit on every check change. Superset's native filter sidebar has its
+  // own global Apply / Clear buttons that batch and dispatch dataMasks.
+  const onCheck = (_: any, info: { checkedNodes: Node[] }) => {
+    const sels: OrgUnitSelection[] = info.checkedNodes
+      .filter(n => n.unit)
+      .map(n => ({
+        id: n.unit.id,
+        displayName: n.unit.displayName.trim(),
+        level: n.unit.level,
+      }));
+    setSelected(sels);
+    setDataMask(buildDataMask(sels));
   };
 
-  const dirty = useMemo(
-    () => JSON.stringify(pending) !== JSON.stringify(applied),
-    [pending, applied],
-  );
-
-  const apply = () => {
-    setDataMask(buildDataMask(pending));
-    setApplied(pending);
-  };
-
-  const clear = () => {
-    setPending(null);
-    setApplied(null);
-    setDataMask(buildDataMask(null));
-  };
+  const checkedKeys = useMemo(() => selected.map(s => s.id), [selected]);
 
   return (
     <Wrapper>
-      <Header>{t('Org unit')}</Header>
-      {pending && (
-        <Selected>
-          {pending.displayName} · L{pending.level}
-        </Selected>
-      )}
       <TreeBox>
         {loading && t('Loading…')}
         {error && <div style={{ color: 'red' }}>{error}</div>}
@@ -199,53 +163,61 @@ export default function OrgUnitTreeFilter({
           <Tree
             treeData={treeData}
             loadData={loadChildren as any}
-            selectedKeys={pending ? [pending.id] : []}
-            onSelect={onSelect}
+            // Checkbox-based multi-select; checkStrictly so parent/child are
+            // independent (checking a region does NOT auto-check its zones).
+            checkable
+            checkStrictly
+            checkedKeys={{ checked: checkedKeys, halfChecked: [] }}
+            onCheck={onCheck as any}
             blockNode
             showLine
           />
         )}
       </TreeBox>
-      <Actions>
-        <Button size="small" onClick={clear} disabled={!applied && !pending}>
-          {t('Clear')}
-        </Button>
-        <Button
-          size="small"
-          type="primary"
-          onClick={apply}
-          disabled={!dirty}
-        >
-          {t('Apply')}
-        </Button>
-      </Actions>
     </Wrapper>
   );
 }
 
 // ----------------------------------------------------------------------------
 
-function buildDataMask(sel: OrgUnitSelection) {
-  if (!sel || sel.level <= 1) {
-    // Country / no selection → clear all org-unit filters
+function buildDataMask(sels: OrgUnitSelection[]) {
+  if (!sels || sels.length === 0) {
     return {
       filterState: { value: null },
       extraFormData: { filters: [] },
     };
   }
-  const dim = LEVEL_TO_DIM[sel.level];
-  // filterState.value MUST be a primitive (string / number / array of them)
-  // so Superset's filter chip renders it as text. Putting an object here
-  // makes the chip display "[object Object]".
-  const value: string[] = [sel.displayName];
-  if (!dim) {
-    return { filterState: { value }, extraFormData: { filters: [] } };
+
+  // Group selections by their dimension (level → region/zone/.../health_post).
+  // Country (level 1) is the implicit "all" and contributes nothing.
+  const byDim: Record<string, string[]> = {};
+  const labels: string[] = [];
+  for (const s of sels) {
+    if (s.level <= 1) continue;
+    const dim = LEVEL_TO_DIM[s.level];
+    if (!dim) continue;
+    (byDim[dim] = byDim[dim] || []).push(s.displayName);
+    labels.push(s.displayName);
   }
+
+  if (labels.length === 0) {
+    return {
+      filterState: { value: null },
+      extraFormData: { filters: [] },
+    };
+  }
+
+  // One filter clause per dimension. The dataset SQL reads each via
+  // filter_values('region') / filter_values('zone') / etc.
+  const filters = Object.entries(byDim).map(([col, val]) => ({
+    col,
+    op: 'IN',
+    val,
+  }));
+
   return {
-    filterState: { value },
-    extraFormData: {
-      filters: [{ col: dim, op: 'IN', val: value }],
-    },
+    filterState: { value: labels },
+    extraFormData: { filters },
   };
 }
 
