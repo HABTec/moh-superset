@@ -603,13 +603,21 @@ async def _ask_gemini(prompt: str, history: list[dict]) -> str:
 
 @ai_chat_bp.route("/ai-chat/")
 def ai_chat_page() -> FlaskResponse:
-    """Serve the chat UI (HTML page)."""
+    """Serve the AI Assistant page.
+
+    The page is now an iframe wrapper around an external AI service whose URL
+    comes from the MOH_AI_IFRAME_URL env var. Set it in your config / systemd
+    EnvironmentFile / .env-local to point at the service you want embedded.
+
+    The old MCP-driven chat handlers (/ai-chat/api/message) are still
+    registered below; nothing prevents you from swapping back to them later.
+    """
     if (denied := _require_admin()) is not None:
         return denied
     return render_template(
         "superset/ai_chat.html",
-        # Backwards-compatible name: the template still calls this gemini_model,
-        # but it now shows whichever model is active (Gemini *or* Claude).
+        iframe_url=os.environ.get("MOH_AI_IFRAME_URL", ""),
+        # Kept for backwards compatibility with anything that still reads them
         gemini_model=_provider_display_label(),
         gemini_configured=_provider_configured(),
         ai_provider=_ai_provider(),
