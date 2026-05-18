@@ -42,10 +42,10 @@
     }
     header.topbar .back:hover { text-decoration: underline; }
 
-    iframe.ai-frame {
+   iframe.ai-frame {
       display: block;
-      width: 100%;
-      height: calc(100vh - 60px);
+      width: 90%;
+      height: 90%;
       border: 0;
     }
 
@@ -60,6 +60,13 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+    .iframe-container {
+      width: 100%;
+      height: calc(100vh - 60px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -71,6 +78,7 @@
 </header>
 
 {% if iframe_url %}
+<div class="iframe-container">
   <iframe
     class="ai-frame"
     src="{{ iframe_url }}"
@@ -78,6 +86,7 @@
     referrerpolicy="strict-origin-when-cross-origin"
     title="AI Assistant"
   ></iframe>
+</div>
 {% else %}
   <div class="placeholder">
     <h2>AI Assistant not configured</h2>
