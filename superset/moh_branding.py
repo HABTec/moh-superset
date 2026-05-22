@@ -35,7 +35,9 @@ APP_ICON_WIDTH = 150
 LOGO_TARGET_PATH = "/"
 LOGO_TOOLTIP = "MoH Analytics Portal"
 LOGO_RIGHT_TEXT = ""
-# FAVICONS = [{"href": "/static/assets/images/logomohnewww.png"}]
+# Favicon shown in browser tabs. Use the same webpack-safe static path
+# as the spinner so it survives `npm run build`.
+FAVICONS = [{"href": "/moh-static/moh_icon.png"}]
 
 # ---------------------------------------------------------------------------
 # Theme — extends Apache's THEME_DEFAULT so we don't lose any built-in tokens.
