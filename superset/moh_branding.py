@@ -49,6 +49,11 @@ _MOH_BRAND_TOKENS = {
     "brandAppName":    APP_NAME,
     "brandLogoHref":   "/",
     "brandLogoHeight": "32px",
+    # Loading spinner — shown while pages / dashboards / charts are loading.
+    # Setting brandSpinnerUrl replaces Superset's default animated spinner
+    # with the MoH icon. Served by superset/moh_assets.py from a webpack-safe
+    # location so it survives `npm run build`.
+    "brandSpinnerUrl": "/moh-static/moh_icon.png",
     # MoH primary colour — applies to buttons, links, active states everywhere
     "colorPrimary":    "#1a5cff",
     "colorLink":       "#1a5cff",
