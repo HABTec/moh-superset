@@ -49,6 +49,11 @@ _MOH_BRAND_TOKENS = {
     "brandAppName":    APP_NAME,
     "brandLogoHref":   "/",
     "brandLogoHeight": "32px",
+    # Loading spinner — shown while pages / dashboards / charts are loading.
+    # Setting brandSpinnerUrl replaces Superset's default animated spinner
+    # with the MoH icon. Served by superset/moh_assets.py from a webpack-safe
+    # location so it survives `npm run build`.
+    "brandSpinnerUrl": "/moh-static/moh_icon.png",
     # MoH primary colour — applies to buttons, links, active states everywhere
     "colorPrimary":    "#1a5cff",
     "colorLink":       "#1a5cff",
@@ -76,7 +81,9 @@ FEATURE_FLAGS = {
     "ENABLE_GEOCODE": True,
     "GUEST_TOKEN_JWT_ALGO": "HS256",
 }
-_MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN", "http://192.168.0.136:3000")
+# Both are env-driven, no hardcoded fallbacks — set them in docker/.env-local
+# (for compose) or systemd EnvironmentFile / shell export (for native).
+_MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN")
 _MOH_AI_IFRAME_URL = _os.environ.get("MOH_AI_IFRAME_URL")
 
 def _origin_of(url: str | None) -> str | None:
