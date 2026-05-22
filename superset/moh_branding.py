@@ -17,6 +17,9 @@ from superset.config import (
     THEME_DEFAULT as _APACHE_THEME_DEFAULT,
 )
 
+import os as _os
+from urllib.parse import urlparse as _urlparse
+
 # ---------------------------------------------------------------------------
 # Version & app identity
 # ---------------------------------------------------------------------------
@@ -73,6 +76,41 @@ FEATURE_FLAGS = {
     "ENABLE_GEOCODE": True,
     "GUEST_TOKEN_JWT_ALGO": "HS256",
 }
+_MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN", "http://192.168.0.136:3000")
+_MOH_AI_IFRAME_URL = _os.environ.get("MOH_AI_IFRAME_URL")
+
+def _origin_of(url: str | None) -> str | None:
+    if not url:
+        return None
+    p = _urlparse(url)
+    if p.scheme and p.netloc:
+        return f"{p.scheme}://{p.netloc}"
+    # fallback: return the raw value (may already be an origin)
+    return url
+
+_MOH_CSP_DEV_ORIGIN = _origin_of(_MOH_CSP_DEV_ORIGIN)
+_MOH_AI_IFRAME_ORIGIN = _origin_of(_MOH_AI_IFRAME_URL)
+
+# Combine dev origin and optional AI iframe origin into lists used by the
+# content security policy. This lets you set MOH_CSP_DEV_ORIGIN for local
+# webpack/dev servers and/or MOH_AI_IFRAME_URL for an embedded AI service.
+_MOH_CSP_EXTRA_ORIGINS = [o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o]
+
+TALISMAN_DEV_CONFIG = {
+    "force_https": False,
+    "session_cookie_secure": False,
+    "content_security_policy": {
+        "default-src": ["'self'"],
+        "img-src": ["'self'", "data:"] + _MOH_CSP_EXTRA_ORIGINS,
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        "font-src": ["'self'", "data:"],
+        "frame-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
+        "frame-ancestors": ["'self'"],
+        "connect-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
+        "worker-src": ["'self'", "blob:"],
+    },
+}
 # ---------------------------------------------------------------------------
 # MCP server (dev mode)
 # ---------------------------------------------------------------------------
@@ -84,7 +122,6 @@ MCP_DEV_USERNAME = "admin"
 # (docker/pythonpath_dev/superset_config.py) hardcodes localhost:8888, which is
 # unreachable from the user's browser when SUPERSET_PORT is overridden.
 # Override here so the AI Assistant returns clickable links.
-import os as _os  # noqa: E402
 
 WEBDRIVER_BASEURL_USER_FRIENDLY = _os.environ.get(
     "MOH_PUBLIC_URL", "http://localhost:8090/"

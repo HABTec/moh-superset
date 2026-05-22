@@ -23,9 +23,12 @@ _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
     "data quality":  ("Report completeness & timeliness", "quality"),
     "monthly":       ("Monthly reported indicators", "monthly"),
     "quarterly":     ("Quarterly reported indicators", "quarterly"),
+    # NOTE: "triangulation" matches BEFORE "multi source" — order matters because
+    # `_tab_decor` returns on first substring match. Keep triangulation above
+    # multi-source so dashboards with both tabs get distinct icons.
+    "triangulation": ("Cross-source comparison", "triangulation"),
     "multi-source":  ("Different data sources", "multi-source"),
     "multi source":  ("Different data sources", "multi-source"),
-    "triangulation": ("Different data sources", "multi-source"),
     "annual":        ("Annual reported indicators", "quarterly"),
     "yearly":        ("Yearly reported indicators", "quarterly"),
 }
@@ -35,9 +38,9 @@ _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
 # tab title; value is the replacement title shown in the tile heading AND
 # the "View ..." link. Lets users keep their existing tab names in the
 # dashboard while presenting friendlier wording on the landing.
-_TAB_TITLE_OVERRIDES: dict[str, str] = {
-    "triangulation": "Multi-Source Analytics",
-}
+# Empty by default — add entries here if you want to rename specific tabs
+# on the landing without touching the dashboard config.
+_TAB_TITLE_OVERRIDES: dict[str, str] = {}
 
 
 def _tab_decor(title: str | None) -> dict[str, str]:

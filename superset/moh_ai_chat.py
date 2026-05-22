@@ -614,14 +614,41 @@ def ai_chat_page() -> FlaskResponse:
     """
     if (denied := _require_admin()) is not None:
         return denied
-    return render_template(
+
+    from urllib.parse import urlparse
+    from flask import make_response
+
+    iframe_url = os.environ.get("MOH_AI_IFRAME_URL", "")
+    resp = make_response(render_template(
         "superset/ai_chat.html",
-        iframe_url=os.environ.get("MOH_AI_IFRAME_URL", ""),
+        iframe_url=iframe_url,
         # Kept for backwards compatibility with anything that still reads them
         gemini_model=_provider_display_label(),
         gemini_configured=_provider_configured(),
         ai_provider=_ai_provider(),
-    )
+    ))
+
+    # Override Superset's default CSP for this page only — without this the
+    # browser blocks the iframe with: "frame-src violates default-src 'self'".
+    # We allow the configured AI service's origin in frame-src while keeping
+    # the rest of the page minimal-self.
+    if iframe_url:
+        parsed = urlparse(iframe_url)
+        if parsed.scheme and parsed.netloc:
+            target_origin = f"{parsed.scheme}://{parsed.netloc}"
+            resp.headers["Content-Security-Policy"] = (
+                f"default-src 'self'; "
+                f"img-src 'self' data: {target_origin}; "
+                f"style-src 'self' 'unsafe-inline'; "
+                f"script-src 'self'; "
+                f"frame-src 'self' {target_origin}; "
+                f"connect-src 'self' {target_origin}"
+            )
+    # Remove any X-Frame-Options that an upstream layer may have added —
+    # it would refuse to render OUR page in a frame, which doesn't apply here
+    # (we're the parent, not the embedded), but cleaner to drop it.
+    resp.headers.pop("X-Frame-Options", None)
+    return resp
 
 
 @ai_chat_bp.route("/ai-chat/api/message", methods=["POST"])
