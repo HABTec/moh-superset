@@ -76,7 +76,9 @@ FEATURE_FLAGS = {
     "ENABLE_GEOCODE": True,
     "GUEST_TOKEN_JWT_ALGO": "HS256",
 }
-_MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN", "http://192.168.0.136:3000")
+# Both are env-driven, no hardcoded fallbacks — set them in docker/.env-local
+# (for compose) or systemd EnvironmentFile / shell export (for native).
+_MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN")
 _MOH_AI_IFRAME_URL = _os.environ.get("MOH_AI_IFRAME_URL")
 
 def _origin_of(url: str | None) -> str | None:
