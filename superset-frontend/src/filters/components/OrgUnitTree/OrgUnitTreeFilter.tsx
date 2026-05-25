@@ -52,6 +52,24 @@ const TreeBox = styled.div`
   background: ${({ theme }) => theme.colorBgContainer};
 `;
 
+const Toolbar = styled.div`
+  display: flex;
+  gap: 12px;
+  padding: 4px 4px 6px;
+  font-size: 12px;
+`;
+
+const ToolbarLink = styled.button`
+  background: none;
+  border: none;
+  padding: 0;
+  color: ${({ theme }) => theme.colorPrimary};
+  cursor: pointer;
+  font-size: inherit;
+  &:hover { text-decoration: underline; }
+  &:disabled { color: ${({ theme }) => theme.colorTextDisabled}; cursor: default; text-decoration: none; }
+`;
+
 type Node = TreeDataNode & {
   unit: OrgUnit;
   isLeaf?: boolean;
@@ -154,8 +172,45 @@ export default function OrgUnitTreeFilter({
 
   const checkedKeys = useMemo(() => selected.map(s => s.id), [selected]);
 
+  const allRootsChecked =
+    treeData.length > 0 &&
+    treeData.every(n => selected.some(s => s.id === n.unit.id));
+
+  const handleSelectAll = useCallback(() => {
+    const sels: OrgUnitSelection[] = treeData
+      .filter(n => n.unit)
+      .map(n => ({
+        id: n.unit.id,
+        displayName: n.unit.displayName.trim(),
+        level: n.unit.level,
+      }));
+    setSelected(sels);
+    setDataMask(buildDataMask(sels));
+  }, [treeData, setDataMask]);
+
+  const handleClearAll = useCallback(() => {
+    setSelected([]);
+    setDataMask(buildDataMask([]));
+  }, [setDataMask]);
+
   return (
     <Wrapper>
+      <Toolbar>
+        <ToolbarLink
+          type="button"
+          onClick={handleSelectAll}
+          disabled={loading || !!error || allRootsChecked}
+        >
+          {t('Select all')}
+        </ToolbarLink>
+        <ToolbarLink
+          type="button"
+          onClick={handleClearAll}
+          disabled={loading || selected.length === 0}
+        >
+          {t('Clear')}
+        </ToolbarLink>
+      </Toolbar>
       <TreeBox>
         {loading && t('Loading…')}
         {error && <div style={{ color: 'red' }}>{error}</div>}
