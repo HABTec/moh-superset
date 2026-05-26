@@ -250,6 +250,23 @@
   {% endif %}
 </section>
 
+{% macro ai_assistant_tile() %}
+    <a class="tile" href="/ai-chat/" title="Open AI Assistant">
+      <h3>AI Assistant</h3>
+      <p class="subtitle">Ask questions about your data</p>
+      <div class="tile-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16 H46 a4 4 0 0 1 4 4 V38 a4 4 0 0 1 -4 4 H26 L16 50 V42 a4 4 0 0 1 -4 -4 V20 a4 4 0 0 1 4 -4 Z"/>
+          <path d="M52 8 L54 14 L60 16 L54 18 L52 24 L50 18 L44 16 L50 14 Z" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <div class="view-link">
+        <span>open assistant</span>
+        <span class="arrow">&rarr;</span>
+      </div>
+    </a>
+{% endmacro %}
+
 {% if featured and featured.tabs %}
   <div class="tile-grid">
   {% for t in featured.tabs %}
@@ -313,6 +330,7 @@
       </div>
     </a>
   {% endfor %}
+  {{ ai_assistant_tile() }}
   </div>
 {% elif featured %}
   <div class="tile-grid">
@@ -321,8 +339,12 @@
       <p class="subtitle">{{ featured.description or 'Open dashboard' }}</p>
       <div class="view-link"><span>Open</span><span class="arrow">&rarr;</span></div>
     </a>
+    {{ ai_assistant_tile() }}
   </div>
 {% else %}
+  <div class="tile-grid">
+    {{ ai_assistant_tile() }}
+  </div>
   <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
 {% endif %}
 
