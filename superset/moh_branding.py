@@ -180,3 +180,10 @@ BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp, _moh_assets_bp]
 
 # Landing page is wired in Python — see superset/views/landing.py and the
 # one-line swap in superset/initialization/__init__.py (configure_fab).
+MAPBOX_STYLES = [
+    {
+        "id": "blank",
+        "label": "Blank",
+        "url": "",
+    },
+]
