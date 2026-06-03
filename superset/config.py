@@ -2324,7 +2324,7 @@ GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (Literal["None", "Lax", "Strict
     None
 )
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
-GLOBAL_ASYNC_QUERIES_JWT_SECRET = "test-secret-change-me"  # noqa: S105
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
 GLOBAL_ASYNC_QUERIES_TRANSPORT: Literal["polling", "ws"] = "polling"
 GLOBAL_ASYNC_QUERIES_POLLING_DELAY = int(
     timedelta(milliseconds=500).total_seconds() * 1000
