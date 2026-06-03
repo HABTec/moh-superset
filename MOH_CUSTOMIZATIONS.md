@@ -19,7 +19,7 @@ The same customizations work in two runtimes:
 
 | File | Status | Purpose |
 |---|---|---|
-| `superset/moh_branding.py` | **NEW** | Single source of truth — APP_NAME, APP_ICON, VERSION_STRING, THEME_DEFAULT, THEME_DARK, FEATURE_FLAGS |
+| `superset/moh_branding.py` | **NEW** | Single source of truth — APP_NAME, APP_ICON, VERSION_STRING, THEME_DEFAULT, THEME_DARK, FEATURE_FLAGS, cache/performance settings |
 | `superset/landing_view.py` | **NEW** | `MoHLandingView` — the FAB IndexView that renders the branded landing page at `/` |
 | `superset/templates/superset/landing.html` | **NEW** | Landing page Jinja template — hero, dashboard tiles, top nav links, footer |
 | `superset/static/assets/images/logomohnewww.png` | **NEW** | MoH logo asset, served at `/static/assets/images/logomohnewww.png` |
@@ -42,7 +42,10 @@ The same customizations work in two runtimes:
 - `APP_NAME = "MoH Analytics Portal"` → window title, tooltip on logo
 - `APP_ICON` → URL of the MoH logo
 - `THEME_DEFAULT` / `THEME_DARK` → extends Apache's defaults with MoH brand tokens (`brandLogoUrl`, `brandAppName`, `colorPrimary` `#1a5cff`, `colorLink`). Superset 6.x reads logo from theme tokens, not from `APP_ICON` directly — both runtimes get the MoH logo automatically because both seed these dicts into the DB on startup.
-- `FEATURE_FLAGS` → `ALERT_REPORTS`, `DATASET_FOLDERS`, `ENABLE_TEMPLATE_PROCESSING`
+- `FEATURE_FLAGS` → `ALERT_REPORTS`, `DATASET_FOLDERS`, `ENABLE_TEMPLATE_PROCESSING`, `GLOBAL_ASYNC_QUERIES` (parallel chart loading)
+- `CACHE_CONFIG` / `DATA_CACHE_CONFIG` / `THUMBNAIL_CACHE_CONFIG` → Redis-backed caches on separate DBs (1/2/3), 24h/1h TTL
+- `GLOBAL_ASYNC_QUERIES_REDIS_CONFIG` → Redis DB 4 for async query state
+- `RESULTS_BACKEND` → Redis DB 5 for SQL Lab results (replaces filesystem backend)
 
 **`superset/landing_view.py`** — Replaces FAB's default index. Queries published dashboards from the metadata DB, picks the dashboard with the most top-level tabs as the "featured" hero, lists the rest as compact pills. Located at top-level (not under `superset/views/`) on purpose — importing through `superset.views` triggers an init cascade that uses `security_manager` before it's initialized, causing `AttributeError`.
 
@@ -330,9 +333,28 @@ WantedBy=multi-user.target
 SUPERSET_CONFIG_PATH=/home/youruser/moh-superset/superset_config.py
 SUPERSET_SECRET_KEY=<paste your generated key>
 SUPERSET_DATABASE_URI=postgresql://superset:STRONG_PW@localhost:5432/superset
-SUPERSET_REDIS_HOST=localhost
-SUPERSET_REDIS_PORT=6379
 FLASK_APP=superset
+MOH_FORCE_HTTPS=true
+
+# ── Redis ──────────────────────────────────────────────────────────────────
+# SUPERSET_REDIS_HOST: hostname or IP of the Redis server.
+#   Default: localhost  (Redis running on the same machine)
+#   Change to a remote IP if Redis is on a separate server, e.g. 10.0.0.5
+SUPERSET_REDIS_HOST=localhost
+
+# SUPERSET_REDIS_PORT: Redis port.
+#   Default: 6379  (Redis default — only change if you run Redis on a custom port)
+SUPERSET_REDIS_PORT=6379
+
+# These two variables control ALL Redis usage in Superset:
+#   DB 0 — Celery broker (task queue)
+#   DB 1 — UI/metadata cache         (CACHE_CONFIG,         TTL 24h)
+#   DB 2 — Chart query result cache  (DATA_CACHE_CONFIG,    TTL 1h)
+#   DB 3 — Dashboard thumbnails      (THUMBNAIL_CACHE_CONFIG)
+#   DB 4 — Async query job state     (GLOBAL_ASYNC_QUERIES)
+#   DB 5 — SQL Lab results           (RESULTS_BACKEND)
+#   DB 6 — Celery task results
+# All DBs share the same Redis instance — no extra config needed.
 
 # --- AI Assistant page (admin-only at /ai-chat/) ---
 MOH_AI_PROVIDER=gemini              # or claude, openai
@@ -342,6 +364,18 @@ GEMINI_API_KEY=AIza...              # one or more keys, fallbacks rotate on 429
 # OPENAI_API_KEY=sk-...             # if MOH_AI_PROVIDER=openai
 MCP_INTERNAL_URL=http://localhost:5008/mcp     # native MCP runs on localhost
 MOH_PUBLIC_URL=https://analytics.moh.gov.et/   # match your nginx hostname
+```
+
+**Verify Redis is reachable after setting the variables:**
+```bash
+source ~/superset.env   # or: set -a; source ~/superset.env; set +a
+redis-cli -h $SUPERSET_REDIS_HOST -p $SUPERSET_REDIS_PORT ping
+# Expected: PONG
+```
+
+**Apply after any change:**
+```bash
+sudo systemctl restart superset superset-worker
 ```
 
 For the AI Assistant, also add a `superset-mcp.service` systemd unit that
@@ -437,7 +471,30 @@ Edit [superset/moh_branding.py](superset/moh_branding.py). Restart Superset:
 3. On Ubuntu: `uv pip install -r requirements/moh.txt && systemctl restart superset`
 4. On Docker: `docker compose up --build`
 
-### 5.4 Customizing the landing page further
+### 5.4 Performance tuning
+
+All performance settings live in `superset/moh_branding.py` and are applied to both runtimes automatically.
+
+| Setting | Value | Purpose |
+|---|---|---|
+| `CACHE_CONFIG` TTL | 24 hours | UI/metadata cache (Redis DB 1) |
+| `DATA_CACHE_CONFIG` TTL | 1 hour | Chart query result cache (Redis DB 2) |
+| `THUMBNAIL_CACHE_CONFIG` | 24 hours | Dashboard thumbnail cache (Redis DB 3) |
+| `GLOBAL_ASYNC_QUERIES` | enabled | Charts load in parallel, not sequentially |
+| `GLOBAL_ASYNC_QUERIES_REDIS_CONFIG` | Redis DB 4 | Async query job state |
+| `RESULTS_BACKEND` | Redis DB 5 | SQL Lab results (in-memory vs filesystem) |
+
+To pre-warm the cache after a data update:
+```bash
+superset cache-warmup --strategy top_n_dashboards --top-n 10
+```
+
+To increase gunicorn workers (edit the systemd service file on the server):
+```ini
+--workers 8 --worker-class gevent --worker-connections 1000
+```
+
+### 5.5 Customizing the landing page
 
 - **Layout / styling**: [superset/templates/superset/landing.html](superset/templates/superset/landing.html) — pure HTML/CSS, hot-reloads in dev mode
 - **What's listed / featured logic**: [superset/landing_view.py](superset/landing_view.py) — the `MoHLandingView.index()` method
