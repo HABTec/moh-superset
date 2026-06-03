@@ -22,10 +22,9 @@ import logging
 import os
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, make_response, redirect, render_template, request
+from flask import Blueprint, make_response, redirect, render_template, request
 from flask_login import current_user
 
-from superset.extensions import security_manager
 from superset.superset_typing import FlaskResponse
 
 logger = logging.getLogger(__name__)
@@ -37,23 +36,17 @@ ai_chat_bp = Blueprint(
 )
 
 
-def _require_admin() -> FlaskResponse | None:
-    """Return a redirect/abort if the user isn't an admin; None if they are.
-
-    Unauthenticated → redirect to /login with next=current path.
-    Authenticated non-admin → 403.
-    """
+def _require_login() -> FlaskResponse | None:
+    """Return a redirect if the user isn't authenticated; None if they are."""
     if not getattr(current_user, "is_authenticated", False):
         return redirect(f"/login/?next={request.path}")
-    if not security_manager.is_admin():
-        abort(403)
     return None
 
 
 @ai_chat_bp.route("/ai-chat/")
 def ai_chat_page() -> FlaskResponse:
     """Serve the AI Assistant page (iframe to an external service)."""
-    if (denied := _require_admin()) is not None:
+    if (denied := _require_login()) is not None:
         return denied
 
     iframe_url = os.environ.get("MOH_AI_IFRAME_URL", "")
