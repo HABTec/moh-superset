@@ -129,13 +129,16 @@
     .tile .view-link .arrow {
       width: 28px; height: 28px;
       border-radius: 50%;
-      background: var(--accent);
-      color: white;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 1rem;
-      line-height: 1;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .tile .view-link .arrow img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .others {
@@ -335,8 +338,10 @@
   <nav class="appnav" id="appNav">
     <a href="/dashboard/list/">Dashboards</a>
     <a href="/chart/list/">Charts</a>
-    <a href="/tablemodelview/list/">Datasets</a>
-    <a href="/sqllab/">SQL Lab</a>
+    {% if is_admin %}
+      <a href="/tablemodelview/list/">Datasets</a>
+      <a href="/sqllab/">SQL Lab</a>
+    {% endif %}
     <a href="/ai-chat/">AI Assistant</a>
     <span class="divider"></span>
     {% if current_user and current_user.is_authenticated %}
@@ -370,7 +375,7 @@
       </div>
       <div class="view-link">
         <span>open assistant</span>
-        <span class="arrow">&rarr;</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
 {% endmacro %}
@@ -434,7 +439,7 @@
 
       <div class="view-link">
         <span>View {{ t.title }}</span>
-        <span class="arrow">&rarr;</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
   {% endfor %}
@@ -445,7 +450,7 @@
     <a class="tile" href="{{ featured.url }}">
       <h3>{{ featured.title }}</h3>
       <p class="subtitle">{{ featured.description or 'Open dashboard' }}</p>
-      <div class="view-link"><span>Open</span><span class="arrow">&rarr;</span></div>
+      <div class="view-link"><span>Open</span><span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span></div>
     </a>
     {{ ai_assistant_tile() }}
   </div>

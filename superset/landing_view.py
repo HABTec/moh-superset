@@ -123,6 +123,7 @@ class MoHLandingView(IndexView):
         # Local imports — top-level imports here would create a cycle since
         # this module is loaded during app initialization.
         from superset import db
+        from superset.extensions import security_manager
         from superset.models.dashboard import Dashboard
 
         rows = (
@@ -150,4 +151,5 @@ class MoHLandingView(IndexView):
             self.index_template,
             featured=featured,
             others=others,
+            is_admin=security_manager.is_admin(),
         )
