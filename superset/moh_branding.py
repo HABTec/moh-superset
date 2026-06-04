@@ -141,18 +141,6 @@ TALISMAN_CONFIG = {
 MCP_AUTH_ENABLED = False
 MCP_DEV_USERNAME = "admin"
 
-# Public-facing base URL the MCP server uses when generating explore / SQL Lab
-# / dashboard links it returns to the LLM. The upstream docker dev config
-# (docker/pythonpath_dev/superset_config.py) hardcodes localhost:8888, which is
-# unreachable from the user's browser when SUPERSET_PORT is overridden.
-# Override here so the AI Assistant returns clickable links.
-
-WEBDRIVER_BASEURL_USER_FRIENDLY = _os.environ.get(
-    "MOH_PUBLIC_URL", "http://localhost:8090/"
-)
-# MCP_SERVICE_URL is the *MCP server's own* base URL (used for screenshots,
-# not explore links). Kept for screenshot tools.
-MCP_SERVICE_URL = _os.environ.get("MCP_SERVICE_URL", "http://localhost:8090")
 
 # Show every MCP tool to the model directly instead of hiding them behind a
 # `search_tools` / `call_tool` meta-interface. Tool search is great for token
@@ -193,55 +181,6 @@ from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
 
 BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp, _moh_assets_bp]
 
-# ---------------------------------------------------------------------------
-# Performance — Redis host/port (read from env, same vars as superset_config.py)
-# ---------------------------------------------------------------------------
-from cachelib.redis import RedisCache as _RedisCache  # noqa: E402
-
-_redis_host = _os.environ.get("SUPERSET_REDIS_HOST", "localhost")
-_redis_port = int(_os.environ.get("SUPERSET_REDIS_PORT", "6379"))
-
-# Cache timeouts — longer TTL for MoH data that changes infrequently.
-# Overrides the 300s default set in superset_config.py.
-CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 86400,   # 24 hours
-    "CACHE_KEY_PREFIX": "superset_",
-    "CACHE_REDIS_HOST": _redis_host,
-    "CACHE_REDIS_PORT": _redis_port,
-    "CACHE_REDIS_DB": 1,
-}
-DATA_CACHE_CONFIG = {
-    **CACHE_CONFIG,
-    "CACHE_DEFAULT_TIMEOUT": 3600,    # 1 hour for query results
-    "CACHE_REDIS_DB": 2,
-}
-THUMBNAIL_CACHE_CONFIG = {
-    **CACHE_CONFIG,
-    "CACHE_REDIS_DB": 3,
-}
-
-# Async dashboard loading — charts fetch in parallel instead of sequentially.
-# GLOBAL_ASYNC_QUERIES feature flag is already enabled above.
-GLOBAL_ASYNC_QUERIES_TRANSPORT = "polling"
-GLOBAL_ASYNC_QUERIES_POLLING_DELAY = 500   # ms
-GLOBAL_ASYNC_QUERIES_REDIS_CONFIG = {
-    "host": _redis_host,
-    "port": _redis_port,
-    "db": 4,
-    "ssl": False,
-}
-
-# SQL Lab results backend — Redis (faster than filesystem for large results).
-RESULTS_BACKEND = _RedisCache(
-    host=_redis_host,
-    port=_redis_port,
-    db=5,
-    default_timeout=86400,
-)
-
-# Landing page is wired in Python — see superset/views/landing.py and the
-# one-line swap in superset/initialization/__init__.py (configure_fab).
 MAPBOX_STYLES = [
     {
         "id": "blank",
@@ -249,11 +188,3 @@ MAPBOX_STYLES = [
         "url": "",
     },
 ]
-JWT_SECRET = "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"
-JWT_SECRET_KEY = JWT_SECRET
-JWT_SECRET_KEY = JWT_SECRET
-
-GLOBAL_ASYNC_QUERIES_JWT_SECRET = _os.environ.get(
-    "SUPERSET_GLOBAL_ASYNC_QUERIES_JWT_SECRET",
-    JWT_SECRET,
-)
