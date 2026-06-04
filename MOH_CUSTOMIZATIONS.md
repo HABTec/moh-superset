@@ -226,6 +226,11 @@ export SUPERSET_CONFIG_PATH=\$HOME/moh-superset/superset_config.py
 export FLASK_APP=superset
 export SUPERSET_SECRET_KEY="${SECRET}"
 export SUPERSET_DATABASE_URI="postgresql://superset:${DB_PASS}@localhost:5432/superset"
+
+# Disable HTTPS redirect when running without a TLS terminator (local / VirtualBox / staging over HTTP).
+# Set to "true" (or remove) when behind nginx+TLS in production.
+export MOH_FORCE_HTTPS=false
+
 # Optional — only if you'll use the AI Assistant at /ai-chat/
 export MCP_INTERNAL_URL=http://localhost:5008/mcp
 export MOH_PUBLIC_URL=http://localhost:8088/
@@ -263,45 +268,91 @@ psql "$SUPERSET_DATABASE_URI" -c "SELECT username FROM ab_user;"
 
 ### 3.8 Run
 
+Run the following in **separate terminals** (open 4 tabs). In each terminal, activate the venv and export env vars first:
+
 ```bash
-# Web (terminal 1) — Flask dev server, picks up Python file changes via watchdog
 source ~/moh-superset/.venv/bin/activate
-superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+source ~/.bashrc   # loads SUPERSET_CONFIG_PATH, MOH_FORCE_HTTPS=false, etc.
 ```
 
-Wait for `* Running on http://0.0.0.0:8088` in the log.
+---
 
-**Verify (in another terminal):**
+**Terminal 1 — Redis** (verify it is already running as a system service):
+
+```bash
+redis-cli ping
+# Expected: PONG
+# If not running:
+sudo systemctl start redis-server
+```
+
+---
+
+**Terminal 2 — Gunicorn (web server)**:
+
+```bash
+gunicorn \
+  --bind 0.0.0.0:8088 \
+  --workers 4 \
+  --worker-class gthread \
+  --threads 20 \
+  --timeout 120 \
+  --access-logfile - \
+  --error-logfile - \
+  "superset.app:create_app()"
+```
+
+> Workers guideline: `2 × CPU cores`. For a 2-core VM use `4`.
+> Do **not** use `gevent` — it requires extra setup and is unstable locally. Use `gthread`.
+
+Wait until the logs show workers registering (MCP tools, blueprint lines). Then verify:
+
 ```bash
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:8088/health
 # Expected: HTTP 200
 
 curl -sS http://127.0.0.1:8088/static/assets/manifest.json | head -c 80
-# Expected: a JSON snippet starting with {"entrypoints" or similar. If "404 Not Found",
-# section 3.5 (frontend build) did not actually produce assets — go back and re-run.
+# Expected: JSON starting with {"entrypoints"...
+# If "404 Not Found": section 3.5 (frontend build) was skipped — go back and re-run.
 ```
 
-**Open the browser** to `http://your-vm-ip:8088`:
-- Should show MoH logo + branded login → log in with the admin user → land on the MoH dashboard tiles
-- If it shows an **infinite spinner**: frontend assets are missing. Re-run section 3.5.
+---
 
-### 3.9 Optional supporting services
-
-These extend Superset but are NOT required for the web UI to render:
+**Terminal 3 — Celery worker** (required for SQL Lab async queries):
 
 ```bash
-# Celery worker — runs alerts, scheduled reports, async SQL Lab, thumbnails
-celery -A superset.tasks.celery_app:app worker -O fair -c 4
-
-# Celery beat — schedule poller (run alongside the worker)
-celery -A superset.tasks.celery_app:app beat
-
-# MCP server — required only if you'll use the AI Assistant page at /ai-chat/
-superset mcp run --host 127.0.0.1 --port 5008
+celery -A superset.tasks.celery_app:app worker \
+  --loglevel=info \
+  -O fair \
+  -c 4
 ```
 
-Open http://your-vm-ip:8088. The MoH branded login, landing page, and dashboards
-should all render. `/ai-chat/` is the AI Assistant (admin-only).
+> Without this, SQL Lab queries appear to load forever — they are dispatched to the
+> Celery queue but never executed.
+
+---
+
+**Terminal 4 — Celery beat** (required for scheduled reports & alerts, optional otherwise):
+
+```bash
+celery -A superset.tasks.celery_app:app beat \
+  --loglevel=info
+```
+
+---
+
+**Open the browser** to `http://localhost:8088` (or `http://your-vm-ip:8088`):
+- Should show MoH logo + branded login → log in with the admin user → land on the MoH dashboard tiles.
+- If it shows an **infinite spinner**: frontend assets are missing — re-run section 3.5.
+- If the browser times out immediately: check that `MOH_FORCE_HTTPS=false` is exported (Gunicorn terminal). Without it, Superset redirects `http://` → `https://` and the browser cannot connect.
+
+---
+
+**Terminal 5 (optional) — MCP server** (required only for the AI Assistant at `/ai-chat/`):
+
+```bash
+superset mcp run --host 127.0.0.1 --port 5008
+```
 
 ### 3.10 Production hardening: systemd + nginx
 
@@ -320,7 +371,7 @@ User=youruser
 WorkingDirectory=/home/youruser/moh-superset
 EnvironmentFile=/home/youruser/superset.env
 ExecStart=/home/youruser/moh-superset/.venv/bin/gunicorn \
-    --bind 127.0.0.1:8088 --workers 4 --timeout 120 --worker-class gevent \
+    --bind 127.0.0.1:8088 --workers 4 --threads 20 --timeout 120 --worker-class gthread \
     "superset.app:create_app()"
 Restart=on-failure
 
@@ -491,7 +542,7 @@ superset cache-warmup --strategy top_n_dashboards --top-n 10
 
 To increase gunicorn workers (edit the systemd service file on the server):
 ```ini
---workers 8 --worker-class gevent --worker-connections 1000
+--workers 8 --worker-class gthread --threads 20
 ```
 
 ### 5.5 Customizing the landing page
@@ -502,11 +553,81 @@ To increase gunicorn workers (edit the systemd service file on the server):
 
 ---
 
-## 6. Troubleshooting
+## 6. Environment Variables
+
+All variables read by this project's own code. CI/CD and Docker-internal variables are excluded — those only matter inside containers.
+
+### 6.1 Required for native Ubuntu run
+
+These must be set (or exported) before starting Gunicorn, Celery, or `superset run`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SUPERSET_CONFIG_PATH` | — | Absolute path to `superset_config.py`. **Must be set.** |
+| `SUPERSET_SECRET_KEY` | placeholder | Session/CSRF encryption key. Generate with `python -c "import secrets; print(secrets.token_urlsafe(42))"`. **Must be changed in production.** |
+| `SUPERSET_DATABASE_URI` | `postgresql://superset:root@localhost:5432/superset` | Postgres metadata DB connection string |
+| `SUPERSET_REDIS_HOST` | `localhost` | Redis hostname used by cache and Celery broker |
+| `SUPERSET_REDIS_PORT` | `6379` | Redis port |
+| `MOH_FORCE_HTTPS` | `true` | Set `false` for local/HTTP. When `true`, Superset redirects `http://` → `https://` and sets `Secure` on cookies. **Always `false` unless behind nginx+TLS.** |
+
+### 6.2 MoH-specific (branding, AI, MCP)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MOH_PUBLIC_URL` | `http://localhost:8090/` | Public-facing base URL — used to build explore/dashboard links in AI chat replies |
+| `MOH_AI_PROVIDER` | — | AI backend for `/ai-chat/`: `gemini`, `claude`, or `openai` |
+| `MCP_INTERNAL_URL` | `http://localhost:5008/mcp` | Internal MCP server URL — AI chat agent calls this to query Superset |
+| `MOH_CSP_DEV_ORIGIN` | — | Dev server origin added to CSP `frame-ancestors` (e.g. `http://localhost:9000`) |
+| `MOH_AI_IFRAME_URL` | — | External AI service URL to embed inside `/ai-chat/` instead of the built-in chat |
+
+### 6.3 AI provider API keys (only if using `/ai-chat/`)
+
+Set only the key matching `MOH_AI_PROVIDER`.
+
+| Variable | Provider |
+|---|---|
+| `GEMINI_API_KEY` | Google Gemini (`MOH_AI_PROVIDER=gemini`) |
+| `ANTHROPIC_API_KEY` | Claude (`MOH_AI_PROVIDER=claude`) |
+| `OPENAI_API_KEY` | OpenAI (`MOH_AI_PROVIDER=openai`) |
+
+### 6.4 MCP server
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FASTMCP_HOST` | `127.0.0.1` | MCP server bind host |
+| `FASTMCP_PORT` | `5008` | MCP server bind port |
+| `FASTMCP_TRANSPORT` | `stdio` | Transport type: `stdio` (CLI mode) or `http` (server mode) |
+
+### 6.5 Logging
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SUPERSET_LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `FLASK_DEBUG` | `false` | Enable Flask auto-reload and debug error pages (dev only) |
+
+### 6.6 Docker dev only
+
+These are only needed when running via `docker compose` and have no effect on native Ubuntu.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_HOST` / `DATABASE_USER` / `DATABASE_PASSWORD` / `DATABASE_DB` / `DATABASE_PORT` | `db` / `superset` / `superset` / `superset` / `5432` | Postgres connection for Docker Compose |
+| `REDIS_HOST` / `REDIS_PORT` | `redis` / `6379` | Redis for Docker Compose |
+| `SUPERSET_PORT` | `8088` | Exposed web port on the host |
+| `DEV_MODE` | `true` | Enables dev features (hot reload, etc.) |
+| `SUPERSET_LOAD_EXAMPLES` | `yes` | Load sample datasets on first `superset init` |
+| `BUILD_SUPERSET_FRONTEND_IN_DOCKER` | `true` | Build the React SPA inside the container |
+| `MAPBOX_API_KEY` | — | Mapbox token for map visualisations |
+
+---
+
+## 7. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Browser stuck on infinite loading spinner, blank page; `curl /health` returns 200 | Frontend assets were never built — `superset/static/assets/` is empty | Run section 3.5: `cd superset-frontend && npm install && npm run build`. Verify with `ls superset/static/assets/ \| head -5`. Restart `superset run` after the build completes |
+| Browser shows **"connection timed out"** on `http://localhost:8088` immediately | `MOH_FORCE_HTTPS=true` (the default) redirects HTTP → HTTPS; no HTTPS server is running | Export `MOH_FORCE_HTTPS=false` in every terminal before starting Gunicorn. Only set `true` when behind nginx+TLS |
+| SQL Lab query **loads forever**, never returns results | Celery worker not running — queries queue in Redis but nothing executes them | Start Terminal 3 (Celery worker). Verify with `celery -A superset.tasks.celery_app:app inspect active` |
+| Browser stuck on infinite loading spinner, blank page; `curl /health` returns 200 | Frontend assets were never built — `superset/static/assets/` is empty | Run section 3.5: `cd superset-frontend && npm install && npm run build`. Verify with `ls superset/static/assets/ \| head -5`. Restart Gunicorn after the build completes |
 | 404 on `/static/assets/manifest.json` | Same as above — no built frontend bundle | See above |
 | `superset run` succeeds but no `/static/assets/` directory exists | `npm run build` was never run, or it errored silently | Re-run with `cd superset-frontend && npm run build 2>&1 \| tee build.log` and read `build.log` for the actual failure |
 | Logo still shows Superset default | Browser cache, or `THEME_DEFAULT` not re-seeded | Hard-refresh; restart `superset` container/service |
