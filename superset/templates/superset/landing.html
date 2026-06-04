@@ -124,18 +124,21 @@
       color: var(--accent);
       font-weight: 600;
       font-size: 0.95rem;
-      text-transform: lowercase;
+      text-transform: capitalize;
     }
     .tile .view-link .arrow {
       width: 28px; height: 28px;
       border-radius: 50%;
-      background: var(--accent);
-      color: white;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 1rem;
-      line-height: 1;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .tile .view-link .arrow img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .others {
@@ -214,6 +217,106 @@
       color: var(--muted);
       font-weight: 500;
     }
+
+    /* ── Hamburger (hidden on desktop) ─────────────────────────────────── */
+    .nav-toggle {
+      display: none;
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      color: var(--navy);
+    }
+    .nav-toggle svg { display: block; }
+
+    /* ── Tablet: ≤ 900px ────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      header.topbar { padding: 16px 24px; gap: 12px; }
+      nav.appnav { gap: 18px; }
+      nav.appnav a { font-size: 0.88rem; }
+    }
+
+    /* ── Mobile: ≤ 640px ────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      header.topbar {
+        padding: 14px 16px;
+        flex-wrap: nowrap;
+        align-items: center;
+      }
+      header.topbar .logo-img { height: 40px; }
+      header.topbar .brand-text { display: none; }
+
+      .nav-toggle { display: block; }
+
+      nav.appnav {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(10, 37, 64, 0.97);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        margin: 0;
+        z-index: 100;
+      }
+      nav.appnav.open { display: flex; }
+      nav.appnav a {
+        color: #fff;
+        font-size: 1.3rem;
+        font-weight: 700;
+        padding: 18px 24px;
+        border-bottom: none;
+        width: 100%;
+        text-align: center;
+      }
+      nav.appnav a:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+      nav.appnav a.logout { color: rgba(255,255,255,0.5); font-size: 1rem; }
+      nav.appnav .divider { display: none; }
+
+      /* Close button inside open nav */
+      nav.appnav::before {
+        content: "✕";
+        position: absolute;
+        top: 20px; right: 20px;
+        color: rgba(255,255,255,0.6);
+        font-size: 1.5rem;
+        cursor: pointer;
+      }
+
+      section.hero { padding: 32px 16px 24px; }
+      section.hero h1 { font-size: clamp(1.6rem, 8vw, 2.4rem); }
+      section.hero .sub { font-size: 0.95rem; }
+
+      .tile-grid { padding: 0 12px 40px; gap: 14px; }
+      .tile {
+        flex: 1 1 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: 20px 18px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+      .tile h3 { font-size: 1.1rem; margin: 0; flex: 1 1 auto; }
+      .tile .subtitle { flex: 1 1 100%; font-size: 0.85rem; margin: 0; }
+      .tile .tile-icon { width: 48px; height: 48px; margin: 0; flex-shrink: 0; }
+      .tile .view-link { flex: 1 1 100%; margin-top: 8px; }
+
+      .others { padding: 16px; margin-bottom: 40px; }
+      .others .row a { padding: 10px 16px; font-size: 0.88rem; }
+
+      footer { padding: 16px; }
+    }
+
+    /* ── Small phones: ≤ 380px ──────────────────────────────────────────── */
+    @media (max-width: 380px) {
+      header.topbar { padding: 12px; }
+      header.topbar .logo-img { height: 34px; }
+      section.hero h1 { font-size: 1.5rem; }
+    }
   </style>
 </head>
 <body>
@@ -224,11 +327,21 @@
     <span class="t2">MOH ANALYTICS PORTAL</span>
   </span>
 
-  <nav class="appnav">
+  <button class="nav-toggle" id="navToggle" aria-label="Open menu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+
+  <nav class="appnav" id="appNav">
     <a href="/dashboard/list/">Dashboards</a>
     <a href="/chart/list/">Charts</a>
-    <a href="/tablemodelview/list/">Datasets</a>
-    <a href="/sqllab/">SQL Lab</a>
+    {% if is_admin %}
+      <a href="/tablemodelview/list/">Datasets</a>
+      <a href="/sqllab/">SQL Lab</a>
+    {% endif %}
     <a href="/ai-chat/">AI Assistant</a>
     <span class="divider"></span>
     {% if current_user and current_user.is_authenticated %}
@@ -262,7 +375,7 @@
       </div>
       <div class="view-link">
         <span>open assistant</span>
-        <span class="arrow">&rarr;</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
 {% endmacro %}
@@ -326,7 +439,7 @@
 
       <div class="view-link">
         <span>View {{ t.title }}</span>
-        <span class="arrow">&rarr;</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
   {% endfor %}
@@ -337,7 +450,7 @@
     <a class="tile" href="{{ featured.url }}">
       <h3>{{ featured.title }}</h3>
       <p class="subtitle">{{ featured.description or 'Open dashboard' }}</p>
-      <div class="view-link"><span>Open</span><span class="arrow">&rarr;</span></div>
+      <div class="view-link"><span>Open</span><span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span></div>
     </a>
     {{ ai_assistant_tile() }}
   </div>
@@ -363,5 +476,22 @@
   Powered by <a href="/dashboard/list/">Superset</a> &middot; Ministry of Health Analytics
 </footer>
 
+<script>
+  (function () {
+    var toggle = document.getElementById('navToggle');
+    var nav = document.getElementById('appNav');
+    if (!toggle || !nav) return;
+    toggle.addEventListener('click', function () {
+      nav.classList.toggle('open');
+      document.body.style.overflow = nav.classList.contains('open') ? 'hidden' : '';
+    });
+    nav.addEventListener('click', function (e) {
+      if (e.target === nav) {
+        nav.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    });
+  })();
+</script>
 </body>
 </html>

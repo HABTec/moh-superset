@@ -23,3 +23,162 @@
     good place to include your custom frontend code, such as
     scripts to initialize google analytics, intercom, segment, etc.
   #}
+
+  {# MoH — mobile responsiveness overrides for the Superset React SPA #}
+  <style>
+    /* ── Tablet: ≤ 900px ──────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+
+      /* Top navigation — reduce padding, allow wrapping */
+      .ant-layout-header,
+      .header-with-logo {
+        padding: 0 16px !important;
+        height: auto !important;
+        min-height: 56px !important;
+      }
+
+      /* Nav right-side items — tighten gap */
+      .nav-right,
+      .header-with-logo .right {
+        gap: 8px !important;
+      }
+
+      /* Breadcrumbs — allow wrapping */
+      .ant-breadcrumb {
+        white-space: normal !important;
+        flex-wrap: wrap !important;
+      }
+
+      /* Dashboard title bar */
+      .dashboard-header {
+        flex-wrap: wrap !important;
+        height: auto !important;
+        padding: 8px 12px !important;
+      }
+      .dashboard-header .title-panel {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+      }
+
+      /* Filter sidebar — narrower on tablet */
+      .filter-bar {
+        width: 220px !important;
+        min-width: 220px !important;
+      }
+
+      /* List view action toolbar — wrap buttons */
+      .action-right {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+      }
+    }
+
+    /* ── Mobile: ≤ 640px ──────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+
+      /* Top nav — stack vertically if needed */
+      .ant-layout-header,
+      .header-with-logo {
+        padding: 0 12px !important;
+      }
+
+      /* Hide text labels next to icons in nav to save space */
+      .ant-menu-horizontal > .ant-menu-item > span:not(.anticon),
+      .ant-menu-horizontal > .ant-menu-submenu > span:not(.anticon) {
+        display: none !important;
+      }
+
+      /* Dashboard grid — single column on mobile */
+      .dragdroppable-row {
+        flex-direction: column !important;
+      }
+      .dragdroppable-column {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+      .dashboard-component-chart-holder {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      /* Filter bar — collapse to icon-only strip on mobile */
+      .filter-bar {
+        width: 48px !important;
+        min-width: 48px !important;
+        overflow: hidden !important;
+      }
+      .filter-bar .filter-bar__title,
+      .filter-bar .filter-control-wrapper {
+        display: none !important;
+      }
+
+      /* Improve touch targets for buttons */
+      .ant-btn {
+        min-height: 40px !important;
+        padding: 6px 12px !important;
+      }
+
+      /* SQL Lab — make the editor pane scrollable horizontally */
+      .SqlEditorLeftBar {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+      }
+      .SqlEditor {
+        flex-direction: column !important;
+        height: auto !important;
+      }
+      .SqlEditorLeftBar,
+      .SqlEditor .ace_editor {
+        width: 100% !important;
+      }
+
+      /* Chart list / dashboard list — single column cards */
+      .gallery {
+        grid-template-columns: 1fr !important;
+      }
+      .card-container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+
+      /* Search/filter bar on list pages */
+      .search-input {
+        width: 100% !important;
+      }
+      .filter-bar__actions,
+      .list-view__controls {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+      }
+
+      /* Table scrolling — prevent overflow breaking layout */
+      .ant-table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+
+      /* Modal — full screen on mobile */
+      .ant-modal {
+        max-width: 100vw !important;
+        margin: 0 !important;
+        top: 0 !important;
+      }
+      .ant-modal-content {
+        border-radius: 0 !important;
+        min-height: 100vh !important;
+      }
+    }
+
+    /* ── Small phones: ≤ 380px ────────────────────────────────────────── */
+    @media (max-width: 380px) {
+      .ant-layout-header,
+      .header-with-logo {
+        padding: 0 8px !important;
+      }
+      .ant-btn {
+        font-size: 0.82rem !important;
+        padding: 4px 8px !important;
+      }
+    }
+  </style>

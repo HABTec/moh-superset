@@ -31,6 +31,7 @@ _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
     "multi source":  ("Different data sources", "multi-source"),
     "annual":        ("Annual reported indicators", "quarterly"),
     "yearly":        ("Yearly reported indicators", "quarterly"),
+    "meskot":        ("Explore data quality assurance", "quality"),
 }
 
 # Optional display-name overrides — when the dashboard tab is named X but the
@@ -40,7 +41,9 @@ _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
 # dashboard while presenting friendlier wording on the landing.
 # Empty by default — add entries here if you want to rename specific tabs
 # on the landing without touching the dashboard config.
-_TAB_TITLE_OVERRIDES: dict[str, str] = {}
+_TAB_TITLE_OVERRIDES: dict[str, str] = {
+    "monitering": "Monitoring",
+}
 
 
 def _tab_decor(title: str | None) -> dict[str, str]:
@@ -120,6 +123,7 @@ class MoHLandingView(IndexView):
         # Local imports — top-level imports here would create a cycle since
         # this module is loaded during app initialization.
         from superset import db
+        from superset.extensions import security_manager
         from superset.models.dashboard import Dashboard
 
         rows = (
@@ -147,4 +151,5 @@ class MoHLandingView(IndexView):
             self.index_template,
             featured=featured,
             others=others,
+            is_admin=security_manager.is_admin(),
         )

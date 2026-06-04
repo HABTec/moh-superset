@@ -82,6 +82,8 @@ FEATURE_FLAGS = {
     "EMBEDDED_SUPERSET": True,
     "ENABLE_GEOCODE": True,
     "GUEST_TOKEN_JWT_ALGO": "HS256",
+    "GLOBAL_ASYNC_QUERIES": True,     # charts load in parallel, not sequentially
+
 }
 # Both are env-driven, no hardcoded fallbacks — set them in docker/.env-local
 # (for compose) or systemd EnvironmentFile / shell export (for native).
@@ -105,20 +107,33 @@ _MOH_AI_IFRAME_ORIGIN = _origin_of(_MOH_AI_IFRAME_URL)
 # webpack/dev servers and/or MOH_AI_IFRAME_URL for an embedded AI service.
 _MOH_CSP_EXTRA_ORIGINS = [o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o]
 
+_MOH_CSP = {
+    "default-src": ["'self'"],
+    "img-src": ["'self'", "data:"] + _MOH_CSP_EXTRA_ORIGINS,
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+    "font-src": ["'self'", "data:"],
+    "frame-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
+    "frame-ancestors": ["'self'"],
+    "connect-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
+    "worker-src": ["'self'", "blob:"],
+}
+
+# Dev: HTTP allowed, cookies not secure (local / VirtualBox use)
 TALISMAN_DEV_CONFIG = {
     "force_https": False,
     "session_cookie_secure": False,
-    "content_security_policy": {
-        "default-src": ["'self'"],
-        "img-src": ["'self'", "data:"] + _MOH_CSP_EXTRA_ORIGINS,
-        "style-src": ["'self'", "'unsafe-inline'"],
-        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        "font-src": ["'self'", "data:"],
-        "frame-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
-        "frame-ancestors": ["'self'"],
-        "connect-src": ["'self'"] + _MOH_CSP_EXTRA_ORIGINS,
-        "worker-src": ["'self'", "blob:"],
-    },
+    "content_security_policy": _MOH_CSP,
+}
+
+# Production: enforce HTTPS and secure cookies.
+# superset_config.py should reference TALISMAN_CONFIG (not TALISMAN_DEV_CONFIG)
+# when deploying behind nginx+TLS. Set MOH_FORCE_HTTPS=false to keep HTTP
+# (e.g. when TLS is terminated at a load balancer upstream).
+TALISMAN_CONFIG = {
+    "force_https": _os.environ.get("MOH_FORCE_HTTPS", "true").lower() == "true",
+    "session_cookie_secure": _os.environ.get("MOH_FORCE_HTTPS", "true").lower() == "true",
+    "content_security_policy": _MOH_CSP,
 }
 # ---------------------------------------------------------------------------
 # MCP server (dev mode)
@@ -178,6 +193,53 @@ from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
 
 BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp, _moh_assets_bp]
 
+# ---------------------------------------------------------------------------
+# Performance — Redis host/port (read from env, same vars as superset_config.py)
+# ---------------------------------------------------------------------------
+from cachelib.redis import RedisCache as _RedisCache  # noqa: E402
+
+_redis_host = _os.environ.get("SUPERSET_REDIS_HOST", "localhost")
+_redis_port = int(_os.environ.get("SUPERSET_REDIS_PORT", "6379"))
+
+# Cache timeouts — longer TTL for MoH data that changes infrequently.
+# Overrides the 300s default set in superset_config.py.
+CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_DEFAULT_TIMEOUT": 86400,   # 24 hours
+    "CACHE_KEY_PREFIX": "superset_",
+    "CACHE_REDIS_HOST": _redis_host,
+    "CACHE_REDIS_PORT": _redis_port,
+    "CACHE_REDIS_DB": 1,
+}
+DATA_CACHE_CONFIG = {
+    **CACHE_CONFIG,
+    "CACHE_DEFAULT_TIMEOUT": 3600,    # 1 hour for query results
+    "CACHE_REDIS_DB": 2,
+}
+THUMBNAIL_CACHE_CONFIG = {
+    **CACHE_CONFIG,
+    "CACHE_REDIS_DB": 3,
+}
+
+# Async dashboard loading — charts fetch in parallel instead of sequentially.
+# GLOBAL_ASYNC_QUERIES feature flag is already enabled above.
+GLOBAL_ASYNC_QUERIES_TRANSPORT = "polling"
+GLOBAL_ASYNC_QUERIES_POLLING_DELAY = 500   # ms
+GLOBAL_ASYNC_QUERIES_REDIS_CONFIG = {
+    "host": _redis_host,
+    "port": _redis_port,
+    "db": 4,
+    "ssl": False,
+}
+
+# SQL Lab results backend — Redis (faster than filesystem for large results).
+RESULTS_BACKEND = _RedisCache(
+    host=_redis_host,
+    port=_redis_port,
+    db=5,
+    default_timeout=86400,
+)
+
 # Landing page is wired in Python — see superset/views/landing.py and the
 # one-line swap in superset/initialization/__init__.py (configure_fab).
 MAPBOX_STYLES = [
@@ -187,3 +249,11 @@ MAPBOX_STYLES = [
         "url": "",
     },
 ]
+JWT_SECRET = "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"
+JWT_SECRET_KEY = JWT_SECRET
+JWT_SECRET_KEY = JWT_SECRET
+
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = _os.environ.get(
+    "SUPERSET_GLOBAL_ASYNC_QUERIES_JWT_SECRET",
+    JWT_SECRET,
+)
