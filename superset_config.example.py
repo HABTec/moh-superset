@@ -29,6 +29,12 @@ never commit secrets here. Suggested .env or systemd Environment= lines:
 import os
 
 # ---------------------------------------------------------------------------
+# Production HTTPS enforcement — set in your systemd EnvironmentFile:
+#   MOH_FORCE_HTTPS=true   (default) — enforces HTTPS + secure cookies
+#   MOH_FORCE_HTTPS=false  — disable when TLS is terminated upstream (load balancer)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 # Database (metadata store) — Postgres recommended for production
 # ---------------------------------------------------------------------------
 SQLALCHEMY_DATABASE_URI = os.environ.get(
@@ -51,32 +57,16 @@ SECRET_KEY = os.environ.get(
 REDIS_HOST = os.environ.get("SUPERSET_REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("SUPERSET_REDIS_PORT", "6379"))
 
-CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 300,
-    "CACHE_KEY_PREFIX": "superset_",
-    "CACHE_REDIS_HOST": REDIS_HOST,
-    "CACHE_REDIS_PORT": REDIS_PORT,
-    "CACHE_REDIS_DB": 1,
-}
-DATA_CACHE_CONFIG = CACHE_CONFIG
-THUMBNAIL_CACHE_CONFIG = CACHE_CONFIG
-
-# Stores SQL Lab query results on the local filesystem. Override RESULTS_BACKEND
-# for distributed deploys (e.g. S3, GCS).
-from flask_caching.backends.filesystemcache import FileSystemCache  # noqa: E402
-import pathlib  # noqa: E402
-
-# Default to a user-writable directory under $HOME so the config loads on dev
-# machines that don't have /var/lib/superset writable. Override via env var for
-# production (or use S3/GCS via a different backend).
-_default_results_dir = str(pathlib.Path.home() / ".superset" / "sqllab")
-SUPERSET_RESULTS_DIR = os.environ.get("SUPERSET_RESULTS_DIR", _default_results_dir)
-
-# Ensure the directory exists so FileSystemCache doesn't crash on init.
-pathlib.Path(SUPERSET_RESULTS_DIR).mkdir(parents=True, exist_ok=True)
-
-RESULTS_BACKEND = FileSystemCache(SUPERSET_RESULTS_DIR)
+# Cache, results backend, and async query settings are defined in
+# superset/moh_branding.py (imported below) using the same SUPERSET_REDIS_*
+# env vars. Redis DB assignments:
+#   DB 0 — Celery broker
+#   DB 1 — CACHE_CONFIG (UI/metadata)
+#   DB 2 — DATA_CACHE_CONFIG (chart query results)
+#   DB 3 — THUMBNAIL_CACHE_CONFIG
+#   DB 4 — GLOBAL_ASYNC_QUERIES state
+#   DB 5 — RESULTS_BACKEND (SQL Lab)
+#   DB 6 — Celery task result_backend
 
 # ---------------------------------------------------------------------------
 # Celery — for alerts, scheduled reports, async SQL Lab, thumbnails
@@ -85,7 +75,7 @@ RESULTS_BACKEND = FileSystemCache(SUPERSET_RESULTS_DIR)
 # ---------------------------------------------------------------------------
 class CeleryConfig:  # noqa: D101
     broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-    result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/1"
+    result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/6"
     imports = (
         "superset.sql_lab",
         "superset.tasks.scheduler",

@@ -38,7 +38,7 @@ _BRAND_ASSET_DIR = os.path.join(
 _ALLOWED_FILES: set[str] = {
     "logomohnewww.png",
     "moh_icon.png",
-    # add more brand asset filenames here when needed
+    "arrow.png",
 }
 
 

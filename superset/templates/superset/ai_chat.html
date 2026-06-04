@@ -42,10 +42,10 @@
     }
     header.topbar .back:hover { text-decoration: underline; }
 
-   iframe.ai-frame {
+    iframe.ai-frame {
       display: block;
-      width: 90%;
-      height: 90%;
+      width: 100%;
+      height: 100%;
       border: 0;
     }
 
@@ -63,9 +63,15 @@
     .iframe-container {
       width: 100%;
       height: calc(100vh - 60px);
-      display: flex;
-      justify-content: center;
-      align-items: center;
+    }
+
+    @media (max-width: 640px) {
+      header.topbar { padding: 10px 14px; height: 52px; }
+      header.topbar img.logo { height: 28px; }
+      header.topbar .title { font-size: 0.95rem; }
+      header.topbar .back { font-size: 0.85rem; }
+      .iframe-container { height: calc(100vh - 52px); }
+      .placeholder { padding: 24px 16px; }
     }
   </style>
 </head>
