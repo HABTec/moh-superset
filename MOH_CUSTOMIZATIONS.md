@@ -354,6 +354,137 @@ celery -A superset.tasks.celery_app:app beat \
 superset mcp run --host 127.0.0.1 --port 5008
 ```
 
+### 3.9 Run as system services (systemd) — Oracle VirtualBox / Ubuntu
+
+Use this instead of section 3.8 for a persistent setup that survives reboots.
+All 4 services are managed by systemd — no terminal stays open.
+
+**Step 1 — Get your username:**
+```bash
+whoami
+# example: habtech
+```
+
+**Step 2 — Create the environment file:**
+```bash
+nano /home/habtech/superset.env
+```
+```
+SUPERSET_CONFIG_PATH=/home/habtech/moh-superset/superset_config.py
+SUPERSET_REDIS_HOST=localhost
+SUPERSET_REDIS_PORT=6379
+SUPERSET_JWT_SECRET=<your-jwt-secret>
+MOH_PUBLIC_URL=http://localhost:8088/
+MOH_FORCE_HTTPS=false
+```
+```bash
+chmod 600 /home/habtech/superset.env
+```
+
+**Step 3 — Create the web server service:**
+```bash
+sudo nano /etc/systemd/system/superset.service
+```
+```ini
+[Unit]
+Description=MoH Superset Web
+After=network.target redis-server.service
+
+[Service]
+User=habtech
+WorkingDirectory=/home/habtech/moh-superset
+EnvironmentFile=/home/habtech/superset.env
+ExecStart=/home/habtech/moh-superset/.venv/bin/gunicorn \
+    --bind 0.0.0.0:8088 \
+    --workers 4 \
+    --worker-class gthread \
+    --threads 20 \
+    --timeout 120 \
+    "superset.app:create_app()"
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Step 4 — Create the Celery worker service:**
+```bash
+sudo nano /etc/systemd/system/superset-worker.service
+```
+```ini
+[Unit]
+Description=MoH Superset Celery Worker
+After=network.target redis-server.service
+
+[Service]
+User=habtech
+WorkingDirectory=/home/habtech/moh-superset
+EnvironmentFile=/home/habtech/superset.env
+ExecStart=/home/habtech/moh-superset/.venv/bin/celery \
+    -A superset.tasks.celery_app:app worker \
+    --loglevel=info -O fair -c 4
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Step 5 — Create the Celery beat service:**
+```bash
+sudo nano /etc/systemd/system/superset-beat.service
+```
+```ini
+[Unit]
+Description=MoH Superset Celery Beat
+After=network.target redis-server.service
+
+[Service]
+User=habtech
+WorkingDirectory=/home/habtech/moh-superset
+EnvironmentFile=/home/habtech/superset.env
+ExecStart=/home/habtech/moh-superset/.venv/bin/celery \
+    -A superset.tasks.celery_app:app beat \
+    --loglevel=info
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Step 6 — Enable and start all services:**
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable redis-server superset superset-worker superset-beat
+sudo systemctl start redis-server superset superset-worker superset-beat
+```
+
+**Step 7 — Verify all are running:**
+```bash
+sudo systemctl status superset superset-worker superset-beat redis-server
+# All should show: active (running)
+```
+
+**Step 8 — Check logs if something fails:**
+```bash
+sudo journalctl -u superset -n 50 --no-pager
+sudo journalctl -u superset-worker -n 50 --no-pager
+```
+
+**Step 9 — Open the browser:**
+
+Go to `http://localhost:8088` — should show the MoH login page.
+
+> **Oracle VirtualBox note:** if accessing from the host machine, either set the VM
+> network adapter to **Bridged**, or add a port-forwarding rule:
+> host `8088` → guest `8088`. Then use `http://<vm-ip>:8088`.
+
+**After any config change:**
+```bash
+sudo systemctl restart superset superset-worker superset-beat
+```
+
+---
+
 ### 3.10 Production hardening: systemd + nginx
 
 For prod, replace the `superset run` dev server with gunicorn under
