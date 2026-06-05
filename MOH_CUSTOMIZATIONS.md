@@ -354,7 +354,7 @@ celery -A superset.tasks.celery_app:app beat \
 superset mcp run --host 127.0.0.1 --port 5008
 ```
 
-### 3.9 Run as system services (systemd) — Oracle VirtualBox / Ubuntu
+### 3.9 Run as system services (systemd) 
 
 Use this instead of section 3.8 for a persistent setup that survives reboots.
 All 4 services are managed by systemd — no terminal stays open.
