@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from flask import redirect
@@ -55,14 +56,13 @@ def _tab_decor(title: str | None) -> dict[str, str]:
 
 
 def _override_title(title: str | None) -> str | None:
-    """Apply _TAB_TITLE_OVERRIDES to the tab title (case-insensitive substring)."""
+    """Apply _TAB_TITLE_OVERRIDES via case-insensitive substring replacement."""
     if not title:
         return title
-    t = title.lower()
+    result = title
     for key, replacement in _TAB_TITLE_OVERRIDES.items():
-        if key in t:
-            return replacement
-    return title
+        result = re.sub(re.escape(key), replacement, result, flags=re.IGNORECASE)
+    return result
 
 
 def _extract_tabs(position_json_str: str | None) -> list[dict[str, Any]]:
@@ -135,7 +135,7 @@ class MoHLandingView(IndexView):
         for d in rows:
             tabs = _extract_tabs(d.position_json)
             dashboards.append({
-                "title": d.dashboard_title,
+                "title": _override_title(d.dashboard_title) or d.dashboard_title,
                 "url": d.url,
                 "description": (d.description or "").strip(),
                 "tabs": tabs,
