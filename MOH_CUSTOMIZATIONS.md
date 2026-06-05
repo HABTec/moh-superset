@@ -376,6 +376,10 @@ SUPERSET_REDIS_PORT=6379
 SUPERSET_JWT_SECRET=<your-jwt-secret>
 MOH_PUBLIC_URL=http://localhost:8088/
 MOH_FORCE_HTTPS=false
+
+# Optional — AI Assistant iframe (uncomment if using an external AI service)
+# MOH_AI_IFRAME_URL=http://tgfai.habtechsolution.com/embed
+# MOH_CSP_DEV_ORIGIN=http://tgfai.habtechsolution.com
 ```
 ```bash
 chmod 600 /home/habtech/superset.env
