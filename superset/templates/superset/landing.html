@@ -336,9 +336,9 @@
   </button>
 
   <nav class="appnav" id="appNav">
-    <a href="/dashboard/list/">Dashboards</a>
-    <a href="/chart/list/">Charts</a>
     {% if is_admin %}
+      <a href="/dashboard/list/">Dashboards</a>
+      <a href="/chart/list/">Charts</a>
       <a href="/tablemodelview/list/">Datasets</a>
       <a href="/sqllab/">SQL Lab</a>
     {% endif %}
@@ -461,7 +461,7 @@
   <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
 {% endif %}
 
-{% if others %}
+{% if is_admin and others %}
   <div class="others">
     <h2>More Dashboards</h2>
     <div class="row">
