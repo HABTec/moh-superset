@@ -73,6 +73,9 @@ REDIS_PORT = int(os.environ.get("SUPERSET_REDIS_PORT", "6379"))
 # Run a worker:  celery -A superset.tasks.celery_app:app worker -O fair -c 4
 # Run beat:      celery -A superset.tasks.celery_app:app beat
 # ---------------------------------------------------------------------------
+from celery.schedules import crontab  # noqa: E402
+
+
 class CeleryConfig:  # noqa: D101
     broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
     result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/6"
@@ -84,6 +87,18 @@ class CeleryConfig:  # noqa: D101
     )
     worker_prefetch_multiplier = 1
     task_acks_late = False
+    # WITHOUT "reports.scheduler" running every minute, Alerts & Reports never
+    # fire. Requires `celery ... beat` to be running.
+    beat_schedule = {
+        "reports.scheduler": {
+            "task": "reports.scheduler",
+            "schedule": crontab(minute="*", hour="*"),
+        },
+        "reports.prune_log": {
+            "task": "reports.prune_log",
+            "schedule": crontab(minute=0, hour=0),
+        },
+    }
 
 
 CELERY_CONFIG = CeleryConfig

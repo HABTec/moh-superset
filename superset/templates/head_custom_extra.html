@@ -24,156 +24,153 @@
     scripts to initialize google analytics, intercom, segment, etc.
   #}
 
-  {# MoH — mobile responsiveness overrides for the Superset React SPA #}
+  {#
+    MoH — mobile responsiveness overrides for the Superset React SPA.
+
+    All selectors below are the REAL class names rendered by Superset 6.x
+    (verified against superset-frontend/src), not data-test ids or
+    emotion-generated styled-component names (those become unstable `css-xxxx`
+    hashes and cannot be targeted from a global stylesheet).
+
+    Key technique for the dashboard grid: row/column/chart widths are written
+    as INLINE styles (`re-resizable` sets `width: NNNpx` on `.resizable-container`).
+    A stylesheet rule with `!important` still wins over a non-important inline
+    style, so the full-width overrides below actually take effect.
+
+    Known limitation: a few charts size their SVG/canvas from a JS measurement
+    taken at render time. After CSS forces a column full-width, those charts
+    fit correctly on first load and on orientation change (which fires a
+    resize), but may not instantly re-fit if the viewport is resized live in a
+    desktop browser. This does not affect real phones/tablets.
+  #}
   <style>
-    /* ── Tablet: ≤ 900px ──────────────────────────────────────────────── */
+    /*
+      Dashboard actions menu ("…": Refresh / Set auto-refresh / Download).
+      When a dashboard hides its title via per-dashboard CSS
+      (`.title-panel { display: none }`), the header's only remaining child
+      falls to the left. `margin-left: auto` keeps that menu pinned to the
+      right where dashboard actions are expected. This is a NO-OP on normal
+      dashboards (title present → the buttons are already right-aligned), so it
+      is safe to apply globally. Note: we deliberately do NOT touch
+      `justify-content`, which would shove a visible title to the right.
+    */
+    .header-with-actions .right-button-panel {
+      margin-left: auto !important;
+    }
+    .header-with-actions [data-test="actions-trigger"] {
+      padding: 6px 10px !important;
+      border-radius: 8px !important;
+    }
+
+    /* ── Tablet & below: ≤ 900px ──────────────────────────────────────── */
     @media (max-width: 900px) {
 
-      /* Top navigation — reduce padding, allow wrapping */
-      .ant-layout-header,
-      .header-with-logo {
-        padding: 0 16px !important;
-        height: auto !important;
-        min-height: 56px !important;
-      }
-
-      /* Nav right-side items — tighten gap */
-      .nav-right,
-      .header-with-logo .right {
-        gap: 8px !important;
-      }
-
-      /* Breadcrumbs — allow wrapping */
+      /* Breadcrumbs — allow wrapping instead of overflowing */
       .ant-breadcrumb {
         white-space: normal !important;
         flex-wrap: wrap !important;
       }
 
-      /* Dashboard title bar */
-      .dashboard-header {
+      /* Dashboard title + actions bar — let it wrap to a second line */
+      .dashboard-header-container {
         flex-wrap: wrap !important;
         height: auto !important;
-        padding: 8px 12px !important;
-      }
-      .dashboard-header .title-panel {
-        flex: 1 1 100% !important;
-        min-width: 0 !important;
+        row-gap: 4px !important;
       }
 
-      /* Filter sidebar — narrower on tablet */
-      .filter-bar {
-        width: 220px !important;
-        min-width: 220px !important;
-      }
-
-      /* List view action toolbar — wrap buttons */
-      .action-right {
+      /* List view (Dashboards / Charts / Datasets) — let toolbars wrap */
+      .superset-list-view .header,
+      .superset-list-view .body {
         flex-wrap: wrap !important;
-        gap: 6px !important;
+      }
+    }
+
+    /* ── Phones: ≤ 767px ──────────────────────────────────────────────── */
+    @media (max-width: 767px) {
+
+      /*
+        Dashboard grid — collapse every row to a single vertical stack so each
+        chart gets the full screen width instead of an unreadable sliver.
+        `.resizable-container` carries the inline pixel width; overriding it
+        with !important is what makes the charts actually reflow.
+      */
+      .dashboard-grid .grid-row,
+      .dashboard-grid .dragdroppable-row {
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+      }
+      .dashboard-grid .grid-column,
+      .dashboard-grid .dragdroppable-column,
+      .dashboard-grid .resizable-container,
+      .dashboard-grid .dashboard-component-chart-holder {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+      /* The fixed-width gutters between components reserve horizontal space */
+      .dashboard-grid .empty-droptarget {
+        min-width: 0 !important;
       }
     }
 
     /* ── Mobile: ≤ 640px ──────────────────────────────────────────────── */
     @media (max-width: 640px) {
 
-      /* Top nav — stack vertically if needed */
-      .ant-layout-header,
-      .header-with-logo {
+      /* Top nav — tighten padding; antd already collapses overflow items */
+      .ant-layout-header {
         padding: 0 12px !important;
       }
 
-      /* Hide text labels next to icons in nav to save space */
-      .ant-menu-horizontal > .ant-menu-item > span:not(.anticon),
-      .ant-menu-horizontal > .ant-menu-submenu > span:not(.anticon) {
-        display: none !important;
+      /* Larger touch targets for the dashboard title bar actions */
+      .dashboard-header-container {
+        padding: 8px 12px !important;
       }
 
-      /* Dashboard grid — single column on mobile */
-      .dragdroppable-row {
-        flex-direction: column !important;
-      }
-      .dragdroppable-column {
-        width: 100% !important;
-        min-width: 0 !important;
-      }
-      .dashboard-component-chart-holder {
-        width: 100% !important;
-        min-width: 0 !important;
-      }
-
-      /* Filter bar — collapse to icon-only strip on mobile */
-      .filter-bar {
-        width: 48px !important;
-        min-width: 48px !important;
-        overflow: hidden !important;
-      }
-      .filter-bar .filter-bar__title,
-      .filter-bar .filter-control-wrapper {
-        display: none !important;
-      }
-
-      /* Improve touch targets for buttons */
-      .ant-btn {
-        min-height: 40px !important;
-        padding: 6px 12px !important;
-      }
-
-      /* SQL Lab — make the editor pane scrollable horizontally */
-      .SqlEditorLeftBar {
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: auto !important;
-      }
-      .SqlEditor {
-        flex-direction: column !important;
-        height: auto !important;
-      }
-      .SqlEditorLeftBar,
-      .SqlEditor .ace_editor {
-        width: 100% !important;
-      }
-
-      /* Chart list / dashboard list — single column cards */
-      .gallery {
-        grid-template-columns: 1fr !important;
-      }
-      .card-container {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-
-      /* Search/filter bar on list pages */
-      .search-input {
-        width: 100% !important;
-      }
-      .filter-bar__actions,
-      .list-view__controls {
-        flex-wrap: wrap !important;
-        gap: 8px !important;
-      }
-
-      /* Table scrolling — prevent overflow breaking layout */
+      /* Wide tables (SQL Lab results, list view table mode) — scroll, don't break layout */
       .ant-table-wrapper {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch !important;
       }
 
-      /* Modal — full screen on mobile */
+      /*
+        Pivot tables inside a chart are typically wider than a phone. Let them
+        scroll horizontally within their (now full-width) card instead of
+        overflowing the page. `.pvtTable` is the real react-pivottable class.
+      */
+      .dashboard-component-chart-holder .pvtTable {
+        display: block !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+
+      /* SQL Lab — let the Ace editor use the full width */
+      .ace_editor {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      /* Modals — full screen on small viewports */
       .ant-modal {
         max-width: 100vw !important;
         margin: 0 !important;
         top: 0 !important;
+        padding-bottom: 0 !important;
       }
       .ant-modal-content {
         border-radius: 0 !important;
         min-height: 100vh !important;
       }
+
+      /* Improve touch targets for primary/default buttons */
+      .ant-btn {
+        min-height: 36px !important;
+      }
     }
 
     /* ── Small phones: ≤ 380px ────────────────────────────────────────── */
     @media (max-width: 380px) {
-      .ant-layout-header,
-      .header-with-logo {
+      .ant-layout-header {
         padding: 0 8px !important;
       }
       .ant-btn {

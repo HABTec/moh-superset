@@ -85,6 +85,53 @@ FEATURE_FLAGS = {
     "GLOBAL_ASYNC_QUERIES": True,     # charts load in parallel, not sequentially
 
 }
+
+# ---------------------------------------------------------------------------
+# Alerts & Reports
+# ---------------------------------------------------------------------------
+# ALERT_REPORTS (above) turns the feature on in the UI, but it only fires when
+# (a) Celery beat runs the "reports.scheduler" task — see beat_schedule in the
+# CeleryConfig of superset_config(.example).py — and (b) delivery + a screenshot
+# engine are configured here. Secrets always come from env vars.
+
+# Deliver for real. If True, the worker only logs what it *would* send.
+ALERT_REPORTS_NOTIFICATION_DRY_RUN = (
+    _os.environ.get("ALERT_REPORTS_DRY_RUN", "false").lower() == "true"
+)
+
+# Internal URL the headless browser uses to reach THIS Superset for screenshots;
+# the public link in the email uses WEBDRIVER_BASEURL_USER_FRIENDLY.
+WEBDRIVER_BASEURL = _os.environ.get("WEBDRIVER_BASEURL", "http://localhost:8088/")
+WEBDRIVER_BASEURL_USER_FRIENDLY = _os.environ.get("MOH_PUBLIC_URL", WEBDRIVER_BASEURL)
+
+# Screenshot engine (alerts/reports image attachments + thumbnails). Either:
+#   1. Playwright + Chromium (recommended on servers): set MOH_USE_PLAYWRIGHT=true
+#      and run once: pip install playwright && playwright install chromium --with-deps
+#   2. Selenium + headless Chrome/Firefox installed on the host (default below).
+if _os.environ.get("MOH_USE_PLAYWRIGHT", "false").lower() == "true":
+    FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
+else:
+    WEBDRIVER_TYPE = _os.environ.get("WEBDRIVER_TYPE", "chrome")
+    WEBDRIVER_OPTION_ARGS = [
+        "--headless",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--window-size=1920,1080",
+    ]
+
+# Email (SMTP) — required for email alerts/reports.
+SMTP_HOST = _os.environ.get("SMTP_HOST", "localhost")
+SMTP_PORT = int(_os.environ.get("SMTP_PORT", "587"))
+SMTP_STARTTLS = _os.environ.get("SMTP_STARTTLS", "true").lower() == "true"
+SMTP_SSL = _os.environ.get("SMTP_SSL", "false").lower() == "true"
+SMTP_USER = _os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = _os.environ.get("SMTP_PASSWORD", "")
+SMTP_MAIL_FROM = _os.environ.get("SMTP_MAIL_FROM", "alerts@moh.gov.et")
+EMAIL_NOTIFICATIONS = True
+
+# Slack (optional) — for alerts/reports that notify a Slack channel.
+SLACK_API_TOKEN = _os.environ.get("SLACK_API_TOKEN") or None
 # Both are env-driven, no hardcoded fallbacks — set them in docker/.env-local
 # (for compose) or systemd EnvironmentFile / shell export (for native).
 _MOH_CSP_DEV_ORIGIN = _os.environ.get("MOH_CSP_DEV_ORIGIN")
