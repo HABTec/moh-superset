@@ -43,6 +43,12 @@
     resize), but may not instantly re-fit if the viewport is resized live in a
     desktop browser. This does not affect real phones/tablets.
   #}
+  {# Admin users get extra nav items (+, board) and the "Edit dashboard" button,
+     so the right cluster and the options bar are both wider for them. Compute
+     the role here so the CSS can offset the options bar correctly per role. #}
+  {% set _moh_roles = (current_user.roles | map(attribute='name') | list)
+                       if (current_user and current_user.is_authenticated) else [] %}
+  {% set _moh_is_admin = 'Admin' in _moh_roles %}
   <style>
     /*
       Dashboard actions menu ("…": Refresh / Set auto-refresh / Download).
@@ -60,6 +66,64 @@
     .header-with-actions [data-test="actions-trigger"] {
       padding: 6px 10px !important;
       border-radius: 8px !important;
+    }
+
+    /*
+      Merge the dashboard action bar (Edit dashboard + "…") UP onto the global
+      nav row so it sits beside Settings, reclaiming the second row's vertical
+      space for charts. The top nav (#main-menu) and the dashboard header
+      (.dashboard-header-container) are separate components, so this is a CSS
+      overlay: lift the header onto the nav row and shift its buttons left of
+      the +/board/Settings cluster. Desktop only — phones keep the stacked
+      layout from the media queries below.
+
+      TUNE these two numbers against the live layout:
+        --moh-nav-lift   : how far up to pull the bar (≈ nav row height)
+        --moh-nav-clear  : right gap so buttons clear +/board/Settings
+    */
+    @media (min-width: 901px) {
+      /*
+        Place the dashboard action bar to the RIGHT of the Settings cluster:
+          admin:      .....  + board Settings  [ Edit dashboard ] [ … ]
+          non-admin:  ................  theme Settings  [ … ]
+        Step 1 — push the right nav menu LEFT by --moh-opts-width to free room on
+        its right. Step 2 — lift the action bar onto the nav row, pinned to the
+        far-right edge. --moh-opts-width is role-aware (admin's bar is wider), so
+        the bar sits snug after Settings with no gap for either role.
+      */
+      /* Variables MUST live on :root — the navbar (#main-menu) and the dashboard
+         header are in separate DOM subtrees, and CSS vars only cascade to
+         descendants. Defining them here lets BOTH rules below read them. */
+      :root {
+        --moh-nav-lift: 48px; /* TUNE: ≈ nav row height (vertical alignment) */
+        /* TUNE: space reserved for the options bar, per role */
+        --moh-opts-width: {{ '195px' if _moh_is_admin else '55px' }};
+        --moh-edge-gap: 10px; /* TUNE: gap from the far right edge */
+      }
+      .dashboard-header-container {
+        margin-top: calc(-1 * var(--moh-nav-lift)) !important;
+        border-bottom: none !important;
+        background: transparent !important;
+        pointer-events: none; /* container must not block the nav dropdowns */
+      }
+      /* Shift the right nav cluster left to free space for the options bar.
+         The right column is antd's .ant-col-md-8 (the left nav is md-16), a
+         stable class that won't change between builds. translateX always moves
+         it visually, regardless of the menu's internal flex sizing. */
+      #main-menu .ant-col-md-8 {
+        transform: translateX(calc(-1 * var(--moh-opts-width))) !important;
+      }
+      .dashboard-header-container .header-with-actions {
+        background: transparent !important;
+        height: var(--moh-nav-lift) !important;
+        pointer-events: none; /* let clicks fall through to the nav underneath */
+        position: relative;
+        z-index: 12; /* above #main-menu (z-index: 10) so buttons stay on top */
+      }
+      .dashboard-header-container .header-with-actions .right-button-panel {
+        margin-right: var(--moh-edge-gap) !important; /* pin to the far-right edge */
+        pointer-events: auto; /* but keep the buttons themselves clickable */
+      }
     }
 
     /* ── Tablet & below: ≤ 900px ──────────────────────────────────────── */
