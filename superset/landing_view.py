@@ -15,7 +15,7 @@ import json
 import re
 from typing import Any
 
-from flask import redirect
+from flask import current_app, redirect
 from flask_appbuilder import expose, IndexView
 from flask_login import current_user
 
@@ -135,17 +135,31 @@ class MoHLandingView(IndexView):
         for d in rows:
             tabs = _extract_tabs(d.position_json)
             dashboards.append({
+                "id": d.id,
+                "slug": d.slug,
                 "title": _override_title(d.dashboard_title) or d.dashboard_title,
                 "url": d.url,
                 "description": (d.description or "").strip(),
                 "tabs": tabs,
             })
 
-        featured = max(
-            (d for d in dashboards if d["tabs"]),
-            key=lambda d: len(d["tabs"]),
-            default=None,
-        )
+        # Pin a specific hero dashboard when MOH_FEATURED_DASHBOARD is set
+        # (matches by numeric id or slug); otherwise fall back to promoting
+        # whichever dashboard has the most top-level tabs.
+        featured = None
+        featured_cfg = current_app.config.get("MOH_FEATURED_DASHBOARD")
+        if featured_cfg is not None:
+            cfg = str(featured_cfg)
+            featured = next(
+                (d for d in dashboards if str(d["id"]) == cfg or d["slug"] == cfg),
+                None,
+            )
+        if featured is None:
+            featured = max(
+                (d for d in dashboards if d["tabs"]),
+                key=lambda d: len(d["tabs"]),
+                default=None,
+            )
         others = [d for d in dashboards if d is not featured]
         return self.render_template(
             self.index_template,
