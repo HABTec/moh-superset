@@ -60,6 +60,20 @@ enum AuthType {
   AuthSAML = 5,
 }
 
+// Full-height, centered container. Uses min-height (not a fixed height) with a
+// dynamic-viewport fallback so the card stays centered on desktop yet can grow
+// and scroll on short/mobile viewports (e.g. when the on-screen keyboard opens).
+// Horizontal padding gives the card gutters so it never touches the screen edge.
+const LoginContainer = styled(Flex)`
+  ${({ theme }) => css`
+    width: 100%;
+    min-height: calc(100vh - 200px);
+    min-height: calc(100dvh - 200px);
+    padding: ${theme.paddingLG}px;
+    box-sizing: border-box;
+  `}
+`;
+
 const StyledCard = styled(Card)`
   ${({ theme }) => css`
     max-width: 400px;
@@ -153,15 +167,7 @@ export default function Login() {
   };
 
   return (
-    <Flex
-      justify="center"
-      align="center"
-      data-test="login-form"
-      css={css`
-        width: 100%;
-        height: calc(100vh - 200px);
-      `}
-    >
+    <LoginContainer justify="center" align="center" data-test="login-form">
       <StyledCard title={t('Sign in')} padded>
         {authType === AuthType.AuthOID && (
           <Flex justify="center" vertical gap="middle">
@@ -239,6 +245,8 @@ export default function Login() {
               </Form.Item>
               <Form.Item label={null}>
                 <Flex
+                  vertical
+                  gap="small"
                   css={css`
                     width: 100%;
                   `}
@@ -268,6 +276,6 @@ export default function Login() {
           </Flex>
         )}
       </StyledCard>
-    </Flex>
+    </LoginContainer>
   );
 }
