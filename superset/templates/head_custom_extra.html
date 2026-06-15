@@ -100,11 +100,21 @@
         --moh-opts-width: {{ '195px' if _moh_is_admin else '55px' }};
         --moh-edge-gap: 10px; /* TUNE: gap from the far right edge */
       }
+      /* Do NOT lift the whole header — that drags the title + metadata onto the
+         nav row and covers the left menu on dashboards that show a title.
+         Instead: let the header collapse when it has no title (title-hidden
+         dashboards reclaim the space) and keep its natural height when a title
+         is shown (title sits on its own row, below the nav — never overlapping
+         it). Only the action buttons get lifted up (see right-button-panel). */
       .dashboard-header-container {
-        margin-top: calc(-1 * var(--moh-nav-lift)) !important;
         border-bottom: none !important;
         background: transparent !important;
-        pointer-events: none; /* container must not block the nav dropdowns */
+      }
+      .dashboard-header-container .header-with-actions {
+        background: transparent !important;
+        min-height: 0 !important; /* collapse to ~0 when the title is hidden */
+        height: auto !important;
+        position: relative; /* anchor for the absolutely-lifted button bar */
       }
       /* Shift the right nav cluster left to free space for the options bar.
          The right column is antd's .ant-col-md-8 (the left nav is md-16), a
@@ -113,16 +123,15 @@
       #main-menu .ant-col-md-8 {
         transform: translateX(calc(-1 * var(--moh-opts-width))) !important;
       }
-      .dashboard-header-container .header-with-actions {
-        background: transparent !important;
-        height: var(--moh-nav-lift) !important;
-        pointer-events: none; /* let clicks fall through to the nav underneath */
-        position: relative;
-        z-index: 12; /* above #main-menu (z-index: 10) so buttons stay on top */
-      }
+      /* Lift ONLY the action buttons up onto the nav row, pinned top-right.
+         Absolute positioning takes them out of the header flow, so the title
+         below is untouched and the left nav menu is never covered. */
       .dashboard-header-container .header-with-actions .right-button-panel {
-        margin-right: var(--moh-edge-gap) !important; /* pin to the far-right edge */
-        pointer-events: auto; /* but keep the buttons themselves clickable */
+        position: absolute !important;
+        top: calc(-1 * var(--moh-nav-lift)) !important;
+        right: var(--moh-edge-gap) !important;
+        margin: 0 !important;
+        z-index: 12; /* above #main-menu (z-index: 10) */
       }
     }
 
