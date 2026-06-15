@@ -51,6 +51,17 @@
   {% set _moh_is_admin = 'Admin' in _moh_roles %}
   <style>
     /*
+      Hide the dashboard title globally — the title row is redundant with the
+      top nav and was the source of the title/nav overlap. `.title-panel` wraps
+      the editable title (see PageHeaderWithActions). The header collapse rules
+      below already handle the now-empty title row, so the action buttons stay
+      correctly placed.
+    */
+    .dashboard-header-container .header-with-actions .title-panel {
+      display: none !important;
+    }
+
+    /*
       Dashboard actions menu ("…": Refresh / Set auto-refresh / Download).
       When a dashboard hides its title via per-dashboard CSS
       (`.title-panel { display: none }`), the header's only remaining child
