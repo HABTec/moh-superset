@@ -31,6 +31,11 @@
     </title>
 
     {% block head_meta %}
+      {# Without this, mobile/tablet browsers assume a ~980px layout viewport and
+         every responsive @media rule (see head_custom_extra.html) is dead — the
+         page renders at desktop width and is scaled down. width=device-width
+         makes the CSS viewport match the real device so the breakpoints fire. #}
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <link rel="manifest" href="{{ assets_prefix }}/static/assets/pwa-manifest.json?v=4">
     {% endblock %}
 
