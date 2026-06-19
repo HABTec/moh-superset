@@ -23,3 +23,84 @@
     good place to include your custom frontend code, such as
     scripts to initialize google analytics, intercom, segment, etc.
   #}
+
+  {#
+    MoH — automatic, device-based dashboard fit. No URL params required.
+
+    Behaviour purely by the device/screen:
+      - Small screens (< 1024px, phones/tablets): do nothing here — the CSS
+        media queries reflow/stack the dashboard (and the user can scroll).
+      - Large screens (>= 1024px, laptops/monitors/TVs) VIEWING a dashboard:
+        shrink ONLY the chart grid (.grid-content) with CSS `zoom` so the whole
+        tab fits the screen with no vertical scroll. `zoom` (not transform:scale)
+        keeps click targets, antd dropdowns and tooltips correctly positioned, so
+        it stays fully interactive.
+
+    Skipped automatically (no config needed):
+      - Edit mode (the edit toolbar is present) — never rescale while editing.
+      - Embeds & the /moh-static/tv slideshow (they run inside an iframe and do
+        their own scaling; we must not double-fit).
+      - Non-dashboard pages (no .grid-content → the function just no-ops).
+  #}
+  <script>
+    (function () {
+      // Embeds / slideshow run inside an iframe — let them scale themselves.
+      if (window.self !== window.top) return;
+
+      var MIN_ZOOM = 0.3; // never shrink below this (keeps charts legible)
+
+      function isEditing() {
+        // The edit toolbar only exists while editing a dashboard.
+        return !!document.querySelector('[data-test="dashboard-edit-actions"]');
+      }
+
+      function visibleGrid() {
+        // A tabbed dashboard renders one [data-test="grid-content"] PER tab;
+        // the hidden ones have height 0. Pick the visible, tallest one.
+        var grids = document.querySelectorAll(
+          '[data-test="grid-content"], .grid-content'
+        );
+        var best = null;
+        var bestH = 0;
+        grids.forEach(function (el) {
+          el.style.zoom = '';                         // reset before measuring
+          if (el.offsetParent === null) return;       // hidden tab
+          if (el.scrollHeight > bestH) {
+            bestH = el.scrollHeight;
+            best = el;
+          }
+        });
+        return best;
+      }
+
+      function fitGrid() {
+        var grid = visibleGrid();
+        if (!grid) return;                            // not a dashboard view
+        // Small screens reflow via CSS; editing must stay full-size.
+        if (window.innerWidth < 1024 || isEditing()) {
+          grid.style.zoom = '';
+          return;
+        }
+        var top = grid.getBoundingClientRect().top;   // space above the grid
+        var avail = window.innerHeight - top;         // visible height for it
+        var need = grid.scrollHeight;                 // full content height
+        if (need > avail + 2 && avail > 0) {
+          grid.style.zoom = String(Math.max(MIN_ZOOM, avail / need));
+        } else {
+          grid.style.zoom = '';
+        }
+      }
+
+      // Charts render asynchronously and tabs switch in-place (SPA), so re-fit
+      // a few times after load and then keep it in sync on a light interval.
+      function burst() {
+        [600, 1500, 3000, 6000, 9000].forEach(function (t) {
+          setTimeout(fitGrid, t);
+        });
+      }
+      window.addEventListener('resize', fitGrid);
+      if (document.readyState !== 'loading') burst();
+      else window.addEventListener('DOMContentLoaded', burst);
+      setInterval(fitGrid, 4000);
+    })();
+  </script>
