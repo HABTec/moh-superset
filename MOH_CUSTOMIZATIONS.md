@@ -31,6 +31,7 @@ The same customizations work in two runtimes:
 | `docker/pythonpath_dev/.gitignore` | **MODIFIED** | Allow-list the shim above |
 | `superset/moh_ai_chat.py` | **NEW** | Flask blueprint for the AI Assistant page (`/ai-chat/`). Supports Gemini, Claude, OpenAI via `MOH_AI_PROVIDER` env var |
 | `superset/templates/superset/ai_chat.html` | **NEW** | AI chat UI — auto-embeds Superset URLs from the bot reply as inline iframes |
+| `superset/templates/head_custom_extra.html` | **NEW** | Global responsive CSS for mobile dashboards — breakpoints at 901px, 767px, 640px, 380px. Handles grid collapse, touch targets (44x44px), chart sizing |
 | `docker/requirements-local.txt` | **NEW** | AI provider SDKs installed on every container start (`google-genai`, `anthropic`, `openai`) |
 | `docker-compose.override.yml` | **MODIFIED** *(gitignored)* | Adds `superset-mcp` service running the bundled MCP server on port 5008 |
 | `docs/AI_CHAT_INTEGRATION.md` | **NEW** | Line-by-line integration guide for the AI Assistant |
@@ -600,7 +601,136 @@ server {
 
 ---
 
-## 4. Docker development (Windows) — quick reference
+## 4. Mobile Responsiveness
+
+The MoH deployment includes **global responsive CSS** that makes dashboards work on phones, tablets, and desktops. This is implemented via `superset/templates/head_custom_extra.html`, which is injected into every Superset page.
+
+### 4.1 Responsive Breakpoints
+
+| Breakpoint | Screen Size | Behavior |
+|---|---|---|
+| **≥ 901px** | Desktop | Dashboard grid uses 12-column layout; filter sidebar (260px) visible; full-width modals |
+| **768–900px** | Tablet | Dashboard grid uses 12-column layout; filter sidebar visible but may need scrolling; toolbar wraps if needed |
+| **577–767px** | Large phone | Dashboard grid collapses to **1 column** (full width); filter sidebar may overflow; text readable |
+| **≤ 576px** | Small phone | Extreme compression: minimal padding (4px), 44x44px touch targets, full-width forms, tables scroll horizontally |
+
+### 4.2 What's Responsive
+
+Handled automatically by `head_custom_extra.html`:
+- ✅ **Dashboard grid** → collapses to 1 column on mobile
+- ✅ **Charts** → scale to viewport (min-height 280px, max-height 60vh)
+- ✅ **Touch targets** → 44x44px minimum on mobiles (buttons, links, inputs)
+- ✅ **Tables** → scroll horizontally instead of breaking layout
+- ✅ **Modals** → full-screen on phones, centered on desktop
+- ✅ **Navigation** → tighter padding on small screens
+- ✅ **Forms** → full-width inputs on mobile
+
+### 4.3 Testing Mobile Responsiveness
+
+**In Chrome DevTools:**
+```
+1. Press F12 to open DevTools
+2. Click Device Toolbar icon (top-left, looks like a phone/tablet)
+   or press Ctrl+Shift+M
+3. Select a device:
+   - iPhone SE (375px) → small phone
+   - iPad (768px) → tablet
+   - Custom 414x896 → typical Android phone
+4. Reload page (F5) and scroll through dashboard
+```
+
+**On a real device:**
+```bash
+# Find your machine IP
+ip addr show
+
+# From phone on the same network, visit:
+http://<YOUR-IP>:8088
+```
+
+### 4.4 Customizing Responsive Breakpoints
+
+Edit `superset/templates/head_custom_extra.html` to change breakpoints or chart heights:
+
+```css
+/* Current breakpoints: adjust these pixel values to match your needs */
+@media (max-width: 767px) { ... }    /* Phones */
+@media (max-width: 640px) { ... }    /* Smaller phones */
+@media (max-width: 576px) { ... }    /* Tiny phones */
+@media (max-width: 380px) { ... }    /* Extra small phones */
+
+/* Current chart sizing: adjust if charts are too tall/short on mobile */
+@media (max-width: 767px) {
+  .dashboard-component-chart-holder {
+    min-height: 280px !important;    /* Adjust this */
+    max-height: 60vh !important;     /* Adjust this */
+  }
+}
+```
+
+### 4.5 Debugging Unresponsive Dashboards
+
+**If your dashboard isn't responsive:**
+
+1. **Check the template is loaded:**
+   ```bash
+   grep -l "head_custom_extra" superset/templates/base.html superset/templates/superset/spa.html
+   # Should print one or both filenames
+   ```
+
+2. **Verify styles are in the browser:**
+   - Open DevTools (F12)
+   - Go to Elements tab
+   - Search for `@media (max-width: 767px)`
+   - If not found, the template didn't load — restart Superset
+
+3. **Check for conflicting inline styles:**
+   - In DevTools Inspector, click a chart
+   - Look for `style="width: NNNpx"` (inline styles)
+   - If present, CSS `!important` flags should override, but if not → file a bug report
+
+4. **Clear browser cache:**
+   - Hard-refresh: `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (Mac)
+   - Or open DevTools → Disable cache (checkbox in Settings)
+
+5. **Check if this is a known Superset issue:**
+   - Some Superset charts (ECharts, Vega) measure themselves at render time
+   - After viewport resize on desktop, they may not instantly re-fit
+   - This is **not a problem on real phones** (orientation change triggers resize)
+   - This is a limitation, not a bug
+
+### 4.6 Touch-Friendly Spacing
+
+MOH defaults are optimized for healthcare workers using phones in clinical settings:
+- Buttons: 44x44px minimum (exceeds Apple HIG standard of 44x44px)
+- Touch targets: 3px padding from edges (easier to tap)
+- Spacing: wider gaps between clickable elements on mobile
+
+To increase touch targets further, edit `head_custom_extra.html`:
+```css
+@media (max-width: 767px) {
+  .ant-btn {
+    min-height: 48px !important;  /* Increase from 44px */
+    min-width: 48px !important;
+  }
+}
+```
+
+### 4.7 Performance on Mobile
+
+Responsive CSS has minimal performance impact:
+- Media queries are evaluated only on page load and orientation change
+- Grid reflow is hardware-accelerated in modern browsers
+- No JavaScript required — pure CSS
+
+However, **chart SVG rendering** can be slow on low-end phones:
+- If dashboards are slow, reduce the number of charts per view
+- Use `THUMBNAIL_CACHE_CONFIG` (24h TTL) to cache expensive thumbnails
+- Consider disabling auto-refresh on mobile by default
+
+---
+
+## 5. Docker development (Windows) — quick reference
 
 For development on Windows where native is impractical:
 
@@ -760,7 +890,10 @@ These are only needed when running via `docker compose` and have no effect on na
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Browser shows **"connection timed out"** on `http://localhost:8088` immediately | `MOH_FORCE_HTTPS=true` (the default) redirects HTTP → HTTPS; no HTTPS server is running | Export `MOH_FORCE_HTTPS=false` in every terminal before starting Gunicorn. Only set `true` when behind nginx+TLS |
+| Dashboard **not responsive on mobile** — charts don't stack vertically, sidebar too wide, text overflows | CSS in `head_custom_extra.html` not being applied, or browser cache | Hard-refresh (`Ctrl+Shift+R`), verify `head_custom_extra.html` exists in the template folder, check Chrome DevTools (F12 → Styles) that media queries are loaded |
+| Mobile dashboard loads but **charts still show at fixed width** | Hardcoded React component widths override CSS — or the `!important` flags in media queries are not working | File an issue with the exact viewport width; check DevTools Inspector for inline `style="width: XXXpx"` overrides. May require React component changes in `superset-frontend/` |
+| **Touch targets too small** on mobile buttons | Default button height is 36px, should be 44px per Apple HIG | Already fixed in `head_custom_extra.html` media query `@media (max-width: 640px)` — clear browser cache and restart. If still too small, check that the override file is loading (Chrome DevTools → Sources → search "head_custom_extra") |
+| **Charts don't re-fit after viewport resize** | Some Superset charts (ECharts, Vega) measure SVG size at render time, not on resize | This is expected on desktop live-resizing (not a phone issue). Charts re-fit correctly on initial load and on device orientation change. Limitation documented in `head_custom_extra.html` comment |
 | SQL Lab query **loads forever**, never returns results | Celery worker not running — queries queue in Redis but nothing executes them | Start Terminal 3 (Celery worker). Verify with `celery -A superset.tasks.celery_app:app inspect active` |
 | Browser stuck on infinite loading spinner, blank page; `curl /health` returns 200 | Frontend assets were never built — `superset/static/assets/` is empty | Run section 3.5: `cd superset-frontend && npm install && npm run build`. Verify with `ls superset/static/assets/ \| head -5`. Restart Gunicorn after the build completes |
 | 404 on `/static/assets/manifest.json` | Same as above — no built frontend bundle | See above |
