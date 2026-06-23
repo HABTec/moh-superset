@@ -246,9 +246,15 @@
         min-height: 100vh !important;
       }
 
-      /* Improve touch targets for primary/default buttons */
+      /* Improve touch targets for primary/default buttons — 44x44px minimum */
       .ant-btn {
-        min-height: 36px !important;
+        min-height: 44px !important;
+        min-width: 44px !important;
+      }
+
+      /* Filter sidebar — hide on mobile to reclaim screen width */
+      .dashboard-header-container ~ .dashboard-grid {
+        margin-left: 0 !important;
       }
     }
 
@@ -260,6 +266,85 @@
       .ant-btn {
         font-size: 0.82rem !important;
         padding: 4px 8px !important;
+        min-height: 44px !important;
+        min-width: 44px !important;
+      }
+
+      /* Reduce dashboard padding on tiny screens */
+      .dashboard-grid {
+        padding: 4px !important;
+        gap: 4px !important;
+      }
+    }
+
+    /* ── Enhanced mobile chart sizing ─────────────────────────────────── */
+    @media (max-width: 767px) {
+      /* Charts — responsive height instead of fixed pixels */
+      .dashboard-component-chart-holder {
+        min-height: 280px !important;
+        max-height: 60vh !important;
+        height: auto !important;
+      }
+
+      /* Echarts and other canvas-based charts — fill their container */
+      .dashboard-component-chart-holder .vega-embed,
+      .dashboard-component-chart-holder svg,
+      .dashboard-component-chart-holder canvas,
+      .dashboard-component-chart-holder .rechart {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        display: block !important;
+      }
+
+      /* Override any hardcoded chart widths */
+      .resizable-container {
+        overflow-x: hidden !important;
+      }
+    }
+
+    /* ── Force full width on extra small screens ──────────────────────── */
+    @media (max-width: 576px) {
+      /* Dashboard padding — minimize on tiny screens */
+      .dashboard-grid {
+        padding: 4px !important;
+        gap: 8px !important;
+      }
+
+      /* Chart card spacing */
+      .dashboard-component-chart-holder {
+        margin: 0 !important;
+        border-radius: 4px !important;
+      }
+
+      /* Prevent horizontal scroll */
+      body, html {
+        overflow-x: hidden !important;
+      }
+
+      /* List view items — stack on mobile */
+      .ant-list-item {
+        flex-direction: column !important;
+      }
+
+      /* Form inputs — full width on mobile */
+      .ant-form-item-control {
+        width: 100% !important;
+      }
+      .ant-select, .ant-picker, .ant-input {
+        width: 100% !important;
+      }
+    }
+
+    /* ── Accessibility: improve focus indicators on mobile ──────────────────── */
+    @media (max-width: 767px) {
+      /* Larger, more visible focus rings for keyboard navigation */
+      .ant-btn:focus,
+      .ant-select:focus,
+      input:focus,
+      button:focus {
+        outline: 3px solid #1a5cff !important;
+        outline-offset: 2px !important;
       }
     }
   </style>
