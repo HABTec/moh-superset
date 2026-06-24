@@ -23,7 +23,7 @@
     good place to include your custom frontend code, such as
     scripts to initialize google analytics, intercom, segment, etc.
   #}
-  
+
   <style>
     /*
       MOH — global responsive CSS for dashboards.
@@ -131,3 +131,85 @@
       not a problem on real phones (orientation change triggers resize).
     */
   </style>
+
+ <script>
+  (function () {
+    /**
+     * MOH — Auto-collapse the native filter sidebar on mobile.
+     * Confirmed: button[data-test="filter-bar__collapse-button"]
+     * Note: panel class names are hashed (Emotion CSS) — not stable.
+     *       Instead we check panel width="32" (collapsed) vs "260" (expanded).
+     */
+
+    var MOBILE_BREAKPOINT = 767;
+    var MAX_WAIT_MS       = 15000; // wait up to 15s for React to mount
+    var POLL_INTERVAL_MS  = 300;
+
+    function isMobile() {
+      return window.innerWidth <= MOBILE_BREAKPOINT;
+    }
+
+    function findToggleButton() {
+      return document.querySelector('button[data-test="filter-bar__collapse-button"]');
+    }
+
+    function isFilterBarExpanded() {
+      var panel = document.querySelector('[data-test="filter-bar"]');
+      if (!panel) return false;
+      // width="32" = collapsed, width="260" = expanded
+      var w = parseInt(panel.getAttribute('width') || panel.offsetWidth, 10);
+      return w > 60;
+    }
+
+    var collapsed = false; // only collapse once per page load
+
+    function tryCollapse() {
+      if (!isMobile()) return true;  // desktop — stop polling
+      if (collapsed) return true;    // already done
+
+      var btn = findToggleButton();
+      if (!btn) return false;        // not mounted yet — keep polling
+
+      if (isFilterBarExpanded()) {
+        btn.click();
+        collapsed = true;
+      }
+      return true;
+    }
+
+    // Poll until button appears and is clickable
+    var elapsed = 0;
+    var timer = setInterval(function () {
+      elapsed += POLL_INTERVAL_MS;
+      var done = tryCollapse();
+      if (done || elapsed >= MAX_WAIT_MS) {
+        clearInterval(timer);
+      }
+    }, POLL_INTERVAL_MS);
+
+    // Re-collapse on orientation change
+    window.addEventListener('orientationchange', function () {
+      collapsed = false;
+      setTimeout(function () {
+        if (isMobile() && isFilterBarExpanded()) {
+          var btn = findToggleButton();
+          if (btn) { btn.click(); collapsed = true; }
+        }
+      }, 500);
+    });
+
+    // Re-collapse on resize crossing breakpoint
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        if (isMobile() && isFilterBarExpanded()) {
+          collapsed = false;
+          var btn = findToggleButton();
+          if (btn) { btn.click(); collapsed = true; }
+        }
+      }, 300);
+    });
+
+  })();
+</script>
