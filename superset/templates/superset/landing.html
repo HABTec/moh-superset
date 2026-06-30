@@ -341,7 +341,7 @@
       <a href="/chart/list/">Charts</a>
       <a href="/tablemodelview/list/">Datasets</a>
       <a href="/sqllab/">SQL Lab</a>
-      <!-- <a href="/ai-chat/">AI Assistant</a> -->
+      <a href="/ai-chat/">AI Assistant</a>
     {% endif %}
    
     {% if current_user and current_user.is_authenticated %}
@@ -363,7 +363,7 @@
   {% endif %}
 </section>
 
-<!-- {% macro ai_assistant_tile() %}
+{% macro ai_assistant_tile() %}
     <a class="tile" href="/ai-chat/" title="Open AI Assistant">
       <h3>AI Assistant</h3>
       <p class="subtitle">Ask questions about your data</p>
@@ -378,7 +378,7 @@
         <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
-{% endmacro %} -->
+{% endmacro %}
 
 {% if featured and featured.tabs %}
   <div class="tile-grid">
@@ -458,8 +458,7 @@
       </div>
     </a>
 {% endif %}
-  </div>
-  <!-- {{ ai_assistant_tile() }} -->
+  {{ ai_assistant_tile() }}
   </div>
 {% elif featured %}
   <div class="tile-grid">
