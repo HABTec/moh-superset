@@ -96,6 +96,8 @@ def _extract_tabs(position_json_str: str | None) -> list[dict[str, Any]]:
         raw_title = meta.get("text") or meta.get("defaultText") or tab_id
         # Decor (subtitle + icon) keys off the ORIGINAL tab title so a rename
         # via _TAB_TITLE_OVERRIDES doesn't break the matching.
+        if "meskot" in raw_title.lower():
+            continue
         decor = _tab_decor(raw_title)
         # Display title shown to users — overridable via _TAB_TITLE_OVERRIDES.
         title = _override_title(raw_title) or raw_title
@@ -166,4 +168,5 @@ class MoHLandingView(IndexView):
             featured=featured,
             others=others,
             is_admin=security_manager.is_admin(),
+            health_intelligence_url=current_app.config.get("MOH_HEALTH_INTELLIGENCE_URL"),
         )
