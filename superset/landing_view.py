@@ -166,4 +166,5 @@ class MoHLandingView(IndexView):
             featured=featured,
             others=others,
             is_admin=security_manager.is_admin(),
+            health_intelligence_url=current_app.config.get("MOH_HEALTH_INTELLIGENCE_URL"),
         )

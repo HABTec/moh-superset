@@ -443,6 +443,22 @@
       </div>
     </a>
   {% endfor %}
+ {% if health_intelligence_url %}
+    <a class="tile" href="{{ health_intelligence_url }}" title="Open Health Intelligence dashboard">
+      <h3>Health Intelligence</h3>
+      <p class="subtitle">Cross-cutting intelligence dashboard</p>
+      <div class="tile-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 34 H18 L24 20 L32 46 L38 28 L42 34 H58"/>
+        </svg>
+      </div>
+      <div class="view-link">
+        <span>View Health Intelligence</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
+      </div>
+    </a>
+{% endif %}
+  </div>
   <!-- {{ ai_assistant_tile() }} -->
   </div>
 {% elif featured %}

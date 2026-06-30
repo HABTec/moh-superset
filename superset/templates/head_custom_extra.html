@@ -18,45 +18,225 @@
   #}
 
   {#
-    This file may be overridden in your custom deployment.
-    It will be included in every view in superset and is a
-    good place to include your custom frontend code, such as
-    scripts to initialize google analytics, intercom, segment, etc.
+    MoH — mobile & tablet responsiveness overrides for the Superset React SPA.
+
+    Selectors below are stable class names from superset-frontend/src, not
+    Emotion hash classes. Dashboard columns carry inline pixel widths on
+    `.resizable-container`; `!important` rules here override those widths.
+
+    Known limitations:
+    - CSS cannot force landscape on iOS Safari; the soft overlay is the
+      reliable cross-device mechanism.
+    - Horizontal filter bars compact to a scrollable row (no collapse button).
+    - Some charts with very long x-axis labels may need shorter label config.
+    - Live desktop browser window drag-resize may not instantly re-fit charts;
+      real phones are unaffected (orientation change fires resize).
   #}
 
+  {% set _moh_roles = (current_user.roles | map(attribute='name') | list)
+                       if (current_user and current_user.is_authenticated) else [] %}
+  {% set _moh_is_admin = 'Admin' in _moh_roles %}
+
   <style>
+    .dashboard-header-container .header-with-actions .title-panel {
+      display: none !important;
+    }
+    .header-with-actions .right-button-panel {
+      margin-left: auto !important;
+    }
+    .header-with-actions [data-test="actions-trigger"] {
+      padding: 6px 10px !important;
+      border-radius: 8px !important;
+    }
+
+    .dashboard-component-chart-holder .ant-dropdown-trigger {
+      flex: 0 0 auto !important;
+      min-width: 28px !important;
+      margin-left: auto !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
     /*
-      MOH — global responsive CSS for dashboards.
-      Handles grid collapse, touch targets, chart sizing, etc.
-      Breakpoints: 901px, 767px, 640px, 380px.
+      All viewports — Superset vertically centers chart content inside
+      .slice_container (justify-content: center). When the canvas is even
+      slightly taller than its box, the legend (top) and x-axis (bottom)
+      get clipped. Pin content to the top and allow overflow.
     */
-    /* Desktop: full 12-column grid */
+    .dashboard-component-chart-holder {
+      overflow: visible !important;
+    }
+    .dashboard-component-chart-holder .dashboard-chart,
+    .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
+      overflow: visible !important;
+    }
+    .dashboard-component-chart-holder [data-test="chart-container"],
+    .dashboard-component-chart-holder [data-test="slice-container"],
+    .dashboard-component-chart-holder .slice_container {
+      overflow: visible !important;
+      max-height: none !important;
+      justify-content: flex-start !important;
+      align-items: stretch !important;
+    }
+    .dashboard-component-chart-holder [data-test="slice-container"] > div {
+      flex-shrink: 0 !important;
+      align-self: stretch !important;
+    }
+    /*
+      Disable all pointer interaction on chart canvas (pan/zoom/drag/toolbox).
+      Page scroll still works because events pass through the canvas.
+    */
+    .dashboard-component-chart-holder canvas {
+      pointer-events: none !important;
+    }
+
+    /*
+      Desktop ≥ 901px — move "Edit dashboard" + "…" into #main-menu (via JS)
+      so they sit beside Settings and scroll away together. Collapse the
+      dashboard title/actions row so tabs are the first row in the chart area.
+    */
     @media (min-width: 901px) {
-      .dashboard-grid .grid-container {
-        grid-template-columns: repeat(12, 1fr) !important;
+      .dashboard-header-container {
+        border-bottom: none !important;
+        background: transparent !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .dashboard-header-container .header-with-actions {
+        background: transparent !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        border: none !important;
+      }
+      .dashboard-header-container .header-with-actions .title-panel {
+        display: none !important;
+      }
+      /* Actions live inside #main-menu once JS adds .moh-nav-dashboard-actions */
+      #main-menu .ant-col-md-8 > div {
+        flex-wrap: nowrap !important;
+      }
+      #main-menu .moh-nav-dashboard-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin-left: 12px !important;
+        flex-shrink: 0 !important;
+        position: static !important;
+        top: auto !important;
+        right: auto !important;
+        z-index: auto !important;
+      }
+      [data-test="dashboard-header-wrapper"] {
+        padding-top: 0 !important;
       }
     }
-    /* Tablet: 12-column grid, but filter bar may wrap */
-    @media (min-width: 768px) and (max-width: 900px) {
-      .dashboard-filters-container {
+
+    /* ── Below desktop ≤ 900px — restore actions to dashboard header ── */
+    @media (max-width: 900px) {
+      .dashboard-header-container .header-with-actions {
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+      }
+    }
+
+    /* ── Tablet + phone ≤ 1024px ── */
+    @media (max-width: 1024px) {
+      .ant-breadcrumb {
+        white-space: normal !important;
         flex-wrap: wrap !important;
       }
+      .dashboard-header-container {
+        flex-wrap: wrap !important;
+        height: auto !important;
+        row-gap: 4px !important;
+      }
+      .superset-list-view .header,
+      .superset-list-view .body {
+        flex-wrap: wrap !important;
+      }
+      .dashboard-header-container .header-with-actions .right-button-panel {
+        margin-left: auto !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+      }
+
+      /*
+        Filter bar — compact on tablet/phone.
+        JS adds .moh-filter-horizontal or .moh-filter-vertical to distinguish types.
+      */
+      [data-test="filter-bar"].moh-filter-horizontal {
+        max-height: 56px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      [data-test="filter-bar"].moh-filter-vertical:not(.open) {
+        width: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+      }
     }
-    /* Phone: 1-column grid, full-width charts, bigger touch targets */
-    @media (max-width: 767px) {
+
+    /* ── Mobile/tablet ≤ 1024px — full-width grid + chart layout ── */
+    @media (max-width: 1024px) {
+      html, body, #app {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+      }
+
+      .grid-container {
+        margin: 8px !important;
+        margin-left: 8px !important;
+        width: auto !important;
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+      }
+
       .dashboard-grid .grid-row,
       .dashboard-grid .dragdroppable-row {
         flex-direction: column !important;
+        flex-wrap: nowrap !important;
+      }
+      .dashboard-grid .grid-row > :not(:last-child):not(.hover-menu) {
+        margin-right: 0 !important;
+        margin-bottom: 12px !important;
       }
       .dashboard-grid .grid-column,
-      .dashboard-grid .dragdroppable-column {
+      .dashboard-grid .dragdroppable-column,
+      .dashboard-grid .resizable-container,
+      .dashboard-grid .dashboard-component-chart-holder {
         width: 100% !important;
-        flex: 0 0 100% !important;
+        min-width: 0 !important;
         max-width: 100% !important;
       }
-      .dashboard-component-chart-holder {
-        min-height: 280px !important;
-        max-height: 60vh !important;
+      .dashboard-grid .empty-droptarget {
+        min-width: 0 !important;
+      }
+
+      /* Full-width columns; keep resizable pixel height from the grid */
+      .dashboard-grid .resizable-container {
+        width: 100% !important;
+      }
+      .dashboard-component-chart-holder [data-test="chart-container"],
+      .dashboard-component-chart-holder [data-test="slice-container"] > div {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .dashboard-component-chart-holder .vega-embed {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      /* Do NOT shrink all SVG text — that hides legend labels */
+      .dashboard-component-chart-holder .slice-header,
+      .dashboard-component-chart-holder .header-title {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
       }
       .dashboard-component-chart-holder .pvtTable {
         display: block !important;
@@ -64,6 +244,20 @@
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch !important;
       }
+
+      /* Avoid double borders between sticky tab row and chart area */
+      .dashboard-header-container,
+      [data-test="dashboard-header-wrapper"] {
+        border-bottom: none !important;
+        box-shadow: none !important;
+      }
+      .dashboard-component-tabs > .ant-tabs-nav {
+        margin-bottom: 0 !important;
+      }
+    }
+
+    /* ── Phone ≤ 767px — touch targets + modals ── */
+    @media (max-width: 767px) {
       .ant-btn {
         min-height: 44px !important;
         min-width: 44px !important;
@@ -92,124 +286,533 @@
         flex-direction: column !important;
       }
     }
-    /* Smaller phones: tighter spacing */
+
+    /* ── Small phone ≤ 640px ── */
     @media (max-width: 640px) {
-      .dashboard-grid {
-        padding: 4px !important;
+      .ant-layout-header {
+        padding: 0 12px !important;
       }
       .dashboard-header-container {
-        padding: 4px 8px !important;
+        padding: 8px 12px !important;
+      }
+      .dashboard-grid {
+        padding: 4px !important;
       }
       .ant-btn {
         padding: 4px 12px !important;
       }
     }
-    /* Tiny phones: minimal padding */
-    @media (max-width: 576px) {
+
+    /* ── Tiny phone ≤ 380px ── */
+    @media (max-width: 380px) {
+      .ant-layout-header {
+        padding: 0 8px !important;
+      }
       .dashboard-grid {
         padding: 2px !important;
       }
       .dashboard-header-container {
         padding: 2px 4px !important;
       }
+      .ant-btn {
+        font-size: 0.82rem !important;
+        padding: 4px 8px !important;
+      }
+      .ant-breadcrumb {
+        font-size: 0.82rem !important;
+      }
       .ant-modal-body {
         padding: 12px !important;
       }
     }
-    /* Extra small phones: extreme compression */
-    @media (max-width: 380px) {
-      .ant-btn {
-        font-size: 0.8rem !important;
-      }
-      .ant-breadcrumb {
-        font-size: 0.8rem !important;
-      }
+
+    /* ── Landscape soft nudge — portrait on tablet/phone only ── */
+    @media screen and (max-width: 1024px) and (orientation: portrait) {
+      #moh-rotate-overlay { display: flex !important; }
     }
-    /*
-      Known issue: some charts (ECharts, Vega) measure themselves at render time.
-      After a viewport resize on desktop, they may not instantly re-fit. This is
-      not a problem on real phones (orientation change triggers resize).
-    */
+    @media screen and (min-width: 1025px), screen and (orientation: landscape) {
+      #moh-rotate-overlay { display: none !important; }
+    }
+    #moh-rotate-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: rgba(10, 30, 60, 0.93);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 32px 24px;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    #moh-rotate-overlay.moh-dismissed { display: none !important; }
+    #moh-rotate-icon {
+      width: 64px;
+      height: 64px;
+      animation: moh-spin 1.6s ease-in-out infinite;
+    }
+    @keyframes moh-spin {
+      0%   { transform: rotate(0deg);   }
+      30%  { transform: rotate(-90deg); }
+      60%  { transform: rotate(-90deg); }
+      85%  { transform: rotate(0deg);   }
+      100% { transform: rotate(0deg);   }
+    }
+    #moh-rotate-overlay h2 {
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    #moh-rotate-overlay p {
+      color: #a8c8f0;
+      font-size: 0.88rem;
+      margin: 0;
+      max-width: 260px;
+      line-height: 1.5;
+    }
+    #moh-rotate-dismiss {
+      background: transparent;
+      border: 1px solid rgba(168, 200, 240, 0.4);
+      color: #a8c8f0;
+      font-size: 0.8rem;
+      padding: 8px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    #moh-rotate-dismiss:active {
+      background: rgba(168, 200, 240, 0.15);
+    }
   </style>
 
- <script>
+  <script>
   (function () {
-    /**
-     * MOH — Auto-collapse the native filter sidebar on mobile.
-     * Confirmed: button[data-test="filter-bar__collapse-button"]
-     * Note: panel class names are hashed (Emotion CSS) — not stable.
-     *       Instead we check panel width="32" (collapsed) vs "260" (expanded).
-     */
+    var DESKTOP_BP = 901;
+    var TABLET_BP = 1024;
+    var placeholders = new WeakMap();
+    var navDone = false;
+    var filterDone = false;
+    var zoomBlockDone = false;
+    var pollCount = 0;
+    var MAX_POLLS = 40;
+    var POLL_MS = 250;
 
-    var MOBILE_BREAKPOINT = 767;
-    var MAX_WAIT_MS       = 15000; // wait up to 15s for React to mount
-    var POLL_INTERVAL_MS  = 300;
-
-    function isMobile() {
-      return window.innerWidth <= MOBILE_BREAKPOINT;
+    function isDashboardPage() {
+      return /\/dashboard\//.test(window.location.pathname) ||
+        !!document.querySelector('[data-test="dashboard-header-container"]');
     }
 
-    function findToggleButton() {
-      return document.querySelector('button[data-test="filter-bar__collapse-button"]');
+    function isMobileOrTablet() {
+      return window.innerWidth <= TABLET_BP;
     }
 
-    function isFilterBarExpanded() {
-      var panel = document.querySelector('[data-test="filter-bar"]');
-      if (!panel) return false;
-      // width="32" = collapsed, width="260" = expanded
-      var w = parseInt(panel.getAttribute('width') || panel.offsetWidth, 10);
-      return w > 60;
+    function getNavTarget() {
+      return document.querySelector('#main-menu .ant-col-md-8 > div');
     }
 
-    var collapsed = false; // only collapse once per page load
+    function getHeaderHost() {
+      return document.querySelector(
+        '.dashboard-header-container .header-with-actions'
+      );
+    }
 
-    function tryCollapse() {
-      if (!isMobile()) return true;  // desktop — stop polling
-      if (collapsed) return true;    // already done
+    function getActionPanel() {
+      return (
+        document.querySelector('#main-menu .moh-nav-dashboard-actions') ||
+        document.querySelector(
+          '.dashboard-header-container .header-with-actions .right-button-panel'
+        )
+      );
+    }
 
-      var btn = findToggleButton();
-      if (!btn) return false;        // not mounted yet — keep polling
-
-      if (isFilterBarExpanded()) {
-        btn.click();
-        collapsed = true;
+    function restoreToHeader(panel) {
+      if (!panel) return;
+      navDone = false;
+      var ph = placeholders.get(panel);
+      var host = getHeaderHost();
+      if (ph && ph.parentNode) {
+        ph.parentNode.insertBefore(panel, ph);
+        ph.remove();
+        placeholders.delete(panel);
+      } else if (host && !host.contains(panel)) {
+        host.appendChild(panel);
       }
+      panel.classList.remove('moh-nav-dashboard-actions');
+    }
+
+    function mountToNav(panel) {
+      var target = getNavTarget();
+      if (!panel || !target) return false;
+      if (panel.classList.contains('moh-nav-dashboard-actions') &&
+          target.contains(panel)) {
+        navDone = true;
+        return true;
+      }
+
+      var host = getHeaderHost();
+      if (host && host.contains(panel) && !placeholders.has(panel)) {
+        var ph = document.createElement('span');
+        ph.className = 'moh-nav-actions-placeholder';
+        ph.setAttribute('aria-hidden', 'true');
+        ph.style.display = 'none';
+        panel.parentNode.insertBefore(ph, panel);
+        placeholders.set(panel, ph);
+      }
+
+      panel.classList.add('moh-nav-dashboard-actions');
+      target.appendChild(panel);
+      navDone = true;
       return true;
     }
 
-    // Poll until button appears and is clickable
-    var elapsed = 0;
-    var timer = setInterval(function () {
-      elapsed += POLL_INTERVAL_MS;
-      var done = tryCollapse();
-      if (done || elapsed >= MAX_WAIT_MS) {
-        clearInterval(timer);
+    function syncNavActions() {
+      if (!isDashboardPage()) return true;
+      var panel = getActionPanel();
+      if (!panel) return false;
+
+      if (window.innerWidth >= DESKTOP_BP) {
+        return mountToNav(panel);
       }
-    }, POLL_INTERVAL_MS);
+      restoreToHeader(panel);
+      return true;
+    }
 
-    // Re-collapse on orientation change
-    window.addEventListener('orientationchange', function () {
-      collapsed = false;
-      setTimeout(function () {
-        if (isMobile() && isFilterBarExpanded()) {
-          var btn = findToggleButton();
-          if (btn) { btn.click(); collapsed = true; }
+    function getFilterPanel() {
+      return document.querySelector('[data-test="filter-bar"]');
+    }
+
+    function getFilterBtn() {
+      return document.querySelector('button[data-test="filter-bar__collapse-button"]');
+    }
+
+    function markFilterBarType() {
+      var panel = getFilterPanel();
+      var btn = getFilterBtn();
+      if (!panel) return;
+      panel.classList.toggle('moh-filter-vertical', !!btn);
+      panel.classList.toggle('moh-filter-horizontal', !btn);
+    }
+
+    function tryFilterCollapse() {
+      if (!isMobileOrTablet() || filterDone) return true;
+      markFilterBarType();
+      var panel = getFilterPanel();
+      if (!panel) {
+        filterDone = true;
+        return true;
+      }
+      var btn = getFilterBtn();
+      if (!btn) {
+        filterDone = true;
+        return true;
+      }
+      if (panel.offsetWidth > 60) btn.click();
+      filterDone = true;
+      return true;
+    }
+
+    function initLandscapeOverlay() {
+      if (window.innerWidth > TABLET_BP) return;
+      if (document.getElementById('moh-rotate-overlay')) return;
+
+      var el = document.createElement('div');
+      el.id = 'moh-rotate-overlay';
+      el.innerHTML =
+        '<svg id="moh-rotate-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+          '<rect x="14" y="8" width="28" height="48" rx="4" stroke="#64b4ff" stroke-width="2.5" fill="none"/>' +
+          '<rect x="26" y="50" width="4" height="3" rx="1.5" fill="#64b4ff"/>' +
+          '<path d="M46 18 C54 18 58 26 54 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
+          '<path d="M54 34 L50 31 M54 34 L57 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
+          '<path d="M18 46 C10 46 6 38 10 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
+          '<path d="M10 30 L14 33 M10 30 L7 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
+        '</svg>' +
+        '<h2>Rotate for a better view</h2>' +
+        '<p>This dashboard is optimised for landscape mode. Please rotate your device sideways.</p>' +
+        '<button id="moh-rotate-dismiss" type="button">Continue in portrait</button>';
+
+      (document.body || document.documentElement).insertBefore(
+        el,
+        (document.body || document.documentElement).firstChild
+      );
+
+      document.getElementById('moh-rotate-dismiss').addEventListener('click', function () {
+        el.classList.add('moh-dismissed');
+        try { sessionStorage.setItem('moh-rotate-dismissed', '1'); } catch (e) {}
+      });
+
+      try {
+        if (sessionStorage.getItem('moh-rotate-dismissed') === '1') {
+          el.classList.add('moh-dismissed');
         }
-      }, 500);
-    });
+      } catch (e) {}
 
-    // Re-collapse on resize crossing breakpoint
-    var resizeTimer = null;
-    window.addEventListener('resize', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        if (isMobile() && isFilterBarExpanded()) {
-          collapsed = false;
-          var btn = findToggleButton();
-          if (btn) { btn.click(); collapsed = true; }
+      window.addEventListener('orientationchange', function () {
+        setTimeout(function () {
+          if (window.innerHeight > window.innerWidth) {
+            el.classList.remove('moh-dismissed');
+            try { sessionStorage.removeItem('moh-rotate-dismissed'); } catch (e) {}
+          }
+        }, 400);
+      });
+    }
+
+    function bootstrap() {
+      pollCount += 1;
+
+      if (!isDashboardPage()) {
+        clearInterval(pollTimer);
+        return;
+      }
+
+      if (!navDone) syncNavActions();
+      if (isMobileOrTablet() && !filterDone) tryFilterCollapse();
+      if (pollCount % 3 === 0) {
+        prepareCharts();
+        disableEchartsZoomOptions();
+      }
+
+      if (pollCount >= MAX_POLLS || (navDone && (!isMobileOrTablet() || filterDone))) {
+        clearInterval(pollTimer);
+        if (isDashboardPage()) {
+          initChartWatch();
+          triggerChartResize();
+        }
+      }
+    }
+
+    var chartWatchDone = false;
+    var reflowTimer = null;
+    var lastReflowAt = 0;
+    var cachedEcharts = null;
+
+    function clearMohInlineChartStyles() {
+      document.querySelectorAll(
+        '[data-test="chart-container"], [data-test="slice-container"]'
+      ).forEach(function (el) {
+        el.style.height = '';
+        el.style.minHeight = '';
+        el.style.width = '';
+        el.style.maxHeight = '';
+        delete el.dataset.mohAxisFixed;
+        delete el.dataset.mohBaseH;
+      });
+      document.querySelectorAll(
+        '[data-test="slice-container"] > div'
+      ).forEach(function (el) {
+        el.style.height = '';
+        el.style.width = '';
+      });
+    }
+
+    function prepareCharts() {
+      if (!isDashboardPage()) return;
+
+      document.querySelectorAll(
+        '[data-test="dashboard-component-chart-holder"]'
+      ).forEach(function (holder) {
+        var chartWrap = holder.querySelector('.dashboard-chart');
+        if (chartWrap) {
+          chartWrap.classList.add('dashboard-chart--overflowable');
+        }
+      });
+    }
+
+    function scheduleChartReflow() {
+      var now = Date.now();
+      if (now - lastReflowAt < 800) return;
+      clearTimeout(reflowTimer);
+      reflowTimer = setTimeout(function () {
+        lastReflowAt = Date.now();
+        prepareCharts();
+        disableEchartsZoomOptions();
+        window.dispatchEvent(new Event('resize'));
+      }, 200);
+    }
+
+    function initChartWatch() {
+      if (chartWatchDone || !isDashboardPage()) return;
+      chartWatchDone = true;
+
+      var grid = document.querySelector('.dashboard-grid');
+      if (grid && typeof MutationObserver === 'function') {
+        var moTimer = null;
+        var mo = new MutationObserver(function (mutations) {
+          var chartChanged = false;
+          for (var i = 0; i < mutations.length; i += 1) {
+            var t = mutations[i].target;
+            if (
+              t.closest &&
+              t.closest('[data-test="dashboard-component-chart-holder"]')
+            ) {
+              chartChanged = true;
+              break;
+            }
+          }
+          if (!chartChanged) return;
+          clearTimeout(moTimer);
+          moTimer = setTimeout(function () {
+            disableEchartsZoomOptions();
+          }, 250);
+        });
+        mo.observe(grid, { childList: true, subtree: true, attributes: true });
+      }
+    }
+
+    function findEchartsFromWebpack() {
+      if (cachedEcharts) return cachedEcharts;
+      try {
+        var req = window.__webpack_require__;
+        if (!req || !req.c) return null;
+        var mods = req.c;
+        var id;
+        for (id in mods) {
+          if (!Object.prototype.hasOwnProperty.call(mods, id)) continue;
+          var exp = mods[id] && mods[id].exports;
+          if (!exp) continue;
+          if (typeof exp.getInstanceByDom === 'function') {
+            cachedEcharts = exp;
+            return cachedEcharts;
+          }
+          if (exp.default && typeof exp.default.getInstanceByDom === 'function') {
+            cachedEcharts = exp.default;
+            return cachedEcharts;
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function getEchartsGlobal() {
+      return window.echarts || window.__echarts || findEchartsFromWebpack() || null;
+    }
+
+    function disableEchartsZoomOptions() {
+      var echarts = getEchartsGlobal();
+      if (!echarts || typeof echarts.getInstanceByDom !== 'function') return;
+
+      document.querySelectorAll(
+        '[data-test="slice-container"] > div'
+      ).forEach(function (dom) {
+        if (!dom.getAttribute('_echarts_instance_')) return;
+        var inst = echarts.getInstanceByDom(dom);
+        if (!inst) return;
+        try {
+          var opt = inst.getOption();
+          var dz = opt && opt.dataZoom;
+          var hasToolbox = opt && opt.toolbox && opt.toolbox[0] &&
+            opt.toolbox[0].show;
+          if ((!Array.isArray(dz) || !dz.length) && !hasToolbox) return;
+
+          inst.setOption(
+            {
+              dataZoom: [],
+              toolbox: { show: false },
+            },
+            { replaceMerge: ['dataZoom', 'toolbox'] }
+          );
+        } catch (e) {}
+      });
+    }
+
+    function startZoomGuard() {
+      if (startZoomGuard._on) return;
+      startZoomGuard._on = true;
+      var ticks = 0;
+      var guard = setInterval(function () {
+        if (!isDashboardPage() || ticks > 25) {
+          clearInterval(guard);
+          startZoomGuard._on = false;
+          return;
+        }
+        ticks += 1;
+        disableEchartsZoomOptions();
+      }, 1000);
+    }
+
+    function triggerChartResize() {
+      prepareCharts();
+      disableEchartsZoomOptions();
+      startZoomGuard();
+      scheduleChartReflow();
+    }
+
+    function initChartZoomBlock() {
+      if (zoomBlockDone) return;
+      zoomBlockDone = true;
+
+      var blockOpts = { passive: false, capture: true };
+
+      document.addEventListener(
+        'wheel',
+        function (e) {
+          if (!isDashboardPage()) return;
+          if (
+            e.target.closest(
+              '.dashboard-component-chart-holder [data-test="chart-container"]'
+            )
+          ) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        },
+        blockOpts
+      );
+    }
+
+    function onResize() {
+      clearTimeout(onResize._t);
+      onResize._t = setTimeout(function () {
+        if (isDashboardPage()) syncNavActions();
+        if (isMobileOrTablet()) {
+          filterDone = false;
+          tryFilterCollapse();
+        }
+        if (isDashboardPage()) {
+          prepareCharts();
+          disableEchartsZoomOptions();
         }
       }, 300);
-    });
+    }
 
+    function onVisibility() {
+      if (document.hidden || !isDashboardPage()) return;
+      filterDone = false;
+      navDone = false;
+      setTimeout(function () {
+        syncNavActions();
+        tryFilterCollapse();
+      }, 300);
+    }
+
+    clearMohInlineChartStyles();
+    var pollTimer = setInterval(bootstrap, POLL_MS);
+    bootstrap();
+    initChartZoomBlock();
+    startZoomGuard();
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    document.addEventListener(
+      'click',
+      function (e) {
+        if (
+          isDashboardPage() &&
+          e.target.closest('.dashboard-component-tabs .ant-tabs-tab')
+        ) {
+          setTimeout(triggerChartResize, 700);
+        }
+      },
+      true
+    );
+
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(initLandscapeOverlay, { timeout: 2000 });
+    } else {
+      setTimeout(initLandscapeOverlay, 500);
+    }
   })();
-</script>
+  </script>
