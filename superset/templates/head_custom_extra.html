@@ -19,18 +19,6 @@
 
   {#
     MoH — mobile & tablet responsiveness overrides for the Superset React SPA.
-
-    Selectors below are stable class names from superset-frontend/src, not
-    Emotion hash classes. Dashboard columns carry inline pixel widths on
-    `.resizable-container`; `!important` rules here override those widths.
-
-    Known limitations:
-    - CSS cannot force landscape on iOS Safari; the soft overlay is the
-      reliable cross-device mechanism.
-    - Horizontal filter bars compact to a scrollable row (no collapse button).
-    - Some charts with very long x-axis labels may need shorter label config.
-    - Live desktop browser window drag-resize may not instantly re-fit charts;
-      real phones are unaffected (orientation change fires resize).
   #}
 
   {% set _moh_roles = (current_user.roles | map(attribute='name') | list)
@@ -59,23 +47,13 @@
     }
 
     /*
-      All viewports — Superset vertically centers chart content inside
-      .slice_container (justify-content: center). When the canvas is even
-      slightly taller than its box, the legend (top) and x-axis (bottom)
-      get clipped. Pin content to the top and allow overflow.
+      Charts — flex-start keeps legend top / x-axis bottom (not vertically centered).
+      Desktop: clip inside the grid cell (no inner scrollbars).
+      Mobile/tablet: allow slight overflow for rotated axis labels.
     */
-    .dashboard-component-chart-holder {
-      overflow: visible !important;
-    }
-    .dashboard-component-chart-holder .dashboard-chart,
-    .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
-      overflow: visible !important;
-    }
     .dashboard-component-chart-holder [data-test="chart-container"],
     .dashboard-component-chart-holder [data-test="slice-container"],
     .dashboard-component-chart-holder .slice_container {
-      overflow: visible !important;
-      max-height: none !important;
       justify-content: flex-start !important;
       align-items: stretch !important;
     }
@@ -83,18 +61,74 @@
       flex-shrink: 0 !important;
       align-self: stretch !important;
     }
-    /*
-      Disable all pointer interaction on chart canvas (pan/zoom/drag/toolbox).
-      Page scroll still works because events pass through the canvas.
-    */
     .dashboard-component-chart-holder canvas {
-      pointer-events: none !important;
+      touch-action: none !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+    }
+
+    @media (min-width: 901px) {
+      .dashboard-component-chart-holder {
+        overflow: hidden !important;
+      }
+      .dashboard-component-chart-holder .dashboard-chart,
+      .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
+        overflow: hidden !important;
+      }
+      .dashboard-component-chart-holder [data-test="chart-container"],
+      .dashboard-component-chart-holder [data-test="slice-container"],
+      .dashboard-component-chart-holder .slice_container,
+      .dashboard-component-chart-holder [data-test="slice-container"] > div {
+        overflow: hidden !important;
+        max-height: 100% !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-component-chart-holder {
+        overflow: visible !important;
+      }
+      .dashboard-component-chart-holder .dashboard-chart,
+      .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
+        overflow: visible !important;
+      }
+      .dashboard-component-chart-holder [data-test="chart-container"],
+      .dashboard-component-chart-holder [data-test="slice-container"],
+      .dashboard-component-chart-holder .slice_container {
+        overflow: visible !important;
+        max-height: none !important;
+      }
+    }
+
+    /* Chart header menu (⋯) and downloads must stay clickable above the chart */
+    .dashboard-component-chart-holder .slice-header,
+    .dashboard-component-chart-holder .header-title,
+    .dashboard-component-chart-holder .ant-dropdown-trigger,
+    .dashboard-component-chart-holder [data-test="slice-header"] {
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 10 !important;
+    }
+
+    /* During image export, unclip chart so canvas pixels copy correctly */
+    .dashboard-component-chart-holder.moh-exporting,
+    .dashboard-component-chart-holder.moh-exporting .dashboard-chart,
+    .dashboard-component-chart-holder.moh-exporting [data-test="chart-container"],
+    .dashboard-component-chart-holder.moh-exporting [data-test="slice-container"],
+    .dashboard-component-chart-holder.moh-exporting .slice_container,
+    .dashboard-component-chart-holder.moh-exporting [data-test="slice-container"] > div {
+      overflow: visible !important;
+      max-height: none !important;
+    }
+
+    /* Chart ⋯ menu renders in a portal — keep it above clipped chart cards */
+    .ant-dropdown .ant-dropdown-menu,
+    .ant-dropdown-menu-item {
+      pointer-events: auto !important;
     }
 
     /*
-      Desktop ≥ 901px — move "Edit dashboard" + "…" into #main-menu (via JS)
-      so they sit beside Settings and scroll away together. Collapse the
-      dashboard title/actions row so tabs are the first row in the chart area.
+      Desktop ≥ 901px — move "Edit dashboard" + "…" into #main-menu
     */
     @media (min-width: 901px) {
       .dashboard-header-container {
@@ -115,7 +149,6 @@
       .dashboard-header-container .header-with-actions .title-panel {
         display: none !important;
       }
-      /* Actions live inside #main-menu once JS adds .moh-nav-dashboard-actions */
       #main-menu .ant-col-md-8 > div {
         flex-wrap: nowrap !important;
       }
@@ -166,10 +199,6 @@
         gap: 4px !important;
       }
 
-      /*
-        Filter bar — compact on tablet/phone.
-        JS adds .moh-filter-horizontal or .moh-filter-vertical to distinguish types.
-      */
       [data-test="filter-bar"].moh-filter-horizontal {
         max-height: 56px !important;
         overflow-x: auto !important;
@@ -219,7 +248,6 @@
         min-width: 0 !important;
       }
 
-      /* Full-width columns; keep resizable pixel height from the grid */
       .dashboard-grid .resizable-container {
         width: 100% !important;
       }
@@ -232,7 +260,6 @@
         width: 100% !important;
         max-width: 100% !important;
       }
-      /* Do NOT shrink all SVG text — that hides legend labels */
       .dashboard-component-chart-holder .slice-header,
       .dashboard-component-chart-holder .header-title {
         overflow: hidden !important;
@@ -245,7 +272,6 @@
         -webkit-overflow-scrolling: touch !important;
       }
 
-      /* Avoid double borders between sticky tab row and chart area */
       .dashboard-header-container,
       [data-test="dashboard-header-wrapper"] {
         border-bottom: none !important;
@@ -326,7 +352,7 @@
       }
     }
 
-    /* ── Landscape soft nudge — portrait on tablet/phone only ── */
+    /* ── Landscape soft nudge ── */
     @media screen and (max-width: 1024px) and (orientation: portrait) {
       #moh-rotate-overlay { display: flex !important; }
     }
@@ -558,126 +584,65 @@
       });
     }
 
-    function bootstrap() {
-      pollCount += 1;
-
-      if (!isDashboardPage()) {
-        clearInterval(pollTimer);
-        return;
-      }
-
-      if (!navDone) syncNavActions();
-      if (isMobileOrTablet() && !filterDone) tryFilterCollapse();
-      if (pollCount % 3 === 0) {
-        prepareCharts();
-        disableEchartsZoomOptions();
-      }
-
-      if (pollCount >= MAX_POLLS || (navDone && (!isMobileOrTablet() || filterDone))) {
-        clearInterval(pollTimer);
-        if (isDashboardPage()) {
-          initChartWatch();
-          triggerChartResize();
-        }
-      }
-    }
-
     var chartWatchDone = false;
-    var reflowTimer = null;
-    var lastReflowAt = 0;
+    var zoomGuardTimer = null;
     var cachedEcharts = null;
 
     function clearMohInlineChartStyles() {
       document.querySelectorAll(
-        '[data-test="chart-container"], [data-test="slice-container"]'
+        '[data-test="chart-container"], [data-test="slice-container"], ' +
+          '[data-test="slice-container"] > div'
       ).forEach(function (el) {
         el.style.height = '';
         el.style.minHeight = '';
         el.style.width = '';
         el.style.maxHeight = '';
-        delete el.dataset.mohAxisFixed;
-        delete el.dataset.mohBaseH;
-      });
-      document.querySelectorAll(
-        '[data-test="slice-container"] > div'
-      ).forEach(function (el) {
-        el.style.height = '';
-        el.style.width = '';
+        el.style.overflow = '';
+        el.style.overflowX = '';
+        el.style.overflowY = '';
+        el.style.display = '';
+        el.style.visibility = '';
+        el.style.opacity = '';
       });
     }
 
     function prepareCharts() {
       if (!isDashboardPage()) return;
-
       document.querySelectorAll(
         '[data-test="dashboard-component-chart-holder"]'
       ).forEach(function (holder) {
         var chartWrap = holder.querySelector('.dashboard-chart');
-        if (chartWrap) {
+        if (!chartWrap) return;
+        if (window.innerWidth <= 900) {
           chartWrap.classList.add('dashboard-chart--overflowable');
+        } else {
+          chartWrap.classList.remove('dashboard-chart--overflowable');
         }
       });
     }
 
-    function scheduleChartReflow() {
-      var now = Date.now();
-      if (now - lastReflowAt < 800) return;
-      clearTimeout(reflowTimer);
-      reflowTimer = setTimeout(function () {
-        lastReflowAt = Date.now();
-        prepareCharts();
-        disableEchartsZoomOptions();
-        window.dispatchEvent(new Event('resize'));
-      }, 200);
-    }
-
-    function initChartWatch() {
-      if (chartWatchDone || !isDashboardPage()) return;
-      chartWatchDone = true;
-
-      var grid = document.querySelector('.dashboard-grid');
-      if (grid && typeof MutationObserver === 'function') {
-        var moTimer = null;
-        var mo = new MutationObserver(function (mutations) {
-          var chartChanged = false;
-          for (var i = 0; i < mutations.length; i += 1) {
-            var t = mutations[i].target;
-            if (
-              t.closest &&
-              t.closest('[data-test="dashboard-component-chart-holder"]')
-            ) {
-              chartChanged = true;
-              break;
-            }
-          }
-          if (!chartChanged) return;
-          clearTimeout(moTimer);
-          moTimer = setTimeout(function () {
-            disableEchartsZoomOptions();
-          }, 250);
-        });
-        mo.observe(grid, { childList: true, subtree: true, attributes: true });
+    function exportsHasEcharts(exp) {
+      if (!exp) return null;
+      if (typeof exp.getInstanceByDom === 'function') return exp;
+      if (exp.default && typeof exp.default.getInstanceByDom === 'function') {
+        return exp.default;
       }
+      return null;
     }
 
     function findEchartsFromWebpack() {
       if (cachedEcharts) return cachedEcharts;
       try {
         var req = window.__webpack_require__;
-        if (!req || !req.c) return null;
-        var mods = req.c;
-        var id;
-        for (id in mods) {
-          if (!Object.prototype.hasOwnProperty.call(mods, id)) continue;
-          var exp = mods[id] && mods[id].exports;
-          if (!exp) continue;
-          if (typeof exp.getInstanceByDom === 'function') {
-            cachedEcharts = exp;
-            return cachedEcharts;
-          }
-          if (exp.default && typeof exp.default.getInstanceByDom === 'function') {
-            cachedEcharts = exp.default;
-            return cachedEcharts;
+        if (req && req.c) {
+          var id;
+          for (id in req.c) {
+            if (!Object.prototype.hasOwnProperty.call(req.c, id)) continue;
+            var found = exportsHasEcharts(req.c[id] && req.c[id].exports);
+            if (found) {
+              cachedEcharts = found;
+              return cachedEcharts;
+            }
           }
         }
       } catch (e) {}
@@ -688,54 +653,334 @@
       return window.echarts || window.__echarts || findEchartsFromWebpack() || null;
     }
 
-    function disableEchartsZoomOptions() {
+    function chartHasSeries(inst) {
+      try {
+        var opt = inst.getOption();
+        var series = opt && opt.series;
+        return Array.isArray(series) && series.length > 0;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function stripZoomFromOption(option) {
+      if (!option || typeof option !== 'object') return option;
+      var o = option;
+      var needsCopy = false;
+
+      if (option.dataZoom) needsCopy = true;
+      if (option.toolbox) needsCopy = true;
+
+      if (!needsCopy) return option;
+
+      o = Object.assign({}, option);
+      if (option.dataZoom) o.dataZoom = [];
+      if (option.toolbox) {
+        o.toolbox = Object.assign({}, option.toolbox, { show: false });
+      }
+      return o;
+    }
+
+    function mohClearChartZoom(inst, origSetOption) {
+      if (!inst || !origSetOption) return;
+      try {
+        origSetOption(
+          { dataZoom: [], toolbox: { show: false } },
+          { replaceMerge: ['dataZoom', 'toolbox'] }
+        );
+      } catch (e) {}
+    }
+
+    function patchEchartsInstance(inst) {
+      if (!inst || inst.__mohNoZoom) return;
+
+      var origSetOption = inst.setOption.bind(inst);
+
+      inst.__mohNoZoom = true;
+      inst.__mohOrigSetOption = origSetOption;
+
+      inst.setOption = function (option, opts) {
+        var result = origSetOption(stripZoomFromOption(option), opts);
+        if (chartHasSeries(inst)) {
+          mohClearChartZoom(inst, origSetOption);
+        }
+        return result;
+      };
+
+      var origDispatch = inst.dispatchAction.bind(inst);
+      inst.dispatchAction = function (payload, opts) {
+        if (
+          payload &&
+          (payload.type === 'dataZoom' || payload.type === 'dataZoomSelect')
+        ) {
+          return;
+        }
+        return origDispatch(payload, opts);
+      };
+
+      if (!inst.__mohZoomListener) {
+        inst.__mohZoomListener = true;
+        inst.on('datazoom', function () {
+          if (chartHasSeries(inst)) {
+            mohClearChartZoom(inst, origSetOption);
+          }
+        });
+      }
+
+      if (!inst.__mohResizePatched && typeof inst.resize === 'function') {
+        inst.__mohResizePatched = true;
+        var origResize = inst.resize.bind(inst);
+        inst.resize = function (opts) {
+          var result = origResize(opts);
+          if (chartHasSeries(inst) && !inst.__mohExporting) {
+            mohClearChartZoom(inst, origSetOption);
+          }
+          return result;
+        };
+      }
+
+      if (chartHasSeries(inst)) {
+        mohClearChartZoom(inst, origSetOption);
+      }
+    }
+
+    function patchEchartsGlobal(echarts) {
+      if (!echarts || echarts.__mohGlobalPatched) return;
+      if (typeof echarts.init !== 'function') return;
+      echarts.__mohGlobalPatched = true;
+
+      var origInit = echarts.init.bind(echarts);
+      echarts.init = function (dom, theme, opts) {
+        var inst = origInit(dom, theme, opts);
+        patchEchartsInstance(inst);
+        return inst;
+      };
+    }
+
+    function disableChartZoom() {
+      if (!isDashboardPage()) return;
       var echarts = getEchartsGlobal();
       if (!echarts || typeof echarts.getInstanceByDom !== 'function') return;
+
+      patchEchartsGlobal(echarts);
 
       document.querySelectorAll(
         '[data-test="slice-container"] > div'
       ).forEach(function (dom) {
         if (!dom.getAttribute('_echarts_instance_')) return;
         var inst = echarts.getInstanceByDom(dom);
-        if (!inst) return;
-        try {
-          var opt = inst.getOption();
-          var dz = opt && opt.dataZoom;
-          var hasToolbox = opt && opt.toolbox && opt.toolbox[0] &&
-            opt.toolbox[0].show;
-          if ((!Array.isArray(dz) || !dz.length) && !hasToolbox) return;
-
-          inst.setOption(
-            {
-              dataZoom: [],
-              toolbox: { show: false },
-            },
-            { replaceMerge: ['dataZoom', 'toolbox'] }
-          );
-        } catch (e) {}
+        if (inst) patchEchartsInstance(inst);
       });
     }
 
-    function startZoomGuard() {
-      if (startZoomGuard._on) return;
-      startZoomGuard._on = true;
-      var ticks = 0;
-      var guard = setInterval(function () {
-        if (!isDashboardPage() || ticks > 25) {
-          clearInterval(guard);
-          startZoomGuard._on = false;
-          return;
-        }
-        ticks += 1;
-        disableEchartsZoomOptions();
-      }, 1000);
+    function isChartPanSurface(target) {
+      if (!target || !target.closest) return false;
+      return (
+        !!target.closest('.dashboard-component-chart-holder canvas') ||
+        !!target.closest(
+          '.dashboard-component-chart-holder [data-test="slice-container"] > div'
+        )
+      );
     }
 
-    function triggerChartResize() {
+    var mohActiveChartHolder = null;
+
+    function rememberActiveChartHolder(e) {
+      if (!isDashboardPage()) return;
+      var holder = e.target.closest(
+        '[data-test="dashboard-component-chart-holder"]'
+      );
+      if (
+        holder &&
+        (e.target.closest('.ant-dropdown-trigger') ||
+          e.target.closest('.header-controls'))
+      ) {
+        mohActiveChartHolder = holder;
+      }
+    }
+
+    function getChartHolderFromEvent(e) {
+      var direct = e.target.closest(
+        '[data-test="dashboard-component-chart-holder"]'
+      );
+      if (direct) return direct;
+
+      if (mohActiveChartHolder && document.body.contains(mohActiveChartHolder)) {
+        return mohActiveChartHolder;
+      }
+
+      if (e.target.closest('.ant-dropdown-menu-item')) {
+        var holders = document.querySelectorAll(
+          '[data-test="dashboard-component-chart-holder"]'
+        );
+        for (var i = 0; i < holders.length; i += 1) {
+          var trigger = holders[i].querySelector(
+            '.ant-dropdown-trigger[aria-expanded="true"]'
+          );
+          if (trigger) return holders[i];
+        }
+      }
+
+      return null;
+    }
+
+    function getSliceName(holder) {
+      var title = holder.querySelector(
+        '.slice-header .header-title, .header-title, [data-test="slice-header"]'
+      );
+      return title ? title.textContent.trim() : 'chart';
+    }
+
+    function isDownloadImageMenuItem(target) {
+      var item = target.closest('.ant-dropdown-menu-item');
+      if (!item) return false;
+      var text = (item.textContent || '').trim().toLowerCase();
+      return (
+        text.indexOf('download') >= 0 &&
+        (text.indexOf('image') >= 0 || text.indexOf('jpeg') >= 0)
+      );
+    }
+
+    function beginChartExport(holder) {
+      if (!holder) return;
+      holder.classList.add('moh-exporting');
+      refreshChartsForExport(holder);
+    }
+
+    function endChartExport(holder) {
+      if (!holder) return;
+      holder.classList.remove('moh-exporting');
+    }
+
+    function refreshChartsForExport(holder) {
+      var echarts = getEchartsGlobal();
+      if (!echarts) return;
+      var scope = holder || document;
+      scope.querySelectorAll('[data-test="slice-container"] > div').forEach(
+        function (dom) {
+          if (!dom.getAttribute('_echarts_instance_')) return;
+          var inst = echarts.getInstanceByDom(dom);
+          if (inst && typeof inst.resize === 'function') {
+            try {
+              inst.__mohExporting = true;
+              inst.resize();
+            } catch (e) {
+            } finally {
+              inst.__mohExporting = false;
+            }
+          }
+        }
+      );
+    }
+
+    function downloadChartViaEcharts(holder) {
+      var echarts = getEchartsGlobal();
+      if (!echarts || !holder) return false;
+
+      var dom = holder.querySelector('[data-test="slice-container"] > div');
+      if (!dom) return false;
+
+      var inst = echarts.getInstanceByDom(dom);
+      if (!inst || !chartHasSeries(inst)) return false;
+
+      try {
+        if (typeof inst.resize === 'function') {
+          inst.__mohExporting = true;
+          inst.resize();
+        }
+        var url = inst.getDataURL({
+          type: 'jpeg',
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+        });
+        if (!url || url.indexOf('data:image') !== 0) return false;
+
+        var stem = getSliceName(holder)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        var link = document.createElement('a');
+        link.download = (stem || 'chart') + '.jpg';
+        link.href = url;
+        link.click();
+        return true;
+      } catch (e) {
+        return false;
+      } finally {
+        inst.__mohExporting = false;
+      }
+    }
+
+    function initDownloadHelper() {
+      document.addEventListener('mousedown', rememberActiveChartHolder, true);
+      document.addEventListener('click', rememberActiveChartHolder, true);
+
+      document.addEventListener(
+        'mousedown',
+        function (e) {
+          if (!isDashboardPage() || !isDownloadImageMenuItem(e.target)) return;
+          beginChartExport(getChartHolderFromEvent(e));
+        },
+        true
+      );
+
+      document.addEventListener(
+        'click',
+        function (e) {
+          if (!isDashboardPage() || !isDownloadImageMenuItem(e.target)) return;
+
+          var holder = getChartHolderFromEvent(e);
+          beginChartExport(holder);
+
+          if (downloadChartViaEcharts(holder)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            setTimeout(function () {
+              endChartExport(holder);
+            }, 300);
+            return;
+          }
+
+          /* Fallback: let Superset dom-to-image run with .moh-exporting unclip */
+          setTimeout(function () {
+            refreshChartsForExport(holder);
+          }, 50);
+          setTimeout(function () {
+            endChartExport(holder);
+          }, 3000);
+        },
+        true
+      );
+    }
+
+    function startZoomGuard() {
+      if (zoomGuardTimer) return;
+      zoomGuardTimer = setInterval(function () {
+        if (!isDashboardPage()) return;
+        disableChartZoom();
+      }, 800);
+    }
+
+    function initChartWatch() {
+      if (chartWatchDone || !isDashboardPage()) return;
+      chartWatchDone = true;
+
+      var grid = document.querySelector('.dashboard-grid');
+      if (grid && typeof MutationObserver === 'function') {
+        var moTimer = null;
+        var mo = new MutationObserver(function () {
+          clearTimeout(moTimer);
+          moTimer = setTimeout(disableChartZoom, 300);
+        });
+        mo.observe(grid, { childList: true, subtree: true });
+      }
+    }
+
+    function onChartsReady() {
       prepareCharts();
-      disableEchartsZoomOptions();
+      disableChartZoom();
+      initChartWatch();
       startZoomGuard();
-      scheduleChartReflow();
     }
 
     function initChartZoomBlock() {
@@ -744,6 +989,7 @@
 
       var blockOpts = { passive: false, capture: true };
 
+      /* Block wheel pan/zoom while the pointer is over a chart card */
       document.addEventListener(
         'wheel',
         function (e) {
@@ -759,6 +1005,64 @@
         },
         blockOpts
       );
+
+      /*
+        Block finger drag on chart surface — ECharts "inside" dataZoom pans on
+        touchmove even when touch-action:none is set on the canvas.
+      */
+      document.addEventListener(
+        'touchmove',
+        function (e) {
+          if (!isDashboardPage()) return;
+          if (!isChartPanSurface(e.target)) return;
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        },
+        blockOpts
+      );
+
+      /* Pinch zoom on chart canvas */
+      document.addEventListener(
+        'gesturestart',
+        function (e) {
+          if (!isDashboardPage()) return;
+          if (isChartPanSurface(e.target)) {
+            e.preventDefault();
+          }
+        },
+        blockOpts
+      );
+      document.addEventListener(
+        'gesturechange',
+        function (e) {
+          if (!isDashboardPage()) return;
+          if (isChartPanSurface(e.target)) {
+            e.preventDefault();
+          }
+        },
+        blockOpts
+      );
+    }
+
+    function bootstrap() {
+      pollCount += 1;
+
+      if (!isDashboardPage()) {
+        clearInterval(pollTimer);
+        return;
+      }
+
+      if (!navDone) syncNavActions();
+      if (isMobileOrTablet() && !filterDone) tryFilterCollapse();
+      if (pollCount % 3 === 0) {
+        prepareCharts();
+        disableChartZoom();
+      }
+
+      if (pollCount >= MAX_POLLS || (navDone && (!isMobileOrTablet() || filterDone))) {
+        clearInterval(pollTimer);
+        if (isDashboardPage()) onChartsReady();
+      }
     }
 
     function onResize() {
@@ -771,7 +1075,7 @@
         }
         if (isDashboardPage()) {
           prepareCharts();
-          disableEchartsZoomOptions();
+          disableChartZoom();
         }
       }, 300);
     }
@@ -783,6 +1087,7 @@
       setTimeout(function () {
         syncNavActions();
         tryFilterCollapse();
+        disableChartZoom();
       }, 300);
     }
 
@@ -790,7 +1095,8 @@
     var pollTimer = setInterval(bootstrap, POLL_MS);
     bootstrap();
     initChartZoomBlock();
-    startZoomGuard();
+    initDownloadHelper();
+    onChartsReady();
 
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
@@ -803,7 +1109,7 @@
           isDashboardPage() &&
           e.target.closest('.dashboard-component-tabs .ant-tabs-tab')
         ) {
-          setTimeout(triggerChartResize, 700);
+          setTimeout(onChartsReady, 700);
         }
       },
       true
