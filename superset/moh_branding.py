@@ -212,6 +212,7 @@ from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
 #     MOH_ORG_UNITS_DB_NAME, MOH_ORG_UNITS_SCHEMA, MOH_ORG_UNITS_TABLE,
 #     MOH_ORG_UNITS_ROOT_LEVEL, MOH_ORG_UNITS_MAX_LEVEL
 # ---------------------------------------------------------------------------
+from superset.hpc import hpc_bp as _hpc_bp  # noqa: E402
 from superset.moh_orgunits_api import moh_orgunits_bp as _moh_orgunits_bp  # noqa: E402
 
 MOH_ORG_UNITS_DB_NAME = "MOH_Click_Hhouse"
@@ -219,6 +220,7 @@ MOH_ORG_UNITS_SCHEMA = "moh"
 MOH_ORG_UNITS_TABLE = "org_units"
 MOH_ORG_UNITS_ROOT_LEVEL = 2  # 2 = Region (start tree at the 14 Ethiopian regions)
 MOH_ORG_UNITS_MAX_LEVEL = 6   # 6 = Health Post (deepest level)
+MOH_ORG_UNITS_MAX_LEVEL = 6  # 6 = Health Post (deepest level)
 
 # ---------------------------------------------------------------------------
 # Brand-asset blueprint — serves the MoH logo (and any future brand assets)
@@ -227,6 +229,12 @@ MOH_ORG_UNITS_MAX_LEVEL = 6   # 6 = Health Post (deepest level)
 from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
 
 BLUEPRINTS = [_ai_chat_bp, _moh_orgunits_bp, _moh_assets_bp]
+BLUEPRINTS = [
+    _ai_chat_bp,
+    _moh_orgunits_bp,
+    _moh_assets_bp,
+    _hpc_bp,
+]
 
 MAPBOX_STYLES = [
     {

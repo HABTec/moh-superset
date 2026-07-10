@@ -53,13 +53,33 @@ enum SectionType {
 }
 
 const BarWrapper = styled.div<{ width: number }>`
-  width: ${({ theme }) => theme.sizeUnit * 8}px;
+  /* Mobile responsiveness: adjust width based on screen size */
+  @media (max-width: 575px) {
+    width: ${({ theme }) => theme.sizeUnit * 8}px;
+    
+    &.open {
+      width: 100%; /* Full width on mobile */
+    }
+  }
+  
+  @media (min-width: 576px) and (max-width: 768px) {
+    width: ${({ theme }) => theme.sizeUnit * 8}px;
+    
+    &.open {
+      width: 150px; /* Compact on tablet */
+    }
+  }
+  
+  @media (min-width: 769px) {
+    width: ${({ theme }) => theme.sizeUnit * 8}px;
+
+    &.open {
+      width: ${({ width }) => width}px; /* Full width on desktop */
+    }
+  }
 
   & .ant-tabs-top > .ant-tabs-nav {
     margin: 0;
-  }
-  &.open {
-    width: ${({ width }) => width}px; // arbitrary...
   }
 `;
 
@@ -75,14 +95,43 @@ const Bar = styled.div<{ width: number }>`
     left: 0;
     flex-direction: column;
     flex-grow: 1;
-    width: ${width}px;
     background: ${theme.colorBgContainer};
     border-right: 1px solid ${theme.colorSplit};
     border-bottom: 1px solid ${theme.colorSplit};
     min-height: 100%;
     display: none;
-    &.open {
-      display: flex;
+    
+    /* Mobile: full width */
+    @media (max-width: 575px) {
+      width: 100%;
+      &.open {
+        display: flex;
+        position: fixed;
+        z-index: 1000;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        max-height: 70vh;
+        overflow-y: auto;
+        border-bottom: 1px solid ${theme.colorSplit};
+      }
+    }
+    
+    /* Tablet: compact width */
+    @media (min-width: 576px) and (max-width: 768px) {
+      width: 150px;
+      &.open {
+        display: flex;
+      }
+    }
+    
+    /* Desktop: full configured width */
+    @media (min-width: 769px) {
+      width: ${width}px;
+      &.open {
+        display: flex;
+      }
     }
   `}
 `;
@@ -93,16 +142,32 @@ const CollapsedBar = styled.div<{ offset: number }>`
     top: ${offset}px;
     left: 0;
     height: 100%;
-    width: ${theme.sizeUnit * 8}px;
     padding-top: ${theme.sizeUnit * 2}px;
     display: none;
     text-align: center;
-    &.open {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: ${theme.sizeUnit * 2}px;
+    
+    /* Mobile: collapse button */
+    @media (max-width: 575px) {
+      width: ${theme.sizeUnit * 6}px;
+      &.open {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: ${theme.sizeUnit}px;
+      }
     }
+    
+    /* Tablet & Desktop */
+    @media (min-width: 576px) {
+      width: ${theme.sizeUnit * 8}px;
+      &.open {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: ${theme.sizeUnit * 2}px;
+      }
+    }
+    
     svg {
       cursor: pointer;
     }
@@ -118,10 +183,25 @@ const FilterControlsWrapper = styled.div`
     display: flex;
     flex-direction: column;
     gap: ${theme.sizeUnit * 2}px;
-    padding: ${theme.sizeUnit * 4}px;
-    padding-top: 0; /* Works with other changes in PR https://github.com/apache/superset/pull/38646 to reduces space between filter header and 1st filter */
-    // 108px padding to make room for buttons with position: absolute
-    padding-bottom: ${theme.sizeUnit * 27}px;
+    
+    /* Mobile: reduced padding */
+    @media (max-width: 575px) {
+      padding: ${theme.sizeUnit * 2}px;
+      padding-bottom: ${theme.sizeUnit * 12}px;
+    }
+    
+    /* Tablet: medium padding */
+    @media (min-width: 576px) and (max-width: 768px) {
+      padding: ${theme.sizeUnit * 2.5}px;
+      padding-bottom: ${theme.sizeUnit * 20}px;
+    }
+    
+    /* Desktop: full padding */
+    @media (min-width: 769px) {
+      padding: ${theme.sizeUnit * 4}px;
+      padding-top: 0;
+      padding-bottom: ${theme.sizeUnit * 27}px;
+    }
   `}
 `;
 

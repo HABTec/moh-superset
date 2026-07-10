@@ -1,0 +1,72 @@
+
+"""
+MoH Monitoring Dashboard page — iframe wrapper around an external Dashboard Monitoring service.
+
+Renders a single page at /monitoring-dashboard/ (admin-only) which embeds whatever URL
+is in the MOH_MONITORING_DASHBOARD_IFRAME_URL environment variable. If the env var isn't set
+the page shows a friendly "Monitoring Dashboard not configured" placeholder with
+instructions.
+
+The route also overrides Superset's default CSP for this page so the
+browser permits the iframe to the configured AI service origin. Without
+this override the default `default-src 'self'` blocks the iframe with a
+console "frame-src violates default-src 'self'" error.
+
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from urllib.parse import urlparse
+
+from flask import Blueprint, current_app, make_response, redirect, render_template, request
+from flask_login import current_user
+
+from superset.superset_typing import FlaskResponse
+
+logger = logging.getLogger(__name__)
+
+monitoring_dashboard_bp = Blueprint(
+    "moh_monitoring_dashboard",
+    __name__,
+    template_folder="templates",
+)
+
+
+def _require_login() -> FlaskResponse | None:
+    """Return a redirect if the user isn't authenticated; None if they are."""
+    if not getattr(current_user, "is_authenticated", False):
+        return redirect(f"/login/?next={request.path}")
+    return None
+
+
+@monitoring_dashboard_bp.route("/monitoring-dashboard/")
+def monitoring_dashboard_page() -> FlaskResponse:
+    """Serve the Monitoring Dashboard page (iframe to the configured external service)."""
+    if (denied := _require_login()) is not None:
+        return denied
+
+    iframe_url = current_app.config.get("MOH_MONITORING_DASHBOARD_IFRAME_URL", "")
+    if not iframe_url:
+        iframe_url = os.environ.get("MOH_MONITORING_DASHBOARD_IFRAME_URL", "")
+
+    resp = make_response(render_template(
+        "superset/his.html",
+        iframe_url=iframe_url,
+    ))
+
+    if iframe_url:
+        parsed = urlparse(iframe_url)
+        if parsed.scheme and parsed.netloc:
+            target_origin = f"{parsed.scheme}://{parsed.netloc}"
+            resp.headers["Content-Security-Policy"] = (
+                f"default-src 'self'; "
+                f"img-src 'self' data: {target_origin}; "
+                f"style-src 'self' 'unsafe-inline'; "
+                f"script-src 'self'; "
+                f"frame-src 'self' {target_origin}; "
+                f"connect-src 'self' {target_origin}"
+            )
+    resp.headers.pop("X-Frame-Options", None)
+    return resp
