@@ -77,9 +77,38 @@ const GridContent = styled.div<{ editMode?: boolean }>`
   ${({ theme, editMode }) => css`
     display: flex;
     flex-direction: column;
-    /* gutters between rows */
-    & > div:not(:last-child):not(.empty-droptarget) {
-      ${!editMode && `margin-bottom: ${theme.sizeUnit * 4}px`};
+    
+    /* Mobile responsiveness: adjust spacing for different screen sizes */
+    /* Mobile: <576px */
+    @media (max-width: 575px) {
+      & > div:not(:last-child):not(.empty-droptarget) {
+        ${!editMode && `margin-bottom: ${theme.sizeUnit * 1}px`};
+      }
+      padding: ${theme.sizeUnit}px;
+    }
+    
+    /* Tablet: 576px - 768px */
+    @media (min-width: 576px) and (max-width: 768px) {
+      & > div:not(:last-child):not(.empty-droptarget) {
+        ${!editMode && `margin-bottom: ${theme.sizeUnit * 2}px`};
+      }
+      padding: ${theme.sizeUnit * 1.5}px;
+    }
+    
+    /* Laptop: 768px - 992px */
+    @media (min-width: 769px) and (max-width: 992px) {
+      & > div:not(:last-child):not(.empty-droptarget) {
+        ${!editMode && `margin-bottom: ${theme.sizeUnit * 3}px`};
+      }
+      padding: ${theme.sizeUnit * 2}px;
+    }
+    
+    /* Desktop: >=992px */
+    @media (min-width: 993px) {
+      & > div:not(:last-child):not(.empty-droptarget) {
+        ${!editMode && `margin-bottom: ${theme.sizeUnit * 4}px`};
+      }
+      padding: ${theme.sizeUnit * 3}px;
     }
 
     .empty-droptarget {
@@ -112,7 +141,16 @@ const GridContent = styled.div<{ editMode?: boolean }>`
     }
 
     & > .empty-droptarget.empty-droptarget--full:only-child {
-      height: 80vh;
+      /* Responsive height for empty state */
+      @media (max-width: 575px) {
+        height: 50vh;
+      }
+      @media (min-width: 576px) and (max-width: 992px) {
+        height: 60vh;
+      }
+      @media (min-width: 993px) {
+        height: 80vh;
+      }
     }
   `}
 `;

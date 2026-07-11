@@ -3,7 +3,7 @@
  * Addresses: filter bar width, grid layout, chart heights, sidebar collapse
  */
 
-import { css } from 'styled-components';
+import { css } from '@apache-superset/core/theme';
 
 // Responsive breakpoints (pixels)
 export const BREAKPOINTS = {

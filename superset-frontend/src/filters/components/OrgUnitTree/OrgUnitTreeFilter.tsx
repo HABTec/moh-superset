@@ -85,6 +85,57 @@ function toNode(u: OrgUnit, maxLevel: number): Node {
   };
 }
 
+function buildDataMask(sels: OrgUnitSelection[]) {
+  if (!sels || sels.length === 0) {
+    return {
+      filterState: { value: null },
+      extraFormData: { filters: [] },
+    };
+  }
+
+  // Group selections by their dimension (level → region/zone/.../health_post).
+  // Country (level 1) is the implicit "all" and contributes nothing.
+  const byDim: Record<string, string[]> = {};
+  const labels: string[] = [];
+  for (const s of sels) {
+    if (s.level <= 1) continue;
+    const dim = LEVEL_TO_DIM[s.level];
+    if (!dim) continue;
+    (byDim[dim] = byDim[dim] || []).push(s.displayName);
+    labels.push(s.displayName);
+  }
+
+  if (labels.length === 0) {
+    return {
+      filterState: { value: null },
+      extraFormData: { filters: [] },
+    };
+  }
+
+  // One filter clause per dimension. The dataset SQL reads each via
+  // filter_values('region') / filter_values('zone') / etc.
+  const filters = Object.entries(byDim).map(([col, val]) => ({
+    col,
+    op: 'IN',
+    val,
+  }));
+
+  return {
+    filterState: { value: labels },
+    extraFormData: { filters },
+  };
+}
+
+function patchChildren(nodes: Node[], key: string, kids: Node[]): Node[] {
+  return nodes.map(n => {
+    if (n.key === key) return { ...n, children: kids };
+    if (n.children) {
+      return { ...n, children: patchChildren(n.children as Node[], key, kids) };
+    }
+    return n;
+  });
+}
+
 export default function OrgUnitTreeFilter({
   formData,
   filterState,
@@ -231,57 +282,4 @@ export default function OrgUnitTreeFilter({
       </TreeBox>
     </Wrapper>
   );
-}
-
-// ----------------------------------------------------------------------------
-
-function buildDataMask(sels: OrgUnitSelection[]) {
-  if (!sels || sels.length === 0) {
-    return {
-      filterState: { value: null },
-      extraFormData: { filters: [] },
-    };
-  }
-
-  // Group selections by their dimension (level → region/zone/.../health_post).
-  // Country (level 1) is the implicit "all" and contributes nothing.
-  const byDim: Record<string, string[]> = {};
-  const labels: string[] = [];
-  for (const s of sels) {
-    if (s.level <= 1) continue;
-    const dim = LEVEL_TO_DIM[s.level];
-    if (!dim) continue;
-    (byDim[dim] = byDim[dim] || []).push(s.displayName);
-    labels.push(s.displayName);
-  }
-
-  if (labels.length === 0) {
-    return {
-      filterState: { value: null },
-      extraFormData: { filters: [] },
-    };
-  }
-
-  // One filter clause per dimension. The dataset SQL reads each via
-  // filter_values('region') / filter_values('zone') / etc.
-  const filters = Object.entries(byDim).map(([col, val]) => ({
-    col,
-    op: 'IN',
-    val,
-  }));
-
-  return {
-    filterState: { value: labels },
-    extraFormData: { filters },
-  };
-}
-
-function patchChildren(nodes: Node[], key: string, kids: Node[]): Node[] {
-  return nodes.map(n => {
-    if (n.key === key) return { ...n, children: kids };
-    if (n.children) {
-      return { ...n, children: patchChildren(n.children as Node[], key, kids) };
-    }
-    return n;
-  });
 }

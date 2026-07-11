@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  {% import 'superset/macros.html' as macros %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Assistant — MoH Analytics Portal</title>
+  <title>Monitoring Dashboard  — MoH Analytics Portal</title>
   <style>
     html, body {
       margin: 0;
@@ -80,10 +79,8 @@
 
 <header class="topbar">
   <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
-  <span class="title">{% if request.args.get('embedded') == '1' %}HABT AI{% else %}AI Assistant{% endif %}</span>
-  {% if request.args.get('embedded') != '1' %}
-    <a class="back" href="/">← Back to portal</a>
-  {% endif %}
+  <span class="title">Monitoring Dashboard</span>
+  <a class="back" href="https://mohss.habtechsolution.com/superset/dashboard/8/">← Back to portal</a>
 </header>
 
 {% if iframe_url %}
@@ -98,17 +95,13 @@
 </div>
 {% else %}
   <div class="placeholder">
-    <h2>AI Assistant not configured</h2>
-    <p>To embed an AI service here, set the
-       <code>MOH_AI_IFRAME_URL</code> environment variable to the
+    <h2>Monitoring Dashboard not configured</h2>
+    <p>To embed an Monitoring Dashboard  here, set the
+       <code>MOH_MONITORING_DASHBOARD_IFRAME_URL</code> environment variable to the
        service's URL and restart Superset.</p>
     <p>Example (in <code>~/.bashrc</code> or systemd
        <code>EnvironmentFile</code>):</p>
-    <pre><code>export MOH_AI_IFRAME_URL=https://your-ai-service.example.com/</code></pre>
-    <p><strong>Note:</strong> the target site must allow iframe embedding.
-       Many large LLM providers (ChatGPT, Claude.ai, Gemini) block embedding
-       via <code>X-Frame-Options: DENY</code> for security; if you see a blank
-       frame, that's why.</p>
+    <pre><code>export MOH_MONITORING_DASHBOARD_IFRAME_URL=https://your-monitoring-dashboard.example.com/</code></pre>
   </div>
 {% endif %}
 

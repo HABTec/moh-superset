@@ -1,0 +1,227 @@
+{
+  "info": {
+    "_postman_id": "8d5e3d1d-8a55-4b4d-b5c5-1d2d9d9c0001",
+    "name": "Superset Mobile APIs",
+    "description": "Collection for building native mobile dashboards from Apache Superset",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8088"
+    },
+    {
+      "key": "username",
+      "value": "admin"
+    },
+    {
+      "key": "password",
+      "value": "admin"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "dashboard_id",
+      "value": "1"
+    },
+    {
+      "key": "chart_id",
+      "value": "1"
+    },
+    {
+      "key": "dataset_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/security/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\":\"{{username}}\",\n    \"password\":\"{{password}}\",\n    \"provider\":\"db\",\n    \"refresh\":true\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var json = pm.response.json();",
+              "pm.collectionVariables.set('access_token', json.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Current User",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/me/"
+      }
+    },
+    {
+      "name": "3. List Dashboards",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/dashboard/"
+      }
+    },
+    {
+      "name": "4. Dashboard Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/dashboard/{{dashboard_id}}"
+      }
+    },
+    {
+      "name": "5. List Charts",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/chart/"
+      }
+    },
+    {
+      "name": "6. Chart Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/chart/{{chart_id}}"
+      }
+    },
+    {
+      "name": "7. Execute Chart",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/chart/data",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"query_context\": {}\n}"
+        }
+      }
+    },
+    {
+      "name": "8. Dataset Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/dataset/{{dataset_id}}"
+      }
+    },
+    {
+      "name": "9. Dataset Columns",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/dataset/{{dataset_id}}/columns/"
+      }
+    },
+    {
+      "name": "10. Dataset Metrics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/dataset/{{dataset_id}}/metrics/"
+      }
+    },
+    {
+      "name": "11. Database Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/database/"
+      }
+    },
+    {
+      "name": "12. Guest Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/security/guest_token/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"resources\": [\n    {\n      \"type\": \"dashboard\",\n      \"id\": \"{{dashboard_id}}\"\n    }\n  ],\n  \"rls\": [],\n  \"user\": {\n    \"username\": \"mobile\"\n  }\n}"
+        }
+      }
+    }
+  ]
+}
