@@ -23,7 +23,7 @@ import { t } from '@apache-superset/core/translation';
 import { addAlpha, JsonObject, useElementOnScreen } from '@superset-ui/core';
 import { css, styled, useTheme } from '@apache-superset/core/theme';
 import { useDispatch, useSelector } from 'react-redux';
-import { EmptyState, Grid, Loading } from '@superset-ui/core/components';
+import { EmptyState, Loading } from '@superset-ui/core/components';
 import { ErrorBoundary, BasicErrorAlert } from 'src/components';
 import BuilderComponentPane from 'src/dashboard/components/BuilderComponentPane';
 import DashboardHeader from 'src/dashboard/components/Header';
@@ -62,11 +62,14 @@ import { useUiConfig } from 'src/components/UiConfigContext';
 import ResizableSidebar from 'src/components/ResizableSidebar';
 import {
   BUILDER_SIDEPANEL_WIDTH,
+  CLOSED_FILTER_BAR_SHELL_WIDTH,
   CLOSED_FILTER_BAR_WIDTH,
+  FILTER_BAR_SHELL_PADDING,
+  FILTER_BAR_SHELL_WIDTH_OFFSET,
   FILTER_BAR_HEADER_HEIGHT,
   MAIN_HEADER_HEIGHT,
-  OPEN_FILTER_BAR_MAX_WIDTH,
-  OPEN_FILTER_BAR_WIDTH,
+  OPEN_FILTER_BAR_SHELL_MAX_WIDTH,
+  OPEN_FILTER_BAR_SHELL_WIDTH,
   EMPTY_CONTAINER_Z_INDEX,
 } from 'src/dashboard/constants';
 import {
@@ -76,6 +79,7 @@ import {
   RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
   RESPONSIVE_DASHBOARD_MOBILE_CLASS,
   isResponsiveDashboardEnabled,
+  isResponsiveDashboardMobileViewport,
 } from 'src/dashboard/util/responsiveDashboard';
 import { getRootLevelTabsComponent, shouldFocusTabs } from './utils';
 import DashboardContainer from './DashboardContainer';
@@ -84,9 +88,12 @@ import DashboardWrapper from './DashboardWrapper';
 
 // @z-index-above-dashboard-charts + 1 = 11
 const FiltersPanel = styled.div<{ width: number; hidden: boolean }>`
-  background-color: ${({ theme }) => theme.colorBgContainer};
+  background-color: #e8f2fb;
+  border-right: 2px solid #2893b3;
+  box-sizing: border-box;
   grid-column: 1;
   grid-row: 1 / span 2;
+  padding: ${FILTER_BAR_SHELL_PADDING}px;
   z-index: 11;
   width: ${({ width }) => width}px;
   ${({ hidden }) => hidden && `display: none;`}
@@ -101,13 +108,27 @@ const StickyPanel = styled.div<{ width: number }>`
 
 // @z-index-above-dashboard-popovers (99) + 1 = 100
 const StyledHeader = styled.div<{ filterBarWidth: number }>`
-  ${({ theme, filterBarWidth }) => css`
+  ${({ theme, filterBarWidth }) => {
+    const hasVerticalFilterBar = filterBarWidth > 0;
+    const compactGridColumn = hasVerticalFilterBar ? '2' : '1 / -1';
+    const compactHeaderWidth = `calc(100vw - ${filterBarWidth}px)`;
+    const headerInsetWidth = hasVerticalFilterBar
+      ? '100%'
+      : `calc(100vw - ${theme.sizeUnit * 4}px)`;
+    const headerInsetMarginLeft = hasVerticalFilterBar
+      ? '0'
+      : `${theme.sizeUnit * 2}px`;
+
+    return css`
     grid-column: 2;
     grid-row: 1;
     position: sticky;
     top: 0;
     z-index: 99;
+    box-sizing: border-box;
     max-width: calc(100vw - ${filterBarWidth}px);
+    min-width: 0;
+    width: calc(100vw - ${filterBarWidth}px);
 
     .empty-droptarget {
       min-height: ${theme.sizeUnit * 4}px;
@@ -126,13 +147,13 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
       opacity: 0.5;
     }
 
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & > [data-test='dragdroppable-object'] {
-      margin-left: calc(
-        ${theme.sizeUnit * 2}px - ${filterBarWidth}px
-      ) !important;
-      max-width: calc(100vw - ${theme.sizeUnit * 4}px) !important;
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object'] {
+      margin-left: ${headerInsetMarginLeft} !important;
+      max-width: ${headerInsetWidth} !important;
       min-width: 0 !important;
-      width: calc(100vw - ${theme.sizeUnit * 4}px) !important;
+      width: ${headerInsetWidth} !important;
     }
 
     body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
@@ -168,11 +189,14 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
     @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
       body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
         box-sizing: border-box;
-        grid-column: 1 / -1;
-        max-width: 100vw;
+        grid-column: ${compactGridColumn};
+        max-width: ${compactHeaderWidth};
         min-width: 0;
         overflow-x: hidden;
-        padding-inline: ${theme.sizeUnit * 2}px;
+        padding-inline: ${hasVerticalFilterBar
+          ? 0
+          : `${theme.sizeUnit * 2}px`};
+        width: ${compactHeaderWidth};
 
         & > [data-test='dragdroppable-object'] {
           margin-left: 0 !important;
@@ -198,24 +222,34 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
         }
       }
     }
-  `}
+  `;
+  }}
 `;
 
 const StyledContent = styled.div<{
   fullSizeChartId: number | null;
+  filterBarWidth: number;
 }>`
+  ${({ filterBarWidth }) => css`
   grid-column: 2;
   grid-row: 2;
+  box-sizing: border-box;
+  max-width: calc(100vw - ${filterBarWidth}px);
+  min-width: 0;
+  width: calc(100vw - ${filterBarWidth}px);
   // @z-index-above-dashboard-header (100) + 1 = 101
+  `}
+
   ${({ fullSizeChartId }) => fullSizeChartId && `z-index: 101;`}
 
   @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
     body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
-      grid-column: 1 / -1;
-      max-width: 100vw;
+      grid-column: ${({ filterBarWidth }) =>
+        filterBarWidth > 0 ? '2' : '1 / -1'};
+      max-width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
       min-width: 0;
       overflow-x: hidden;
-      width: 100vw;
+      width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
     }
   }
 
@@ -430,7 +464,7 @@ const StyledDashboardContent = styled.div<{
         .grid-container {
           margin: ${theme.sizeUnit * 2}px;
           margin-left: ${theme.sizeUnit * 2}px;
-          max-width: calc(100vw - ${theme.sizeUnit * 4}px);
+          max-width: calc(100% - ${theme.sizeUnit * 4}px);
           min-width: 0;
           width: calc(100% - ${theme.sizeUnit * 4}px) !important;
         }
@@ -605,6 +639,16 @@ const StyledDashboardContent = styled.div<{
         }
       }
     }
+
+    @media (min-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact + 1}px) {
+      .${RESPONSIVE_DASHBOARD_CLASS} & {
+        .dashboard-component-chart-holder {
+          max-width: calc(100% - ${theme.sizeUnit * 5}px) !important;
+          overflow: hidden;
+          width: calc(100% - ${theme.sizeUnit * 5}px) !important;
+        }
+      }
+    }
   `}
 `;
 
@@ -612,11 +656,16 @@ const ELEMENT_ON_SCREEN_OPTIONS = {
   threshold: [1],
 };
 
+const getViewportSize = () => ({
+  width: typeof window === 'undefined' ? 0 : window.innerWidth,
+  height: typeof window === 'undefined' ? 0 : window.innerHeight,
+});
+
 const DashboardBuilder = () => {
   const dispatch = useDispatch();
   const uiConfig = useUiConfig();
   const theme = useTheme();
-  const screens = Grid.useBreakpoint();
+  const [viewportSize, setViewportSize] = useState(getViewportSize);
 
   const dashboardInfo = useSelector<RootState, DashboardInfo>(
     state => state.dashboardInfo,
@@ -643,7 +692,27 @@ const DashboardBuilder = () => {
     ({ dashboardInfo }) => dashboardInfo.filterBarOrientation,
   );
   const responsiveDashboardMobile =
-    responsiveDashboardEnabled && !editMode && screens.md === false;
+    responsiveDashboardEnabled &&
+    !editMode &&
+    isResponsiveDashboardMobileViewport(
+      viewportSize.width,
+      viewportSize.height,
+    );
+
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportSize(getViewportSize());
+    };
+
+    syncViewportSize();
+    window.addEventListener('resize', syncViewportSize);
+    window.addEventListener('orientationchange', syncViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', syncViewportSize);
+      window.removeEventListener('orientationchange', syncViewportSize);
+    };
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle(
@@ -724,7 +793,7 @@ const DashboardBuilder = () => {
 
   const [barTopOffset, setBarTopOffset] = useState(0);
   const [currentFilterBarWidth, setCurrentFilterBarWidth] = useState(
-    CLOSED_FILTER_BAR_WIDTH,
+    CLOSED_FILTER_BAR_SHELL_WIDTH,
   );
 
   useEffect(() => {
@@ -772,6 +841,7 @@ const DashboardBuilder = () => {
       marginLeft:
         dashboardFiltersOpen ||
         editMode ||
+        responsiveDashboardEnabled ||
         responsiveDashboardMobile ||
         !nativeFiltersEnabled ||
         filterBarOrientation === FilterBarOrientation.Horizontal
@@ -781,6 +851,7 @@ const DashboardBuilder = () => {
     [
       dashboardFiltersOpen,
       editMode,
+      responsiveDashboardEnabled,
       responsiveDashboardMobile,
       filterBarOrientation,
       nativeFiltersEnabled,
@@ -883,26 +954,30 @@ const DashboardBuilder = () => {
 
   const renderChild = useCallback(
     (adjustedWidth: number) => {
-      const filterBarWidth = dashboardFiltersOpen
-        ? adjustedWidth
-        : CLOSED_FILTER_BAR_WIDTH;
-      if (filterBarWidth !== currentFilterBarWidth) {
-        setCurrentFilterBarWidth(filterBarWidth);
+      const filterBarShellWidth = dashboardFiltersOpen
+        ? Math.max(adjustedWidth, OPEN_FILTER_BAR_SHELL_WIDTH)
+        : CLOSED_FILTER_BAR_SHELL_WIDTH;
+      const filterBarContentWidth = Math.max(
+        CLOSED_FILTER_BAR_WIDTH,
+        filterBarShellWidth - FILTER_BAR_SHELL_WIDTH_OFFSET,
+      );
+      if (filterBarShellWidth !== currentFilterBarWidth) {
+        setCurrentFilterBarWidth(filterBarShellWidth);
       }
       return (
         <FiltersPanel
-          width={filterBarWidth}
+          width={filterBarShellWidth}
           hidden={isReport}
           data-test="dashboard-filters-panel"
         >
-          <StickyPanel ref={containerRef} width={filterBarWidth}>
+          <StickyPanel ref={containerRef} width={filterBarContentWidth}>
             <ErrorBoundary>
               <FilterBar
                 orientation={FilterBarOrientation.Vertical}
                 verticalConfig={{
                   filtersOpen: dashboardFiltersOpen,
                   toggleFiltersBar: toggleDashboardFiltersOpen,
-                  width: filterBarWidth,
+                  width: filterBarContentWidth,
                   height: filterBarHeight,
                   offset: filterBarOffset,
                 }}
@@ -933,11 +1008,11 @@ const DashboardBuilder = () => {
     <DashboardWrapper>
       {isVerticalFilterBarVisible && (
         <ResizableSidebar
-          id={`dashboard:${dashboardId}`}
+          id={`dashboard:${dashboardId}:filter-shell`}
           enable={dashboardFiltersOpen}
-          minWidth={OPEN_FILTER_BAR_WIDTH}
-          maxWidth={OPEN_FILTER_BAR_MAX_WIDTH}
-          initialWidth={OPEN_FILTER_BAR_WIDTH}
+          minWidth={OPEN_FILTER_BAR_SHELL_WIDTH}
+          maxWidth={OPEN_FILTER_BAR_SHELL_MAX_WIDTH}
+          initialWidth={OPEN_FILTER_BAR_SHELL_WIDTH}
         >
           {renderChild}
         </ResizableSidebar>
@@ -965,7 +1040,10 @@ const DashboardBuilder = () => {
           {renderDraggableContent}
         </Droppable>
       </StyledHeader>
-      <StyledContent fullSizeChartId={fullSizeChartId}>
+      <StyledContent
+        fullSizeChartId={fullSizeChartId}
+        filterBarWidth={headerFilterBarWidth}
+      >
         {!editMode &&
           !topLevelTabs &&
           dashboardLayout[DASHBOARD_GRID_ID]?.children?.length === 0 && (

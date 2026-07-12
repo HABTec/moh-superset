@@ -185,7 +185,7 @@ const MobileFilterBar: FC<MobileBarProps> = ({
         </Button>
       </MobileFiltersTrigger>
       <Drawer
-        title={t('Filters')}
+        title={t('Filters and controls')}
         placement="bottom"
         height="82vh"
         open={open}

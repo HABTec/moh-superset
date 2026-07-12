@@ -25,6 +25,7 @@ export const RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS =
 export const RESPONSIVE_DASHBOARD_BREAKPOINTS = {
   mobile: 768,
   compact: 1024,
+  phoneLandscapeHeight: 560,
 };
 export const RESPONSIVE_DASHBOARD_MIN_CHART_WIDTH = 240;
 
@@ -54,8 +55,24 @@ export function isResponsiveDashboardEnabled(
   );
 }
 
+export function isResponsiveDashboardMobileViewport(
+  width: number,
+  height = typeof window === 'undefined'
+    ? RESPONSIVE_DASHBOARD_BREAKPOINTS.phoneLandscapeHeight + 1
+    : window.innerHeight,
+): boolean {
+  const mobileViewport = width <= RESPONSIVE_DASHBOARD_BREAKPOINTS.mobile;
+  const compactViewport = width <= RESPONSIVE_DASHBOARD_BREAKPOINTS.compact;
+  const phoneLandscape =
+    compactViewport &&
+    height <= RESPONSIVE_DASHBOARD_BREAKPOINTS.phoneLandscapeHeight &&
+    width > height;
+
+  return mobileViewport || phoneLandscape;
+}
+
 export function isResponsiveDashboardMobile(width: number): boolean {
-  return width < RESPONSIVE_DASHBOARD_BREAKPOINTS.mobile;
+  return isResponsiveDashboardMobileViewport(width);
 }
 
 export function isResponsiveDashboardCompact(width: number): boolean {

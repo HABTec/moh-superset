@@ -158,6 +158,18 @@ _moh_roles %}
     [data-test="dashboard-header-wrapper"] {
       padding-top: 0 !important;
     }
+
+    body.moh-responsive-dashboard-mobile .dashboard-header-container {
+      height: auto !important;
+      min-height: 0 !important;
+    }
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions {
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+    }
   }
 
   /* ── Below desktop ≤ 900px — restore actions to dashboard header ── */
@@ -272,7 +284,7 @@ _moh_roles %}
       box-shadow: none !important;
     }
 
-    body.moh-responsive-dashboard [data-test="dashboard-header-wrapper"] {
+    body.moh-responsive-dashboard-mobile [data-test="dashboard-header-wrapper"] {
       box-sizing: border-box !important;
       grid-column: 1 / -1 !important;
       max-width: 100vw !important;
@@ -281,7 +293,7 @@ _moh_roles %}
       padding-left: 8px !important;
       padding-right: 8px !important;
     }
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       > [data-test="dragdroppable-object"] {
       margin-left: 0 !important;
@@ -289,22 +301,22 @@ _moh_roles %}
       min-width: 0 !important;
       width: 100% !important;
     }
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs,
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs
       > .ant-tabs,
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs
       .ant-tabs-content-holder,
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs
       .ant-tabs-content,
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs
       .ant-tabs-tabpane {
@@ -313,7 +325,7 @@ _moh_roles %}
       min-width: 0 !important;
       width: 100% !important;
     }
-    body.moh-responsive-dashboard
+    body.moh-responsive-dashboard-mobile
       [data-test="dashboard-header-wrapper"]
       .dashboard-component-tabs
       > .ant-tabs
@@ -625,7 +637,7 @@ _moh_roles %}
       var panel = getActionPanel();
       if (!panel) return false;
 
-      if (window.innerWidth >= DESKTOP_BP) {
+      if (window.innerWidth >= DESKTOP_BP && !isResponsiveMobileDashboard()) {
         return mountToNav(panel);
       }
       restoreToHeader(panel);

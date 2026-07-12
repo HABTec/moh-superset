@@ -43,6 +43,11 @@ import {
   MenuObjectProps,
   MenuData,
 } from 'src/types/bootstrapTypes';
+import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  isResponsiveDashboardCompact,
+  isResponsiveDashboardMobileViewport,
+} from 'src/dashboard/util/responsiveDashboard';
 import { datasetsLabel } from 'src/features/semanticLayers/label';
 import RightMenu from './RightMenu';
 import { NAVBAR_MENU_POPUP_OFFSET } from './commonMenuData';
@@ -184,6 +189,7 @@ const StyledBrandLink = styled(Typography.Link)`
 
 const StyledRow = styled(Row)`
   height: 100%;
+  position: relative;
 `;
 
 const StyledCol = styled(Col)`
@@ -194,9 +200,21 @@ const StyledCol = styled(Col)`
 
     @media (max-width: ${theme.screenMDMax}px) {
       align-items: center;
+      flex: 0 0 100%;
       flex-wrap: nowrap;
       gap: ${theme.sizeUnit * 2}px;
       justify-content: space-between;
+      max-width: 100%;
+      min-height: ${theme.sizeUnit * 16}px;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      align-items: center;
+      flex: 0 0 100%;
+      flex-wrap: nowrap;
+      gap: ${theme.sizeUnit * 2}px;
+      justify-content: space-between;
+      max-width: 100%;
       min-height: ${theme.sizeUnit * 16}px;
     }
   `}
@@ -204,8 +222,30 @@ const StyledCol = styled(Col)`
 
 const StyledDesktopRightCol = styled(Col)`
   ${({ theme }) => css`
-    @media (max-width: ${theme.screenMDMax}px) {
-      display: none;
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      display: block;
+      flex: 0 0 auto;
+      max-width: none;
+      pointer-events: none;
+      position: absolute;
+      right: ${theme.sizeUnit * 18}px;
+      top: ${theme.sizeUnit * 3}px;
+      width: auto;
+      z-index: 11;
+
+      > div > :not(.moh-nav-dashboard-actions) {
+        display: none !important;
+      }
+
+      .moh-nav-dashboard-actions {
+        align-items: center !important;
+        display: flex !important;
+        gap: ${theme.sizeUnit}px !important;
+        height: ${theme.sizeUnit * 11}px !important;
+        margin-left: 0 !important;
+        pointer-events: auto;
+        width: auto !important;
+      }
     }
   `}
 `;
@@ -221,6 +261,17 @@ const StyledMobileMenuButton = styled(Button)`
       justify-content: center;
       min-width: ${theme.sizeUnit * 11}px;
       padding: 0;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      align-items: center;
+      display: inline-flex;
+      height: ${theme.sizeUnit * 11}px;
+      justify-content: center;
+      min-width: ${theme.sizeUnit * 11}px;
+      padding: 0;
+      position: relative;
+      z-index: 12;
     }
   `}
 `;
@@ -280,6 +331,11 @@ const StyledImage = styled(Image)`
 
 const { useBreakpoint } = Grid;
 
+const getViewportSize = () => ({
+  width: typeof window === 'undefined' ? 0 : window.innerWidth,
+  height: typeof window === 'undefined' ? 0 : window.innerHeight,
+});
+
 export function Menu({
   data: {
     menu,
@@ -294,6 +350,29 @@ export function Menu({
   const uiConfig = useUiConfig();
   const theme = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [viewportSize, setViewportSize] = useState(getViewportSize);
+
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportSize(getViewportSize());
+    };
+
+    syncViewportSize();
+    window.addEventListener('resize', syncViewportSize);
+    window.addEventListener('orientationchange', syncViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', syncViewportSize);
+      window.removeEventListener('orientationchange', syncViewportSize);
+    };
+  }, []);
+  const useMobileNavigation =
+    screens.lg === false ||
+    isResponsiveDashboardCompact(viewportSize.width) ||
+    isResponsiveDashboardMobileViewport(
+      viewportSize.width,
+      viewportSize.height,
+    );
 
   enum Paths {
     Explore = '/explore',
@@ -375,10 +454,11 @@ export function Menu({
     return {
       key: label,
       label,
-      ...(screens.md && {
-        icon: <Icons.DownOutlined iconSize="xs" />,
-        popupOffset: NAVBAR_MENU_POPUP_OFFSET,
-      }),
+      ...(!useMobileNavigation &&
+        screens.md && {
+          icon: <Icons.DownOutlined iconSize="xs" />,
+          popupOffset: NAVBAR_MENU_POPUP_OFFSET,
+        }),
       children: childItems,
     };
   };
@@ -448,8 +528,6 @@ export function Menu({
     return buildMenuItem(props);
   });
 
-  const isMobile = screens.md === false;
-
   return (
     <StyledHeader
       className="top"
@@ -472,7 +550,7 @@ export function Menu({
               <span>{brand.text}</span>
             </StyledBrandText>
           )}
-          {!isMobile && (
+          {!useMobileNavigation && (
             <StyledMainNav
               mode="horizontal"
               data-test="navbar-top"
@@ -482,7 +560,7 @@ export function Menu({
               items={mainNavItems}
             />
           )}
-          {isMobile && (
+          {useMobileNavigation && (
             <StyledMobileMenuButton
               aria-label={t('Open navigation menu')}
               icon={<Icons.MenuOutlined iconSize="m" />}
@@ -501,7 +579,7 @@ export function Menu({
           />
         </StyledDesktopRightCol>
       </StyledRow>
-      {isMobile && (
+      {useMobileNavigation && (
         <Drawer
           title={t('Navigation')}
           placement="right"

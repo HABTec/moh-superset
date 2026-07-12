@@ -179,8 +179,10 @@ const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
       inset-inline-start: auto !important;
       inset-inline-end: ${theme.sizeUnit * 3}px !important;
       inset-block-end: auto !important;
-      width: min(${theme.sizeUnit * 40}px, calc(100vw - ${theme.sizeUnit *
-        6}px)) !important;
+      width: min(
+        ${theme.sizeUnit * 40}px,
+        calc(100vw - ${theme.sizeUnit * 6}px)
+      ) !important;
       max-width: calc(100vw - ${theme.sizeUnit * 6}px) !important;
       transform: none !important;
     }
@@ -226,34 +228,35 @@ const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
       .ant-dropdown-menu-item {
       padding-inline-start: ${theme.sizeUnit * 5}px;
     }
+  }
 
-    body.moh-responsive-dashboard-mobile #mohAiOverlay {
-      inset-inline-end: ${theme.sizeUnit * 3}px !important;
-      inset-block-end: max(
-        ${theme.sizeUnit * 20}px,
-        calc(env(safe-area-inset-bottom) + ${theme.sizeUnit * 20}px)
-      ) !important;
-      z-index: 1001 !important;
-    }
+  body.moh-responsive-dashboard-mobile #mohAiOverlay {
+    inset-inline-start: auto !important;
+    inset-inline-end: ${theme.sizeUnit * 3}px !important;
+    inset-block-start: auto !important;
+    inset-block-end: max(
+      ${theme.sizeUnit * 22}px,
+      calc(env(safe-area-inset-bottom) + ${theme.sizeUnit * 22}px)
+    ) !important;
+    z-index: 1001 !important;
+  }
 
-    body.moh-responsive-dashboard-mobile.moh-mobile-filter-open
-      #mohAiOverlay {
-      opacity: 0 !important;
-      pointer-events: none !important;
-      visibility: hidden !important;
-      transform: translateY(${theme.sizeUnit * 2}px) scale(0.96) !important;
-    }
+  body.moh-responsive-dashboard-mobile.moh-mobile-filter-open #mohAiOverlay {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    transform: translateY(${theme.sizeUnit * 2}px) scale(0.96) !important;
+  }
 
-    body.moh-responsive-dashboard-mobile #mohAiToggle {
-      width: ${theme.sizeUnit * 12}px !important;
-      height: ${theme.sizeUnit * 12}px !important;
-      min-width: ${theme.sizeUnit * 12}px !important;
-      min-height: ${theme.sizeUnit * 12}px !important;
-      border-radius: 50% !important;
-      box-shadow: ${theme.boxShadowSecondary} !important;
-      font-size: ${theme.fontSizeSM}px !important;
-      line-height: 1.05 !important;
-    }
+  body.moh-responsive-dashboard-mobile #mohAiToggle {
+    width: ${theme.sizeUnit * 12}px !important;
+    height: ${theme.sizeUnit * 12}px !important;
+    min-width: ${theme.sizeUnit * 12}px !important;
+    min-height: ${theme.sizeUnit * 12}px !important;
+    border-radius: 50% !important;
+    box-shadow: ${theme.boxShadowSecondary} !important;
+    font-size: ${theme.fontSizeSM}px !important;
+    line-height: 1.05 !important;
   }
 `;
 
@@ -1002,9 +1005,7 @@ const Header = (): JSX.Element => {
           dashboardId={String(dashboardInfo.id)}
         />
       )}
-      <Global
-        styles={dashboardHeaderGlobalStyle(theme)}
-      />
+      <Global styles={dashboardHeaderGlobalStyle(theme)} />
 
       <UnsavedChangesModal
         title={t('Save changes to your dashboard?')}
