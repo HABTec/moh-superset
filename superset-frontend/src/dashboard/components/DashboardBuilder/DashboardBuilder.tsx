@@ -455,6 +455,80 @@ const StyledDashboardContent = styled.div<{
       z-index: 1;
     }
 
+    .${RESPONSIVE_DASHBOARD_CLASS} & {
+      .dragdroppable-column,
+      .grid-column,
+      .resizable-container,
+      .dashboard-component-chart-holder {
+        z-index: 0;
+      }
+
+      .dragdroppable:hover,
+      .dragdroppable:focus-within,
+      .grid-row:hover,
+      .grid-row:focus-within,
+      .grid-column:hover,
+      .grid-column:focus-within,
+      .resizable-container:hover,
+      .resizable-container:focus-within,
+      .dashboard-component-chart-layout--interaction-active {
+        z-index: 30;
+      }
+
+      .dashboard-component-chart-holder:hover,
+      .dashboard-component-chart-holder:focus-within,
+      .dashboard-component-chart-holder--interaction-active {
+        z-index: 31;
+      }
+
+      .dragdroppable-column.dashboard-component-chart-layout--interaction-active {
+        transform: none !important;
+      }
+
+      .dashboard-component-chart-holder .chart-tooltip,
+      .dashboard-component-chart-holder [class*='tooltip'] {
+        z-index: 32 !important;
+      }
+
+      .superset-legacy-chart-big-number .text-container,
+      .superset-legacy-chart-big-number .header-line {
+        max-width: 100% !important;
+      }
+
+      .superset-legacy-chart-big-number .header-line {
+        font-size: clamp(42px, 3.75vw, 80px) !important;
+        white-space: nowrap !important;
+      }
+
+      .dashboard-component-chart-holder .pivot_table_v_2,
+      .dashboard-component-chart-holder .ant-table-wrapper,
+      .dashboard-component-chart-holder .table-condensed,
+      .dashboard-component-chart-holder .pvtTable,
+      .dashboard-component-chart-holder .ag-root-wrapper {
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .pvtTable {
+        display: block !important;
+        table-layout: auto !important;
+        width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .pvtTable th,
+      .dashboard-component-chart-holder .pvtTable td {
+        overflow-wrap: anywhere !important;
+        white-space: normal !important;
+      }
+
+      .dashboard-component-chart-holder .pivot_table_v_2,
+      .dashboard-component-chart-holder .ant-table-wrapper,
+      .dashboard-component-chart-holder .pvtTable,
+      .dashboard-component-chart-holder .ag-root-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+
     @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
       .${RESPONSIVE_DASHBOARD_CLASS} & {
         min-width: 0;
@@ -491,8 +565,40 @@ const StyledDashboardContent = styled.div<{
           margin-inline: ${theme.sizeUnit * 2}px !important;
           max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
           min-width: 0;
-          overflow: hidden !important;
+          overflow: visible !important;
+          padding: ${theme.sizeUnit * 5}px !important;
           width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        }
+
+        .dashboard-component-chart-holder .dashboard-chart,
+        .dashboard-component-chart-holder
+          .dashboard-chart.dashboard-chart--overflowable,
+        .dashboard-component-chart-holder [data-test='chart-container'],
+        .dashboard-component-chart-holder [data-test='slice-container'],
+        .dashboard-component-chart-holder .slice_container,
+        .dashboard-component-chart-holder [data-test='slice-container'] > div {
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder [data-test='chart-container'] svg {
+          max-width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .slice-header,
+        .dashboard-component-chart-holder [data-test='slice-header'] {
+          height: max-content !important;
+          margin-bottom: ${theme.sizeUnit * 2}px !important;
+          min-height: max-content !important;
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder .header-title {
+          display: block !important;
+          max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+          -webkit-line-clamp: unset !important;
         }
       }
     }
@@ -536,9 +642,9 @@ const StyledDashboardContent = styled.div<{
         width: calc(100% - ${theme.sizeUnit * 4}px) !important;
         max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
         margin-inline: ${theme.sizeUnit * 2}px !important;
-        padding: ${theme.sizeUnit * 3}px;
+        padding: ${theme.sizeUnit * 5}px !important;
         min-width: 0;
-        overflow: hidden !important;
+        overflow: visible !important;
       }
 
       .chart-slice {
@@ -557,11 +663,42 @@ const StyledDashboardContent = styled.div<{
         width: 100% !important;
         max-width: 100% !important;
         min-width: 0 !important;
-        overflow: hidden !important;
+        overflow: visible !important;
       }
 
       [data-test='slice-container'] > div {
         flex-shrink: 1 !important;
+      }
+
+      [data-test='chart-container'] svg {
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .slice-header,
+      .dashboard-component-chart-holder [data-test='slice-header'] {
+        height: max-content !important;
+        margin-bottom: ${theme.sizeUnit * 2}px !important;
+        min-height: max-content !important;
+        overflow: visible !important;
+      }
+
+      .dashboard-component-chart-holder .header-title {
+        display: block !important;
+        max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: normal !important;
+        -webkit-line-clamp: unset !important;
+      }
+
+      .superset-legacy-chart-big-number .text-container,
+      .superset-legacy-chart-big-number .header-line {
+        max-width: 100% !important;
+      }
+
+      .superset-legacy-chart-big-number .header-line {
+        font-size: clamp(42px, 13vw, 80px) !important;
+        white-space: nowrap !important;
       }
 
       [data-test='slice-container'] table,
@@ -643,9 +780,41 @@ const StyledDashboardContent = styled.div<{
     @media (min-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact + 1}px) {
       .${RESPONSIVE_DASHBOARD_CLASS} & {
         .dashboard-component-chart-holder {
-          max-width: calc(100% - ${theme.sizeUnit * 5}px) !important;
-          overflow: hidden;
-          width: calc(100% - ${theme.sizeUnit * 5}px) !important;
+          max-width: 100% !important;
+          overflow: visible !important;
+          padding: ${theme.sizeUnit * 4}px !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .dashboard-chart,
+        .dashboard-component-chart-holder
+          .dashboard-chart.dashboard-chart--overflowable,
+        .dashboard-component-chart-holder [data-test='chart-container'],
+        .dashboard-component-chart-holder [data-test='slice-container'],
+        .dashboard-component-chart-holder .slice_container,
+        .dashboard-component-chart-holder [data-test='slice-container'] > div {
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder [data-test='chart-container'] svg {
+          max-width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .slice-header,
+        .dashboard-component-chart-holder [data-test='slice-header'] {
+          height: max-content !important;
+          margin-bottom: ${theme.sizeUnit * 2}px !important;
+          min-height: max-content !important;
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder .header-title {
+          display: block !important;
+          max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+          -webkit-line-clamp: unset !important;
         }
       }
     }

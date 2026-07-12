@@ -424,6 +424,7 @@ class DashboardGrid extends PureComponent<
                   index={index}
                   availableColumnCount={gridColumnCount}
                   columnWidth={columnWidth}
+                  responsiveDashboardEnabled={responsiveDashboardEnabled}
                   responsiveLayout={responsiveLayout}
                   isComponentVisible={isComponentVisible}
                   onResizeStart={this.handleResizeStart}

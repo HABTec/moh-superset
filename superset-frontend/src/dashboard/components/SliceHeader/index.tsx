@@ -83,7 +83,8 @@ const ChartHeaderStyles = styled.div`
     display: flex;
     max-width: 100%;
     align-items: flex-start;
-    min-height: 0;
+    height: max-content;
+    min-height: max-content;
 
     & > .header-title {
       overflow: hidden;

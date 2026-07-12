@@ -24,7 +24,7 @@ export const RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS =
 
 export const RESPONSIVE_DASHBOARD_BREAKPOINTS = {
   mobile: 768,
-  compact: 1024,
+  compact: 1120,
   phoneLandscapeHeight: 560,
 };
 export const RESPONSIVE_DASHBOARD_MIN_CHART_WIDTH = 240;

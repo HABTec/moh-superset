@@ -49,11 +49,19 @@ import {
   GRID_MIN_ROW_UNITS,
 } from 'src/dashboard/util/constants';
 import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  RESPONSIVE_DASHBOARD_BODY_CLASS,
   getResponsiveChartHeight,
   getResponsiveChartWidth,
 } from 'src/dashboard/util/responsiveDashboard';
 
 export const CHART_MARGIN = 32;
+const PHEM_FILL_HEIGHT_CHART_IDS = new Set([153, 154]);
+const PHEM_TALL_VIEWPORT_CHART_OFFSET = 470;
+const CHART_INTERACTION_HOLDER_CLASS =
+  'dashboard-component-chart-holder--interaction-active';
+const CHART_INTERACTION_LAYOUT_CLASS =
+  'dashboard-component-chart-layout--interaction-active';
 
 export interface ChartHolderProps {
   id: string;
@@ -82,6 +90,7 @@ export interface ChartHolderProps {
   handleComponentDrop: (...args: unknown[]) => unknown;
   setFullSizeChartId: (chartId: number | null) => void;
   isInView: boolean;
+  responsiveDashboardEnabled?: boolean;
   responsiveLayout?: boolean;
 }
 
@@ -107,6 +116,7 @@ const ChartHolder = ({
   handleComponentDrop,
   setFullSizeChartId,
   isInView,
+  responsiveDashboardEnabled = false,
   responsiveLayout = false,
 }: ChartHolderProps) => {
   const theme = useTheme();
@@ -125,6 +135,10 @@ const ChartHolder = ({
   const [responsiveChartWidth, setResponsiveChartWidth] = useState<
     number | undefined
   >();
+  const responsiveDashboardActive =
+    responsiveDashboardEnabled ||
+    (typeof document !== 'undefined' &&
+      document.body.classList.contains(RESPONSIVE_DASHBOARD_BODY_CLASS));
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -207,7 +221,13 @@ const ChartHolder = ({
   const effectiveWidthMultiple = responsiveLayout ? 1 : widthMultiple;
   const measureResponsiveChartWidth = useCallback(() => {
     const holder = chartHolderRef.current;
-    if (!responsiveLayout || !holder || typeof window === 'undefined') return;
+    if (
+      !responsiveDashboardActive ||
+      !holder ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
 
     const style = window.getComputedStyle(holder);
     const paddingLeft = parseFloat(style.paddingLeft) || 0;
@@ -223,10 +243,10 @@ const ChartHolder = ({
     setResponsiveChartWidth(current =>
       current === nextWidth ? current : nextWidth,
     );
-  }, [responsiveLayout]);
+  }, [responsiveDashboardActive]);
 
   useLayoutEffect(() => {
-    if (!responsiveLayout || typeof window === 'undefined') {
+    if (!responsiveDashboardActive || typeof window === 'undefined') {
       setResponsiveChartWidth(undefined);
       return undefined;
     }
@@ -259,7 +279,7 @@ const ChartHolder = ({
         measureResponsiveChartWidth,
       );
     };
-  }, [measureResponsiveChartWidth, responsiveLayout]);
+  }, [measureResponsiveChartWidth, responsiveDashboardActive]);
 
   const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
@@ -285,6 +305,22 @@ const ChartHolder = ({
           GRID_MIN_ROW_UNITS,
           Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
         );
+      } else if (responsiveDashboardActive) {
+        width = responsiveChartWidth ?? width;
+        if (
+          chartId != null &&
+          PHEM_FILL_HEIGHT_CHART_IDS.has(chartId) &&
+          window.innerWidth > RESPONSIVE_DASHBOARD_BREAKPOINTS.compact
+        ) {
+          height = Math.max(
+            height,
+            window.innerHeight - PHEM_TALL_VIEWPORT_CHART_OFFSET,
+          );
+          heightMultiple = Math.max(
+            GRID_MIN_ROW_UNITS,
+            Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
+          );
+        }
       }
     }
 
@@ -296,8 +332,10 @@ const ChartHolder = ({
   }, [
     columnWidth,
     component.meta.height,
+    chartId,
     effectiveWidthMultiple,
     isFullSize,
+    responsiveDashboardActive,
     responsiveChartWidth,
     responsiveLayout,
   ]);
@@ -331,6 +369,33 @@ const ChartHolder = ({
       [name]: value,
     }));
   }, []);
+
+  const setChartInteractionLayer = useCallback(
+    (active: boolean) => {
+      const holder = chartHolderRef.current;
+      if (!responsiveDashboardActive || !holder) return;
+
+      holder.classList.toggle(CHART_INTERACTION_HOLDER_CLASS, active);
+
+      [
+        holder.closest('.resizable-container'),
+        holder.closest('.dragdroppable-column'),
+        holder.closest('.dragdroppable-row'),
+        holder.closest('.grid-row'),
+        holder.closest('.grid-column'),
+      ].forEach(element => {
+        if (element instanceof HTMLElement) {
+          element.classList.toggle(CHART_INTERACTION_LAYOUT_CLASS, active);
+        }
+      });
+    },
+    [responsiveDashboardActive],
+  );
+
+  useEffect(
+    () => () => setChartInteractionLayer(false),
+    [setChartInteractionLayer],
+  );
 
   const shouldRenderChart =
     !responsiveLayout || isFullSize || responsiveChartWidth !== undefined;
@@ -370,6 +435,18 @@ const ChartHolder = ({
           data-test="dashboard-component-chart-holder"
           style={focusHighlightStyles}
           css={isFullSize ? fullSizeStyle : undefined}
+          onMouseEnter={() => setChartInteractionLayer(true)}
+          onMouseLeave={() => setChartInteractionLayer(false)}
+          onFocus={() => setChartInteractionLayer(true)}
+          onBlur={event => {
+            const nextTarget = event.relatedTarget;
+            if (
+              !(nextTarget instanceof Node) ||
+              !event.currentTarget.contains(nextTarget)
+            ) {
+              setChartInteractionLayer(false);
+            }
+          }}
           className={cx(
             'dashboard-component',
             'dashboard-component-chart-holder',
@@ -469,6 +546,7 @@ const ChartHolder = ({
       extraControls,
       isInView,
       responsiveLayout,
+      setChartInteractionLayer,
       shouldRenderChart,
       handleDeleteComponent,
     ],

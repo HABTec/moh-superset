@@ -36,8 +36,7 @@ _moh_roles %}
 
   /*
       Charts — flex-start keeps legend top / x-axis bottom (not vertically centered).
-      Desktop: clip inside the grid cell (no inner scrollbars).
-      Mobile/tablet: allow slight overflow for rotated axis labels.
+      Keep chart pixels inside the card while header actions remain paintable.
     */
   .dashboard-component-chart-holder [data-test="chart-container"],
   .dashboard-component-chart-holder [data-test="slice-container"],
@@ -57,19 +56,22 @@ _moh_roles %}
 
   @media (min-width: 901px) {
     .dashboard-component-chart-holder {
-      overflow: hidden !important;
+      overflow: visible !important;
     }
     .dashboard-component-chart-holder .dashboard-chart,
     .dashboard-component-chart-holder
       .dashboard-chart.dashboard-chart--overflowable {
-      overflow: hidden !important;
+      overflow: visible !important;
     }
     .dashboard-component-chart-holder [data-test="chart-container"],
     .dashboard-component-chart-holder [data-test="slice-container"],
     .dashboard-component-chart-holder .slice_container,
     .dashboard-component-chart-holder [data-test="slice-container"] > div {
-      overflow: hidden !important;
+      overflow: visible !important;
       max-height: 100% !important;
+    }
+    .dashboard-component-chart-holder [data-test="chart-container"] svg {
+      max-width: 100% !important;
     }
   }
 
@@ -84,9 +86,13 @@ _moh_roles %}
     }
     .dashboard-component-chart-holder [data-test="chart-container"],
     .dashboard-component-chart-holder [data-test="slice-container"],
-    .dashboard-component-chart-holder .slice_container {
+    .dashboard-component-chart-holder .slice_container,
+    .dashboard-component-chart-holder [data-test="slice-container"] > div {
       overflow: visible !important;
       max-height: none !important;
+    }
+    .dashboard-component-chart-holder [data-test="chart-container"] svg {
+      max-width: 100% !important;
     }
   }
 
@@ -98,6 +104,144 @@ _moh_roles %}
     pointer-events: auto !important;
     position: relative !important;
     z-index: 10 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder {
+    box-sizing: border-box !important;
+    padding: 20px !important;
+  }
+
+  @media (min-width: 1121px) {
+    body.moh-responsive-dashboard .dashboard-component-chart-holder {
+      padding: 16px !important;
+    }
+  }
+
+  body.moh-responsive-dashboard .dragdroppable-column,
+  body.moh-responsive-dashboard .grid-column,
+  body.moh-responsive-dashboard .resizable-container,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder {
+    z-index: 0;
+  }
+
+  body.moh-responsive-dashboard .dragdroppable:hover,
+  body.moh-responsive-dashboard .dragdroppable:focus-within,
+  body.moh-responsive-dashboard .grid-row:hover,
+  body.moh-responsive-dashboard .grid-row:focus-within,
+  body.moh-responsive-dashboard .grid-column:hover,
+  body.moh-responsive-dashboard .grid-column:focus-within,
+  body.moh-responsive-dashboard .resizable-container:hover,
+  body.moh-responsive-dashboard .resizable-container:focus-within,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-layout--interaction-active {
+    z-index: 30 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder:hover,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder:focus-within,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder--interaction-active {
+    z-index: 31 !important;
+  }
+
+  body.moh-responsive-dashboard
+    .dragdroppable-column.dashboard-component-chart-layout--interaction-active {
+    transform: none !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .chart-tooltip,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    [class*="tooltip"] {
+    z-index: 32 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .slice-header,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    [data-test="slice-header"] {
+    height: max-content !important;
+    margin-bottom: 8px !important;
+    min-height: max-content !important;
+    overflow: visible !important;
+  }
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    .header-title {
+    display: block !important;
+    max-width: calc(100% - 48px) !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    -webkit-line-clamp: unset !important;
+  }
+
+  body.moh-responsive-dashboard
+    .superset-legacy-chart-big-number
+    .text-container,
+  body.moh-responsive-dashboard .superset-legacy-chart-big-number .header-line {
+    max-width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .superset-legacy-chart-big-number .header-line {
+    font-size: clamp(42px, 3.75vw, 80px) !important;
+    white-space: nowrap !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pivot_table_v_2,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ant-table-wrapper,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .table-condensed,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ag-root-wrapper {
+    max-width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable {
+    display: block !important;
+    table-layout: auto !important;
+    width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable th,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable td {
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pivot_table_v_2,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ant-table-wrapper,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ag-root-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  body.moh-responsive-dashboard [data-test="filter-bar"].open {
+    max-height: calc(100vh - 80px) !important;
+    overflow: hidden !important;
+  }
+
+  body.moh-responsive-dashboard [data-test="filter-bar"].open > .open {
+    height: auto !important;
+    max-height: inherit !important;
+    overflow: hidden !important;
+  }
+
+  body.moh-responsive-dashboard
+    [data-test="filter-bar"].open
+    > .open
+    > div:nth-child(2) {
+    flex: 0 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  body.moh-responsive-dashboard
+    [data-test="filter-bar"].open
+    > .open
+    > div:nth-child(2)
+    > div {
+    padding-bottom: 16px !important;
   }
 
   /* During image export, unclip chart so canvas pixels copy correctly */
@@ -268,6 +412,8 @@ _moh_roles %}
     }
     .dashboard-component-chart-holder .slice-header,
     .dashboard-component-chart-holder .header-title {
+      height: max-content !important;
+      min-height: max-content !important;
       overflow: hidden !important;
       text-overflow: ellipsis !important;
     }
@@ -363,7 +509,7 @@ _moh_roles %}
     body.moh-responsive-dashboard-mobile [data-test="slice-container"],
     body.moh-responsive-dashboard-mobile [data-test="slice-container"] > div,
     body.moh-responsive-dashboard-mobile .slice_container {
-      overflow: hidden !important;
+      overflow: visible !important;
       min-width: 0 !important;
       max-width: 100% !important;
     }
@@ -372,11 +518,31 @@ _moh_roles %}
       flex-shrink: 1 !important;
     }
 
+    body.moh-responsive-dashboard-mobile [data-test="chart-container"] svg {
+      max-width: 100% !important;
+    }
+
     body.moh-responsive-dashboard-mobile .ant-table-wrapper,
     body.moh-responsive-dashboard-mobile .pvtTable,
     body.moh-responsive-dashboard-mobile .ag-root-wrapper {
       overflow-x: auto !important;
       -webkit-overflow-scrolling: touch !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .text-container,
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .header-line {
+      max-width: 100% !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .header-line {
+      font-size: clamp(42px, 13vw, 80px) !important;
+      white-space: nowrap !important;
     }
   }
 
@@ -772,6 +938,82 @@ _moh_roles %}
             chartWrap.classList.remove("dashboard-chart--overflowable");
           }
         });
+      fitResponsiveSvgCharts();
+    }
+
+    function fitResponsiveSvgCharts() {
+      if (
+        !isDashboardPage() ||
+        !document.body.classList.contains("moh-responsive-dashboard")
+      ) {
+        return;
+      }
+      document
+        .querySelectorAll('[data-test="chart-container"] > svg')
+        .forEach(function (svg) {
+          var chartContainer = svg.closest('[data-test="chart-container"]');
+          var chartContainerWidth = chartContainer
+            ? chartContainer.clientWidth
+            : 0;
+          var svgWidth = parseFloat(svg.getAttribute("width") || "");
+          var svgHeight = parseFloat(svg.getAttribute("height") || "");
+
+          if (
+            !chartContainerWidth ||
+            !Number.isFinite(svgWidth) ||
+            !Number.isFinite(svgHeight) ||
+            svgWidth <= 0 ||
+            svgHeight <= 0 ||
+            svgWidth <= chartContainerWidth + 1
+          ) {
+            return;
+          }
+
+          if (!svg.hasAttribute("viewBox")) {
+            svg.setAttribute("viewBox", "0 0 " + svgWidth + " " + svgHeight);
+          }
+          svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+          svg.style.display = "block";
+          svg.style.height = "auto";
+          svg.style.maxWidth = "100%";
+          svg.style.overflow = "visible";
+          svg.style.width = "100%";
+        });
+    }
+
+    function fitResponsiveBigNumbers() {
+      if (
+        !isDashboardPage() ||
+        !document.body.classList.contains("moh-responsive-dashboard")
+      ) {
+        return;
+      }
+      document
+        .querySelectorAll(".superset-legacy-chart-big-number .header-line")
+        .forEach(function (header) {
+          var root = header.closest(".superset-legacy-chart-big-number");
+          if (!root) return;
+
+          header.style.fontSize = "";
+          var availableWidth = root.clientWidth * 0.92;
+          var currentFontSize = parseFloat(
+            window.getComputedStyle(header).fontSize,
+          );
+          if (!availableWidth || !currentFontSize) return;
+
+          var textWidth = header.scrollWidth;
+          if (textWidth <= availableWidth) return;
+
+          var nextFontSize = Math.max(
+            42,
+            Math.floor((currentFontSize * availableWidth) / textWidth),
+          );
+          header.style.setProperty(
+            "font-size",
+            nextFontSize + "px",
+            "important",
+          );
+        });
     }
 
     function exportsHasEcharts(exp) {
@@ -1129,7 +1371,11 @@ _moh_roles %}
         var moTimer = null;
         var mo = new MutationObserver(function () {
           clearTimeout(moTimer);
-          moTimer = setTimeout(disableChartZoom, 300);
+          moTimer = setTimeout(function () {
+            prepareCharts();
+            fitResponsiveBigNumbers();
+            disableChartZoom();
+          }, 300);
         });
         mo.observe(grid, { childList: true, subtree: true });
       }
@@ -1137,6 +1383,7 @@ _moh_roles %}
 
     function onChartsReady() {
       prepareCharts();
+      fitResponsiveBigNumbers();
       disableChartZoom();
       initChartWatch();
       startZoomGuard();
@@ -1219,6 +1466,7 @@ _moh_roles %}
       if (isMobileOrTablet() && !filterDone) tryFilterCollapse();
       if (pollCount % 3 === 0) {
         prepareCharts();
+        fitResponsiveBigNumbers();
         disableChartZoom();
       }
 
@@ -1241,6 +1489,7 @@ _moh_roles %}
         }
         if (isDashboardPage()) {
           prepareCharts();
+          fitResponsiveBigNumbers();
           disableChartZoom();
         }
       }, 300);
@@ -1253,6 +1502,7 @@ _moh_roles %}
       setTimeout(function () {
         syncNavActions();
         tryFilterCollapse();
+        fitResponsiveBigNumbers();
         disableChartZoom();
       }, 300);
     }
