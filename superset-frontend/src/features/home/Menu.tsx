@@ -23,7 +23,15 @@ import { ensureStaticPrefix } from 'src/utils/assetUrl';
 import { ensureAppRoot } from 'src/utils/pathUtils';
 import { getUrlParam } from 'src/utils/urlUtils';
 import { MainNav, MenuItem } from '@superset-ui/core/components/Menu';
-import { Tooltip, Grid, Row, Col, Image } from '@superset-ui/core/components';
+import {
+  Button,
+  Drawer,
+  Tooltip,
+  Grid,
+  Row,
+  Col,
+  Image,
+} from '@superset-ui/core/components';
 import { GenericLink } from 'src/components';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from '@superset-ui/core/components/Icons';
@@ -50,6 +58,10 @@ const StyledHeader = styled.header`
     border-bottom: 1px solid ${theme.colorBorderSecondary};
     padding: 0 ${theme.sizeUnit * 4}px;
     z-index: 10;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      padding: 0 ${theme.sizeUnit * 4}px;
+    }
 
     &:nth-last-of-type(2) nav {
       margin-bottom: 2px;
@@ -179,6 +191,86 @@ const StyledCol = styled(Col)`
     display: flex;
     gap: ${theme.sizeUnit * 4}px;
     flex-wrap: wrap;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: ${theme.sizeUnit * 2}px;
+      justify-content: space-between;
+      min-height: ${theme.sizeUnit * 16}px;
+    }
+  `}
+`;
+
+const StyledDesktopRightCol = styled(Col)`
+  ${({ theme }) => css`
+    @media (max-width: ${theme.screenMDMax}px) {
+      display: none;
+    }
+  `}
+`;
+
+const StyledMobileMenuButton = styled(Button)`
+  ${({ theme }) => css`
+    display: none;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      align-items: center;
+      display: inline-flex;
+      height: ${theme.sizeUnit * 11}px;
+      justify-content: center;
+      min-width: ${theme.sizeUnit * 11}px;
+      padding: 0;
+    }
+  `}
+`;
+
+const StyledMobileDrawerContent = styled.div`
+  ${({ theme }) => css`
+    display: flex;
+    flex-direction: column;
+    gap: ${theme.sizeUnit * 4}px;
+
+    .main-nav {
+      border-inline-end: none !important;
+    }
+
+    .ant-menu-inline {
+      width: 100%;
+    }
+
+    .ant-menu-item,
+    .ant-menu-submenu-title {
+      min-height: ${theme.sizeUnit * 11}px;
+    }
+  `}
+`;
+
+const StyledMobileDrawerActions = styled.div`
+  ${({ theme }) => css`
+    border-top: 1px solid ${theme.colorBorderSecondary};
+    padding-top: ${theme.sizeUnit * 4}px;
+
+    > div {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: ${theme.sizeUnit * 2}px;
+      height: auto;
+    }
+
+    .ant-menu {
+      border-inline-end: none !important;
+    }
+
+    .ant-menu-horizontal {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .ant-menu-submenu,
+    .ant-menu-submenu-title {
+      width: 100%;
+    }
   `}
 `;
 
@@ -201,6 +293,7 @@ export function Menu({
   const screens = useBreakpoint();
   const uiConfig = useUiConfig();
   const theme = useTheme();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   enum Paths {
     Explore = '/explore',
@@ -335,6 +428,28 @@ export function Menu({
     // ---------------------------------------------------------------------------------
     return <>{link}</>;
   };
+
+  const mainNavItems = menu.map(item => {
+    const props = {
+      ...item,
+      isFrontendRoute: isFrontendRoute(item.url),
+      childs: item.childs?.map(c => {
+        if (typeof c === 'string') {
+          return c;
+        }
+
+        return {
+          ...c,
+          isFrontendRoute: isFrontendRoute(c.url),
+        };
+      }),
+    };
+
+    return buildMenuItem(props);
+  });
+
+  const isMobile = screens.md === false;
+
   return (
     <StyledHeader
       className="top"
@@ -357,33 +472,26 @@ export function Menu({
               <span>{brand.text}</span>
             </StyledBrandText>
           )}
-          <StyledMainNav
-            mode={screens.md ? 'horizontal' : 'inline'}
-            data-test="navbar-top"
-            className="main-nav"
-            selectedKeys={activeTabs}
-            disabledOverflow
-            items={menu.map(item => {
-              const props = {
-                ...item,
-                isFrontendRoute: isFrontendRoute(item.url),
-                childs: item.childs?.map(c => {
-                  if (typeof c === 'string') {
-                    return c;
-                  }
-
-                  return {
-                    ...c,
-                    isFrontendRoute: isFrontendRoute(c.url),
-                  };
-                }),
-              };
-
-              return buildMenuItem(props);
-            })}
-          />
+          {!isMobile && (
+            <StyledMainNav
+              mode="horizontal"
+              data-test="navbar-top"
+              className="main-nav"
+              selectedKeys={activeTabs}
+              disabledOverflow
+              items={mainNavItems}
+            />
+          )}
+          {isMobile && (
+            <StyledMobileMenuButton
+              aria-label={t('Open navigation menu')}
+              icon={<Icons.MenuOutlined iconSize="m" />}
+              onClick={() => setMobileMenuOpen(true)}
+              type="default"
+            />
+          )}
         </StyledCol>
-        <Col md={8} xs={24}>
+        <StyledDesktopRightCol md={8} xs={24}>
           <RightMenu
             align={screens.md ? 'flex-end' : 'flex-start'}
             settings={settings}
@@ -391,8 +499,38 @@ export function Menu({
             isFrontendRoute={isFrontendRoute}
             environmentTag={environmentTag}
           />
-        </Col>
+        </StyledDesktopRightCol>
       </StyledRow>
+      {isMobile && (
+        <Drawer
+          title={t('Navigation')}
+          placement="right"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          width={320}
+        >
+          <StyledMobileDrawerContent>
+            <StyledMainNav
+              mode="inline"
+              data-test="navbar-mobile"
+              className="main-nav"
+              selectedKeys={activeTabs}
+              disabledOverflow
+              items={mainNavItems}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <StyledMobileDrawerActions>
+              <RightMenu
+                align="flex-start"
+                settings={settings}
+                navbarRight={navbarRight}
+                isFrontendRoute={isFrontendRoute}
+                environmentTag={environmentTag}
+              />
+            </StyledMobileDrawerActions>
+          </StyledMobileDrawerContent>
+        </Drawer>
+      )}
     </StyledHeader>
   );
 }

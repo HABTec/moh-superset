@@ -64,6 +64,7 @@ export interface ColumnProps {
   // optional
   onChangeTab?: (params: { pathToTabIndex: string[] }) => void;
   isComponentVisible?: boolean;
+  responsiveLayout?: boolean;
 }
 
 interface DragChildProps {
@@ -158,6 +159,7 @@ const Column = (props: ColumnProps) => {
     id,
     parentId,
     updateComponents,
+    responsiveLayout = false,
   } = props;
 
   const [isFocused, setIsFocused] = useState(false);
@@ -197,6 +199,12 @@ const Column = (props: ColumnProps) => {
     opt =>
       opt.value === (columnComponent.meta.background || BACKGROUND_TRANSPARENT),
   );
+  const effectiveWidthMultiple = responsiveLayout
+    ? 1
+    : (columnComponent.meta.width ?? 0);
+  const effectiveAvailableColumnCount = responsiveLayout
+    ? 1
+    : (columnComponent.meta.width ?? 0);
 
   const renderChild = useCallback(
     ({ dragSourceRef }: DragChildProps) => (
@@ -205,11 +213,13 @@ const Column = (props: ColumnProps) => {
         adjustableWidth
         adjustableHeight={false}
         widthStep={columnWidth}
-        widthMultiple={columnComponent.meta.width ?? 0}
+        widthMultiple={effectiveWidthMultiple}
         heightMultiple={0}
-        minWidthMultiple={minColumnWidth}
+        minWidthMultiple={responsiveLayout ? 1 : minColumnWidth}
         maxWidthMultiple={
-          availableColumnCount + (columnComponent.meta.width || 0)
+          responsiveLayout
+            ? 1
+            : availableColumnCount + (columnComponent.meta.width || 0)
         }
         onResizeStart={onResizeStart}
         onResize={onResize}
@@ -291,7 +301,7 @@ const Column = (props: ColumnProps) => {
                     parentId={columnComponent.id}
                     depth={depth + 1}
                     index={itemIndex}
-                    availableColumnCount={columnComponent.meta.width ?? 0}
+                    availableColumnCount={effectiveAvailableColumnCount}
                     columnWidth={columnWidth}
                     onResizeStart={
                       onResizeStart as unknown as (
@@ -319,6 +329,7 @@ const Column = (props: ColumnProps) => {
                     }
                     isComponentVisible={isComponentVisible}
                     onChangeTab={onChangeTab}
+                    responsiveLayout={responsiveLayout}
                   />
                   {editMode && (
                     <Droppable
@@ -355,6 +366,8 @@ const Column = (props: ColumnProps) => {
       columnWidth,
       depth,
       editMode,
+      effectiveAvailableColumnCount,
+      effectiveWidthMultiple,
       handleChangeBackground,
       handleChangeFocus,
       handleComponentDrop,
@@ -366,6 +379,7 @@ const Column = (props: ColumnProps) => {
       onResize,
       onResizeStart,
       onResizeStop,
+      responsiveLayout,
     ],
   );
 

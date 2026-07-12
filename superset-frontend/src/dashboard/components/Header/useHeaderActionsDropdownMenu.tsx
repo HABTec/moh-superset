@@ -38,6 +38,8 @@ import { MenuKeys, RootState } from 'src/dashboard/types';
 import { HeaderDropdownProps } from 'src/dashboard/components/Header/types';
 import { usePermissions } from 'src/hooks/usePermissions';
 
+const MOBILE_ACTIONS_MENU_WIDTH = 767;
+
 export const useHeaderActionsMenu = ({
   customCss,
   dashboardId,
@@ -73,6 +75,7 @@ export const useHeaderActionsMenu = ({
   Dispatch<SetStateAction<boolean>>,
 ] => {
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+  const [isMobileActionsMenu, setIsMobileActionsMenu] = useState(false);
   const { canExportImage } = usePermissions();
   const history = useHistory();
   const location = useLocation();
@@ -85,6 +88,19 @@ export const useHeaderActionsMenu = ({
       injectCustomCss(customCss);
     }
   }, [customCss]);
+
+  useEffect(() => {
+    const syncMobileActionsMenu = () => {
+      setIsMobileActionsMenu(window.innerWidth <= MOBILE_ACTIONS_MENU_WIDTH);
+    };
+
+    syncMobileActionsMenu();
+    window.addEventListener('resize', syncMobileActionsMenu);
+
+    return () => {
+      window.removeEventListener('resize', syncMobileActionsMenu);
+    };
+  }, []);
 
   const handleMenuClick = useCallback(
     ({ key }: { key: string }) => {
@@ -321,6 +337,11 @@ export const useHeaderActionsMenu = ({
       <Menu
         selectable={false}
         data-test="header-actions-menu"
+        className={
+          isMobileActionsMenu ? 'dashboard-header-actions-menu__menu' : ''
+        }
+        mode={isMobileActionsMenu ? 'inline' : 'vertical'}
+        triggerSubMenuAction={isMobileActionsMenu ? 'click' : 'hover'}
         onClick={handleMenuClick}
         items={menuItems}
       />
@@ -338,6 +359,7 @@ export const useHeaderActionsMenu = ({
     editMode,
     expandedSlices,
     handleMenuClick,
+    isMobileActionsMenu,
     isLoading,
     lastModifiedTime,
     layout,

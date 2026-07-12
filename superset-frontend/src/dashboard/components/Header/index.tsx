@@ -23,7 +23,12 @@ import {
   FeatureFlag,
   getExtensionsRegistry,
 } from '@superset-ui/core';
-import { styled, css, SupersetTheme } from '@apache-superset/core/theme';
+import {
+  styled,
+  css,
+  SupersetTheme,
+  useTheme,
+} from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
 import { Global } from '@emotion/react';
 import { shallowEqual, useDispatch, useSelector } from 'react-redux';
@@ -159,6 +164,99 @@ const headerContainerStyle = (theme: SupersetTheme) => css`
   border-bottom: 1px solid ${theme.colorBorder};
 `;
 
+const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
+  .ant-menu-vertical {
+    border-right: none;
+  }
+
+  @media (max-width: 767px) {
+    .dashboard-header-actions-menu.ant-dropdown {
+      position: fixed !important;
+      inset-block-start: max(
+        ${theme.sizeUnit * 31}px,
+        calc(env(safe-area-inset-top) + ${theme.sizeUnit * 31}px)
+      ) !important;
+      inset-inline-start: auto !important;
+      inset-inline-end: ${theme.sizeUnit * 3}px !important;
+      inset-block-end: auto !important;
+      width: min(${theme.sizeUnit * 40}px, calc(100vw - ${theme.sizeUnit *
+        6}px)) !important;
+      max-width: calc(100vw - ${theme.sizeUnit * 6}px) !important;
+      transform: none !important;
+    }
+
+    .dashboard-header-actions-menu .ant-dropdown-menu {
+      box-sizing: border-box;
+      width: 100%;
+      max-height: min(360px, calc(100vh - ${theme.sizeUnit * 32}px));
+      overflow-y: auto;
+      padding: ${theme.sizeUnit * 2}px;
+      border-radius: ${theme.borderRadiusLG}px;
+      box-shadow: ${theme.boxShadowSecondary};
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .dashboard-header-actions-menu .dashboard-header-actions-menu__menu {
+      border-inline-end: none;
+    }
+
+    .dashboard-header-actions-menu .ant-dropdown-menu-item,
+    .dashboard-header-actions-menu .ant-dropdown-menu-submenu-title {
+      min-height: ${theme.sizeUnit * 11}px;
+      padding: 0 ${theme.sizeUnit * 2.5}px;
+      display: flex;
+      align-items: center;
+      font-size: ${theme.fontSize}px;
+    }
+
+    .dashboard-header-actions-menu .ant-dropdown-menu-item-divider {
+      margin: ${theme.sizeUnit * 1.5}px 0;
+    }
+
+    .dashboard-header-actions-menu
+      .dashboard-header-actions-menu__menu
+      .ant-dropdown-menu-sub {
+      background: transparent;
+      padding-inline-start: ${theme.sizeUnit}px;
+    }
+
+    .dashboard-header-actions-menu
+      .dashboard-header-actions-menu__menu
+      .ant-dropdown-menu-sub
+      .ant-dropdown-menu-item {
+      padding-inline-start: ${theme.sizeUnit * 5}px;
+    }
+
+    body.moh-responsive-dashboard-mobile #mohAiOverlay {
+      inset-inline-end: ${theme.sizeUnit * 3}px !important;
+      inset-block-end: max(
+        ${theme.sizeUnit * 20}px,
+        calc(env(safe-area-inset-bottom) + ${theme.sizeUnit * 20}px)
+      ) !important;
+      z-index: 1001 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile.moh-mobile-filter-open
+      #mohAiOverlay {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+      transform: translateY(${theme.sizeUnit * 2}px) scale(0.96) !important;
+    }
+
+    body.moh-responsive-dashboard-mobile #mohAiToggle {
+      width: ${theme.sizeUnit * 12}px !important;
+      height: ${theme.sizeUnit * 12}px !important;
+      min-width: ${theme.sizeUnit * 12}px !important;
+      min-height: ${theme.sizeUnit * 12}px !important;
+      border-radius: 50% !important;
+      box-shadow: ${theme.boxShadowSecondary} !important;
+      font-size: ${theme.fontSizeSM}px !important;
+      line-height: 1.05 !important;
+    }
+  }
+`;
+
 const editButtonStyle = (theme: SupersetTheme) => css`
   color: ${theme.colorPrimary};
 `;
@@ -221,6 +319,7 @@ const discardChanges = () => {
 };
 
 const Header = (): JSX.Element => {
+  const theme = useTheme();
   const dispatch = useDispatch();
   const [didNotifyMaxUndoHistoryToast, setDidNotifyMaxUndoHistoryToast] =
     useState(false);
@@ -836,6 +935,8 @@ const Header = (): JSX.Element => {
         menuDropdownProps={{
           open: isDropdownVisible,
           onOpenChange: setIsDropdownVisible,
+          overlayClassName: 'dashboard-header-actions-menu',
+          placement: 'bottomRight',
         }}
         additionalActionsMenu={menu}
         showFaveStar={Boolean(user?.userId && dashboardInfo?.id)}
@@ -902,11 +1003,7 @@ const Header = (): JSX.Element => {
         />
       )}
       <Global
-        styles={css`
-          .ant-menu-vertical {
-            border-right: none;
-          }
-        `}
+        styles={dashboardHeaderGlobalStyle(theme)}
       />
 
       <UnsavedChangesModal

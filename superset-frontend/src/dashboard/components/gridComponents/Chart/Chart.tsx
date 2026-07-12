@@ -98,6 +98,7 @@ interface ChartProps {
   isInView?: boolean;
   cacheBusterProp?: string | number;
   chartHolderRef?: RefObject<HTMLDivElement>;
+  responsiveLayout?: boolean;
 }
 
 const RESIZE_TIMEOUT = 500;
@@ -334,8 +335,21 @@ const Chart = (props: ChartProps) => {
   );
 
   useEffect(() => {
+    if (props.responsiveLayout) {
+      resize.cancel();
+      setHeight(props.height);
+      setWidth(props.width);
+      return;
+    }
+
     resize();
-  }, [resize, props.isFullSize]);
+  }, [
+    resize,
+    props.height,
+    props.isFullSize,
+    props.responsiveLayout,
+    props.width,
+  ]);
 
   const getHeaderHeight = useCallback((): number => {
     if (headerRef.current) {
@@ -771,7 +785,7 @@ const Chart = (props: ChartProps) => {
           datasetsStatus={
             datasetsStatus as 'loading' | 'error' | 'complete' | undefined
           }
-          isInView={props.isInView}
+          isInView={props.responsiveLayout || props.isInView}
           emitCrossFilters={emitCrossFilters}
           onChartStateChange={handleChartStateChange}
           suppressLoadingSpinner={suppressLoadingSpinner}
@@ -816,6 +830,7 @@ export default memo(Chart, (prevProps: ChartProps, nextProps: ChartProps) => {
       prevProps.sliceName === nextProps.sliceName &&
       prevProps.updateSliceName === nextProps.updateSliceName &&
       prevProps.width === nextProps.width &&
-      prevProps.height === nextProps.height)
+      prevProps.height === nextProps.height &&
+      prevProps.responsiveLayout === nextProps.responsiveLayout)
   );
 });

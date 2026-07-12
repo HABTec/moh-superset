@@ -16,7 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  memo,
+  useLayoutEffect,
+} from 'react';
 
 import { ResizeCallback, ResizeStartCallback } from 're-resizable';
 import cx from 'classnames';
@@ -40,6 +48,10 @@ import {
   GRID_MIN_COLUMN_COUNT,
   GRID_MIN_ROW_UNITS,
 } from 'src/dashboard/util/constants';
+import {
+  getResponsiveChartHeight,
+  getResponsiveChartWidth,
+} from 'src/dashboard/util/responsiveDashboard';
 
 export const CHART_MARGIN = 32;
 
@@ -70,6 +82,7 @@ export interface ChartHolderProps {
   handleComponentDrop: (...args: unknown[]) => unknown;
   setFullSizeChartId: (chartId: number | null) => void;
   isInView: boolean;
+  responsiveLayout?: boolean;
 }
 
 const ChartHolder = ({
@@ -94,6 +107,7 @@ const ChartHolder = ({
   handleComponentDrop,
   setFullSizeChartId,
   isInView,
+  responsiveLayout = false,
 }: ChartHolderProps) => {
   const theme = useTheme();
   const fullSizeStyle = css`
@@ -108,6 +122,9 @@ const ChartHolder = ({
   const { chartId } = component.meta;
   const isFullSize = fullSizeChartId === chartId;
   const chartHolderRef = useRef<HTMLDivElement | null>(null);
+  const [responsiveChartWidth, setResponsiveChartWidth] = useState<
+    number | undefined
+  >();
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -187,29 +204,103 @@ const ChartHolder = ({
     parentComponent.type,
   ]);
 
-  const { chartWidth, chartHeight } = useMemo(() => {
+  const effectiveWidthMultiple = responsiveLayout ? 1 : widthMultiple;
+  const measureResponsiveChartWidth = useCallback(() => {
+    const holder = chartHolderRef.current;
+    if (!responsiveLayout || !holder || typeof window === 'undefined') return;
+
+    const style = window.getComputedStyle(holder);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const horizontalPadding = paddingLeft + paddingRight;
+    const holderRect = holder.getBoundingClientRect();
+    const measuredWidth =
+      Math.min(holder.clientWidth, holderRect.width) - horizontalPadding;
+    const viewportWidth =
+      window.innerWidth - Math.max(holderRect.left, 0) - horizontalPadding - 2;
+    const nextWidth = getResponsiveChartWidth(measuredWidth, viewportWidth);
+
+    setResponsiveChartWidth(current =>
+      current === nextWidth ? current : nextWidth,
+    );
+  }, [responsiveLayout]);
+
+  useLayoutEffect(() => {
+    if (!responsiveLayout || typeof window === 'undefined') {
+      setResponsiveChartWidth(undefined);
+      return undefined;
+    }
+
+    measureResponsiveChartWidth();
+
+    const holder = chartHolderRef.current;
+    const observedElements: Element[] = [];
+    if (holder) {
+      observedElements.push(holder);
+    }
+    if (holder?.parentElement) {
+      observedElements.push(holder.parentElement);
+    }
+
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measureResponsiveChartWidth);
+      observedElements.forEach(element => resizeObserver?.observe(element));
+    }
+
+    window.addEventListener('resize', measureResponsiveChartWidth);
+    window.addEventListener('orientationchange', measureResponsiveChartWidth);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measureResponsiveChartWidth);
+      window.removeEventListener(
+        'orientationchange',
+        measureResponsiveChartWidth,
+      );
+    };
+  }, [measureResponsiveChartWidth, responsiveLayout]);
+
+  const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
     let height = 0;
+    let heightMultiple = component.meta.height ?? GRID_MIN_ROW_UNITS;
 
     if (isFullSize) {
       width = window.innerWidth - CHART_MARGIN;
       height = window.innerHeight - CHART_MARGIN;
     } else {
       width = Math.floor(
-        widthMultiple * columnWidth +
-          (widthMultiple - 1) * GRID_GUTTER_SIZE -
+        effectiveWidthMultiple * columnWidth +
+          (effectiveWidthMultiple - 1) * GRID_GUTTER_SIZE -
           CHART_MARGIN,
       );
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
       );
+      if (responsiveLayout) {
+        width = responsiveChartWidth ?? width;
+        height = getResponsiveChartHeight(height);
+        heightMultiple = Math.max(
+          GRID_MIN_ROW_UNITS,
+          Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
+        );
+      }
     }
 
     return {
       chartWidth: width,
       chartHeight: height,
+      effectiveHeightMultiple: heightMultiple,
     };
-  }, [columnWidth, component, isFullSize, widthMultiple]);
+  }, [
+    columnWidth,
+    component.meta.height,
+    effectiveWidthMultiple,
+    isFullSize,
+    responsiveChartWidth,
+    responsiveLayout,
+  ]);
 
   const handleDeleteComponent = useCallback(() => {
     deleteComponent(id, parentId);
@@ -241,6 +332,9 @@ const ChartHolder = ({
     }));
   }, []);
 
+  const shouldRenderChart =
+    !responsiveLayout || isFullSize || responsiveChartWidth !== undefined;
+
   const renderChild = useCallback(
     ({ dragSourceRef }: { dragSourceRef?: ConnectDragSource }) => (
       <ResizableContainer
@@ -248,12 +342,12 @@ const ChartHolder = ({
         adjustableWidth={parentComponent.type === ROW_TYPE}
         adjustableHeight
         widthStep={columnWidth}
-        widthMultiple={widthMultiple}
+        widthMultiple={effectiveWidthMultiple}
         heightStep={GRID_BASE_UNIT}
-        heightMultiple={component.meta.height ?? GRID_MIN_ROW_UNITS}
+        heightMultiple={effectiveHeightMultiple}
         minWidthMultiple={GRID_MIN_COLUMN_COUNT}
         minHeightMultiple={GRID_MIN_ROW_UNITS}
-        maxWidthMultiple={availableColumnCount + widthMultiple}
+        maxWidthMultiple={availableColumnCount + effectiveWidthMultiple}
         onResizeStart={onResizeStart}
         onResize={onResize}
         onResizeStop={onResizeStop}
@@ -307,28 +401,31 @@ const ChartHolder = ({
                     }`}
               </style>
             )}
-            <Chart
-              componentId={component.id}
-              id={component.meta.chartId ?? 0}
-              dashboardId={dashboardId}
-              width={chartWidth}
-              height={chartHeight}
-              sliceName={
-                component.meta.sliceNameOverride ||
-                component.meta.sliceName ||
-                ''
-              }
-              updateSliceName={(_sliceId: number, name: string) =>
-                handleUpdateSliceName(name)
-              }
-              isComponentVisible={isComponentVisible}
-              handleToggleFullSize={handleToggleFullSize}
-              isFullSize={isFullSize}
-              setControlValue={handleExtraControl}
-              extraControls={extraControls}
-              isInView={isInView}
-              chartHolderRef={chartHolderRef}
-            />
+            {shouldRenderChart && (
+              <Chart
+                componentId={component.id}
+                id={component.meta.chartId ?? 0}
+                dashboardId={dashboardId}
+                width={chartWidth}
+                height={chartHeight}
+                sliceName={
+                  component.meta.sliceNameOverride ||
+                  component.meta.sliceName ||
+                  ''
+                }
+                updateSliceName={(_sliceId: number, name: string) =>
+                  handleUpdateSliceName(name)
+                }
+                isComponentVisible={isComponentVisible}
+                handleToggleFullSize={handleToggleFullSize}
+                isFullSize={isFullSize}
+                setControlValue={handleExtraControl}
+                extraControls={extraControls}
+                isInView={isInView}
+                chartHolderRef={chartHolderRef}
+                responsiveLayout={responsiveLayout}
+              />
+            )}
             {editMode && (
               <HoverMenu position="top">
                 <div data-test="dashboard-delete-component-button">
@@ -349,6 +446,7 @@ const ChartHolder = ({
       parentComponent.type,
       columnWidth,
       widthMultiple,
+      effectiveWidthMultiple,
       availableColumnCount,
       onResizeStart,
       onResize,
@@ -363,12 +461,15 @@ const ChartHolder = ({
       dashboardId,
       chartWidth,
       chartHeight,
+      effectiveHeightMultiple,
       handleUpdateSliceName,
       isComponentVisible,
       handleToggleFullSize,
       handleExtraControl,
       extraControls,
       isInView,
+      responsiveLayout,
+      shouldRenderChart,
       handleDeleteComponent,
     ],
   );

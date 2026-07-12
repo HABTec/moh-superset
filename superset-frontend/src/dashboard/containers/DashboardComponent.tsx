@@ -53,6 +53,7 @@ interface DashboardComponentProps {
   isComponentVisible?: boolean;
   availableColumnCount?: number;
   columnWidth?: number;
+  responsiveLayout?: boolean;
   onResizeStart?: (
     event: MouseEvent | TouchEvent,
     direction: string,

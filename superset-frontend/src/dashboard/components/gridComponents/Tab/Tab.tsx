@@ -92,6 +92,7 @@ export interface TabProps {
   updateComponents: (components: Record<string, LayoutItem>) => void;
   setDirectPathToChild: (pathToTabIndex: string[]) => void;
   isComponentVisible?: boolean;
+  responsiveLayout?: boolean;
 }
 
 interface TabTitleContainerProps {
@@ -282,6 +283,7 @@ const Tab = (props: TabProps): ReactElement => {
       editMode,
       isComponentVisible,
       dashboardId,
+      responsiveLayout = false,
     } = props;
 
     const shouldDisplayEmptyState = tabComponent.children.length === 0;
@@ -376,6 +378,7 @@ const Tab = (props: TabProps): ReactElement => {
               onResizeStop={onResizeStop}
               isComponentVisible={isComponentVisible}
               onChangeTab={handleChangeTab}
+              responsiveLayout={responsiveLayout}
             />
             {/* Make bottom of tab droppable */}
             {editMode && (
@@ -407,6 +410,7 @@ const Tab = (props: TabProps): ReactElement => {
     props.editMode,
     props.isComponentVisible,
     props.dashboardId,
+    props.responsiveLayout,
     props.handleComponentDrop,
     props.onDropOnTab,
     props.setDirectPathToChild,

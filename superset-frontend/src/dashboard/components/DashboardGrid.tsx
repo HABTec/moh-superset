@@ -31,6 +31,7 @@ import DashboardComponent from '../containers/DashboardComponent';
 import { Droppable } from './dnd/DragDroppable';
 import { GRID_GUTTER_SIZE, GRID_COLUMN_COUNT } from '../util/constants';
 import { TAB_TYPE } from '../util/componentTypes';
+import { isResponsiveDashboardCompact } from '../util/responsiveDashboard';
 
 export interface DashboardGridProps {
   depth: number;
@@ -48,6 +49,7 @@ export interface DashboardGridProps {
   setEditMode?: (editMode: boolean) => void;
   width: number;
   dashboardId?: number;
+  responsiveDashboardEnabled?: boolean;
   theme: SupersetTheme;
 }
 
@@ -73,40 +75,67 @@ const DashboardEmptyStateContainer = styled.div`
   justify-content: center;
 `;
 
-const GridContent = styled.div<{ editMode?: boolean }>`
-  ${({ theme, editMode }) => css`
+const GridContent = styled.div<{
+  editMode?: boolean;
+  responsiveLayout?: boolean;
+}>`
+  ${({ theme, editMode, responsiveLayout }) => css`
     display: flex;
     flex-direction: column;
-    
-    /* Mobile responsiveness: adjust spacing for different screen sizes */
-    /* Mobile: <576px */
+    ${responsiveLayout &&
+    `
+      width: 100%;
+      min-width: 0;
+
+      & > div:not(:last-child):not(.empty-droptarget) {
+        margin-bottom: ${theme.sizeUnit * 3}px;
+      }
+
+      .dragdroppable,
+      .dragdroppable-row,
+      .dragdroppable-column,
+      .grid-row,
+      .grid-column,
+      .resizable-container,
+      .dashboard-component-chart-holder {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+    `}
+
     @media (max-width: 575px) {
       & > div:not(:last-child):not(.empty-droptarget) {
-        ${!editMode && `margin-bottom: ${theme.sizeUnit * 1}px`};
+        ${!editMode &&
+        !responsiveLayout &&
+        `margin-bottom: ${theme.sizeUnit}px`};
       }
       padding: ${theme.sizeUnit}px;
     }
-    
-    /* Tablet: 576px - 768px */
+
     @media (min-width: 576px) and (max-width: 768px) {
       & > div:not(:last-child):not(.empty-droptarget) {
-        ${!editMode && `margin-bottom: ${theme.sizeUnit * 2}px`};
+        ${!editMode &&
+        !responsiveLayout &&
+        `margin-bottom: ${theme.sizeUnit * 2}px`};
       }
       padding: ${theme.sizeUnit * 1.5}px;
     }
-    
-    /* Laptop: 768px - 992px */
+
     @media (min-width: 769px) and (max-width: 992px) {
       & > div:not(:last-child):not(.empty-droptarget) {
-        ${!editMode && `margin-bottom: ${theme.sizeUnit * 3}px`};
+        ${!editMode &&
+        !responsiveLayout &&
+        `margin-bottom: ${theme.sizeUnit * 3}px`};
       }
       padding: ${theme.sizeUnit * 2}px;
     }
-    
-    /* Desktop: >=992px */
+
     @media (min-width: 993px) {
       & > div:not(:last-child):not(.empty-droptarget) {
-        ${!editMode && `margin-bottom: ${theme.sizeUnit * 4}px`};
+        ${!editMode &&
+        !responsiveLayout &&
+        `margin-bottom: ${theme.sizeUnit * 4}px`};
       }
       padding: ${theme.sizeUnit * 3}px;
     }
@@ -266,10 +295,21 @@ class DashboardGrid extends PureComponent<
       canEdit,
       setEditMode,
       dashboardId,
+      responsiveDashboardEnabled = false,
       theme,
     } = this.props;
+    const viewportWidth =
+      typeof window === 'undefined' ? width : window.innerWidth;
+    const responsiveLayout =
+      !editMode &&
+      responsiveDashboardEnabled &&
+      isResponsiveDashboardCompact(Math.min(width, viewportWidth));
+    const gridColumnCount = responsiveLayout ? 1 : GRID_COLUMN_COUNT;
+    const effectiveWidth = responsiveLayout
+      ? Math.min(width, viewportWidth)
+      : width;
     const columnPlusGutterWidth =
-      (width + GRID_GUTTER_SIZE) / GRID_COLUMN_COUNT;
+      (effectiveWidth + GRID_GUTTER_SIZE) / gridColumnCount;
 
     const columnWidth = columnPlusGutterWidth - GRID_GUTTER_SIZE;
     const { isResizing } = this.state;
@@ -353,6 +393,7 @@ class DashboardGrid extends PureComponent<
             className="grid-content"
             data-test="grid-content"
             editMode={editMode}
+            responsiveLayout={responsiveLayout}
           >
             {/* make the area above components droppable */}
             {editMode && (
@@ -381,8 +422,9 @@ class DashboardGrid extends PureComponent<
                   parentId={gridComponent.id}
                   depth={depth + 1}
                   index={index}
-                  availableColumnCount={GRID_COLUMN_COUNT}
+                  availableColumnCount={gridColumnCount}
                   columnWidth={columnWidth}
+                  responsiveLayout={responsiveLayout}
                   isComponentVisible={isComponentVisible}
                   onResizeStart={this.handleResizeStart}
                   onResize={this.handleResize}
@@ -407,7 +449,7 @@ class DashboardGrid extends PureComponent<
               </Fragment>
             ))}
             {isResizing &&
-              Array(GRID_COLUMN_COUNT)
+              Array(gridColumnCount)
                 .fill(null)
                 .map((_, i) => (
                   <GridColumnGuide

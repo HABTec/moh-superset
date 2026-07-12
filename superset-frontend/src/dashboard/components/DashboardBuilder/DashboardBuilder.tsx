@@ -23,7 +23,7 @@ import { t } from '@apache-superset/core/translation';
 import { addAlpha, JsonObject, useElementOnScreen } from '@superset-ui/core';
 import { css, styled, useTheme } from '@apache-superset/core/theme';
 import { useDispatch, useSelector } from 'react-redux';
-import { EmptyState, Loading } from '@superset-ui/core/components';
+import { EmptyState, Grid, Loading } from '@superset-ui/core/components';
 import { ErrorBoundary, BasicErrorAlert } from 'src/components';
 import BuilderComponentPane from 'src/dashboard/components/BuilderComponentPane';
 import DashboardHeader from 'src/dashboard/components/Header';
@@ -37,6 +37,7 @@ import { URL_PARAMS } from 'src/constants';
 import { getUrlParam } from 'src/utils/urlUtils';
 import {
   DashboardLayout,
+  DashboardInfo,
   FilterBarOrientation,
   RootState,
 } from 'src/dashboard/types';
@@ -68,6 +69,14 @@ import {
   OPEN_FILTER_BAR_WIDTH,
   EMPTY_CONTAINER_Z_INDEX,
 } from 'src/dashboard/constants';
+import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  RESPONSIVE_DASHBOARD_BODY_CLASS,
+  RESPONSIVE_DASHBOARD_CLASS,
+  RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
+  RESPONSIVE_DASHBOARD_MOBILE_CLASS,
+  isResponsiveDashboardEnabled,
+} from 'src/dashboard/util/responsiveDashboard';
 import { getRootLevelTabsComponent, shouldFocusTabs } from './utils';
 import DashboardContainer from './DashboardContainer';
 import { useNativeFilters } from './state';
@@ -116,6 +125,79 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
       border-radius: ${theme.borderRadius}px;
       opacity: 0.5;
     }
+
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & > [data-test='dragdroppable-object'] {
+      margin-left: calc(
+        ${theme.sizeUnit * 2}px - ${filterBarWidth}px
+      ) !important;
+      max-width: calc(100vw - ${theme.sizeUnit * 4}px) !important;
+      min-width: 0 !important;
+      width: calc(100vw - ${theme.sizeUnit * 4}px) !important;
+    }
+
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      > .ant-tabs,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-content-holder,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-content,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-tabpane {
+      box-sizing: border-box;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
+        box-sizing: border-box;
+        grid-column: 1 / -1;
+        max-width: 100vw;
+        min-width: 0;
+        overflow-x: hidden;
+        padding-inline: ${theme.sizeUnit * 2}px;
+
+        & > [data-test='dragdroppable-object'] {
+          margin-left: 0 !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-tabs,
+        .dashboard-component-tabs > .ant-tabs,
+        .dashboard-component-tabs .ant-tabs-content-holder,
+        .dashboard-component-tabs .ant-tabs-content,
+        .dashboard-component-tabs .ant-tabs-tabpane {
+          box-sizing: border-box;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-tabs > .ant-tabs > .ant-tabs-nav {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+      }
+    }
   `}
 `;
 
@@ -126,6 +208,24 @@ const StyledContent = styled.div<{
   grid-row: 2;
   // @z-index-above-dashboard-header (100) + 1 = 101
   ${({ fullSizeChartId }) => fullSizeChartId && `z-index: 101;`}
+
+  @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
+      grid-column: 1 / -1;
+      max-width: 100vw;
+      min-width: 0;
+      overflow-x: hidden;
+      width: 100vw;
+    }
+  }
+
+  body.${RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS} & {
+    grid-column: 1 / -1;
+    max-width: 100vw;
+    min-width: 0;
+    overflow-x: hidden;
+    width: 100vw;
+  }
 `;
 
 const DashboardContentWrapper = styled.div`
@@ -157,6 +257,14 @@ const DashboardContentWrapper = styled.div`
         background-color: ${theme.colorBgContainer};
       }
     }
+
+    &.${RESPONSIVE_DASHBOARD_MOBILE_CLASS} {
+      max-width: 100vw;
+      min-width: 0;
+      overflow-x: hidden;
+      width: 100vw;
+    }
+
     &.dashboard--editing {
       .grid-row:after,
       .dashboard-component-tabs > .hover-menu:hover + div:after {
@@ -313,6 +421,149 @@ const StyledDashboardContent = styled.div<{
       z-index: 1;
     }
 
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      .${RESPONSIVE_DASHBOARD_CLASS} & {
+        min-width: 0;
+        overflow-x: hidden;
+        width: 100%;
+
+        .grid-container {
+          margin: ${theme.sizeUnit * 2}px;
+          margin-left: ${theme.sizeUnit * 2}px;
+          max-width: calc(100vw - ${theme.sizeUnit * 4}px);
+          min-width: 0;
+          width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        }
+
+        .dashboard-grid,
+        .grid-content,
+        .dragdroppable,
+        .dragdroppable-row,
+        .dragdroppable-column,
+        .grid-row,
+        .grid-column,
+        .resizable-container,
+        .dashboard-component-tabs,
+        .dashboard-component-tabs-content,
+        .ant-tabs,
+        .ant-tabs-content,
+        .ant-tabs-tabpane {
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder {
+          margin-inline: ${theme.sizeUnit * 2}px !important;
+          max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+          min-width: 0;
+          overflow: hidden !important;
+          width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        }
+      }
+    }
+
+    .${RESPONSIVE_DASHBOARD_MOBILE_CLASS} & {
+      flex-direction: column;
+      width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+      padding-bottom: calc(
+        ${theme.sizeUnit * 16}px + env(safe-area-inset-bottom)
+      );
+
+      .grid-container {
+        width: 100%;
+        min-width: 0;
+        max-width: calc(100vw - ${theme.sizeUnit * 4}px);
+        margin: ${theme.sizeUnit * 2}px;
+        margin-left: ${theme.sizeUnit * 2}px;
+      }
+
+      .dashboard-grid,
+      .grid-content,
+      .dragdroppable,
+      .dragdroppable-row,
+      .dragdroppable-column,
+      .grid-row,
+      .grid-column,
+      .resizable-container,
+      .dashboard-component-tabs,
+      .dashboard-component-tabs-content,
+      .ant-tabs,
+      .ant-tabs-content,
+      .ant-tabs-tabpane {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder {
+        width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        margin-inline: ${theme.sizeUnit * 2}px !important;
+        padding: ${theme.sizeUnit * 3}px;
+        min-width: 0;
+        overflow: hidden !important;
+      }
+
+      .chart-slice {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .dashboard-chart,
+      .dashboard-component-chart-holder
+        .dashboard-chart.dashboard-chart--overflowable,
+      [data-test='chart-container'],
+      [data-test='chart-grid-component'],
+      [data-test='slice-container'],
+      [data-test='slice-container'] > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+      }
+
+      [data-test='slice-container'] > div {
+        flex-shrink: 1 !important;
+      }
+
+      [data-test='slice-container'] table,
+      .ant-table-wrapper,
+      .table-condensed,
+      .pvtTable,
+      .ag-root-wrapper {
+        max-width: 100%;
+      }
+
+      .ant-table-wrapper,
+      .pvtTable,
+      .ag-root-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      canvas,
+      svg {
+        max-width: 100%;
+      }
+
+      .slice-header,
+      .header-title {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ant-btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+    }
+
     .dashboard-component-chart-holder {
       width: 100%;
       height: 100%;
@@ -365,10 +616,14 @@ const DashboardBuilder = () => {
   const dispatch = useDispatch();
   const uiConfig = useUiConfig();
   const theme = useTheme();
+  const screens = Grid.useBreakpoint();
 
-  const dashboardId = useSelector<RootState, string>(
-    ({ dashboardInfo }) => `${dashboardInfo.id}`,
+  const dashboardInfo = useSelector<RootState, DashboardInfo>(
+    state => state.dashboardInfo,
   );
+  const dashboardId = `${dashboardInfo.id}`;
+  const responsiveDashboardEnabled =
+    isResponsiveDashboardEnabled(dashboardInfo);
   const dashboardLayout = useSelector<RootState, DashboardLayout>(
     state => state.dashboardLayout.present,
   );
@@ -387,6 +642,48 @@ const DashboardBuilder = () => {
   const filterBarOrientation = useSelector<RootState, FilterBarOrientation>(
     ({ dashboardInfo }) => dashboardInfo.filterBarOrientation,
   );
+  const responsiveDashboardMobile =
+    responsiveDashboardEnabled && !editMode && screens.md === false;
+
+  useEffect(() => {
+    document.body.classList.toggle(
+      RESPONSIVE_DASHBOARD_BODY_CLASS,
+      responsiveDashboardEnabled,
+    );
+    document.body.classList.toggle(
+      RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
+      responsiveDashboardMobile,
+    );
+
+    return () => {
+      document.body.classList.remove(RESPONSIVE_DASHBOARD_BODY_CLASS);
+      document.body.classList.remove(RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS);
+    };
+  }, [responsiveDashboardEnabled, responsiveDashboardMobile]);
+
+  useEffect(() => {
+    if (!responsiveDashboardMobile) return undefined;
+
+    const dismissRotateOverlay = () => {
+      const overlay = document.getElementById('moh-rotate-overlay');
+      if (!overlay) return;
+      overlay.classList.add('moh-dismissed');
+      overlay.setAttribute('aria-hidden', 'true');
+    };
+
+    dismissRotateOverlay();
+
+    const observer = new MutationObserver(dismissRotateOverlay);
+    observer.observe(document.body, { childList: true });
+    window.addEventListener('resize', dismissRotateOverlay);
+    window.addEventListener('orientationchange', dismissRotateOverlay);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', dismissRotateOverlay);
+      window.removeEventListener('orientationchange', dismissRotateOverlay);
+    };
+  }, [responsiveDashboardMobile]);
 
   const handleChangeTab = useCallback(
     ({ pathToTabIndex }: { pathToTabIndex: string[] }) => {
@@ -475,6 +772,7 @@ const DashboardBuilder = () => {
       marginLeft:
         dashboardFiltersOpen ||
         editMode ||
+        responsiveDashboardMobile ||
         !nativeFiltersEnabled ||
         filterBarOrientation === FilterBarOrientation.Horizontal
           ? 0
@@ -483,6 +781,7 @@ const DashboardBuilder = () => {
     [
       dashboardFiltersOpen,
       editMode,
+      responsiveDashboardMobile,
       filterBarOrientation,
       nativeFiltersEnabled,
     ],
@@ -514,6 +813,7 @@ const DashboardBuilder = () => {
       <>
         {!hideDashboardHeader && <DashboardHeader />}
         {showFilterBar &&
+          !responsiveDashboardMobile &&
           filterBarOrientation === FilterBarOrientation.Horizontal && (
             <FilterBar
               orientation={FilterBarOrientation.Horizontal}
@@ -522,7 +822,13 @@ const DashboardBuilder = () => {
           )}
       </>
     ),
-    [hideDashboardHeader, showFilterBar, filterBarOrientation, isReport],
+    [
+      hideDashboardHeader,
+      showFilterBar,
+      responsiveDashboardMobile,
+      filterBarOrientation,
+      isReport,
+    ],
   );
 
   const renderDraggableContent = useCallback(
@@ -553,6 +859,7 @@ const DashboardBuilder = () => {
                 renderTabContent={false}
                 renderHoverMenu={false}
                 onChangeTab={handleChangeTab}
+                responsiveLayout={responsiveDashboardEnabled && !editMode}
               />
             </WithPopoverMenu>
           )}
@@ -563,6 +870,7 @@ const DashboardBuilder = () => {
       handleChangeTab,
       handleDeleteTopLevelTabs,
       isReport,
+      responsiveDashboardEnabled,
       topLevelTabs,
       uiConfig.hideTab,
       uiConfig.hideNav,
@@ -614,7 +922,9 @@ const DashboardBuilder = () => {
   );
 
   const isVerticalFilterBarVisible =
-    showFilterBar && filterBarOrientation === FilterBarOrientation.Vertical;
+    showFilterBar &&
+    !responsiveDashboardMobile &&
+    filterBarOrientation === FilterBarOrientation.Vertical;
   const headerFilterBarWidth = isVerticalFilterBarVisible
     ? currentFilterBarWidth
     : 0;
@@ -678,7 +988,12 @@ const DashboardBuilder = () => {
           )}
         <DashboardContentWrapper
           data-test="dashboard-content-wrapper"
-          className={cx('dashboard', editMode && 'dashboard--editing')}
+          className={cx(
+            'dashboard',
+            editMode && 'dashboard--editing',
+            responsiveDashboardEnabled && RESPONSIVE_DASHBOARD_CLASS,
+            responsiveDashboardMobile && RESPONSIVE_DASHBOARD_MOBILE_CLASS,
+          )}
         >
           <StyledDashboardContent
             className="dashboard-content"
@@ -719,6 +1034,9 @@ const DashboardBuilder = () => {
           </StyledDashboardContent>
         </DashboardContentWrapper>
       </StyledContent>
+      {showFilterBar && responsiveDashboardMobile && !isReport && (
+        <FilterBar orientation={filterBarOrientation} mobile />
+      )}
       {dashboardIsSaving && (
         <Loading
           css={css`

@@ -76,20 +76,24 @@ export type RowProps = {
   // visibility
   isComponentVisible: boolean;
   onChangeTab: (args: { pathToTabIndex: string[] }) => void;
+  responsiveLayout?: boolean;
 };
 
-const GridRow = styled.div<{ editMode: boolean }>`
-  ${({ theme, editMode }) => css`
+const GridRow = styled.div<{ editMode: boolean; responsiveLayout: boolean }>`
+  ${({ theme, editMode, responsiveLayout }) => css`
     position: relative;
     display: flex;
-    flex-direction: row;
+    flex-direction: ${responsiveLayout ? 'column' : 'row'};
     flex-wrap: nowrap;
     align-items: flex-start;
     width: 100%;
     height: fit-content;
 
     & > :not(:last-child):not(.hover-menu) {
-      ${!editMode && `margin-right: ${theme.sizeUnit * 4}px;`}
+      ${!editMode &&
+      (responsiveLayout
+        ? `margin-bottom: ${theme.sizeUnit * 3}px;`
+        : `margin-right: ${theme.sizeUnit * 4}px;`)}
     }
 
     & .empty-droptarget {
@@ -152,10 +156,11 @@ const Row = memo((props: RowProps) => {
     updateComponents,
     deleteComponent,
     parentId,
+    responsiveLayout = false,
   } = props;
 
   const [isFocused, setIsFocused] = useState(false);
-  const [isInView, setIsInView] = useState(false);
+  const [isInView, setIsInView] = useState(responsiveLayout);
   const [hoverMenuHovered, setHoverMenuHovered] = useState(false);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -170,6 +175,11 @@ const Row = memo((props: RowProps) => {
   useEffect(() => {
     let observerEnabler: IntersectionObserver | undefined;
     let observerDisabler: IntersectionObserver | undefined;
+
+    if (responsiveLayout) {
+      setIsInView(true);
+      return undefined;
+    }
 
     if (
       isFeatureEnabled(FeatureFlag.DashboardVirtualization) &&
@@ -213,7 +223,7 @@ const Row = memo((props: RowProps) => {
       observerEnabler?.disconnect();
       observerDisabler?.disconnect();
     };
-  }, []);
+  }, [responsiveLayout]);
 
   useLayoutEffect(() => {
     if (!editMode) return;
@@ -268,6 +278,7 @@ const Row = memo((props: RowProps) => {
     ) ?? backgroundStyleOptions[0];
 
   const remainColumnCount = availableColumnCount - occupiedColumnCount;
+  const childAvailableColumnCount = responsiveLayout ? 1 : remainColumnCount;
   const renderChild = useCallback(
     ({ dragSourceRef }: { dragSourceRef: RefObject<HTMLDivElement> }) => (
       <WithPopoverMenu
@@ -307,6 +318,7 @@ const Row = memo((props: RowProps) => {
           data-test={`grid-row-${backgroundStyle.className}`}
           ref={containerRef}
           editMode={editMode}
+          responsiveLayout={responsiveLayout}
         >
           {editMode && (
             <Droppable
@@ -352,14 +364,15 @@ const Row = memo((props: RowProps) => {
                   parentId={rowComponent.id as string}
                   depth={depth + 1}
                   index={itemIndex}
-                  availableColumnCount={remainColumnCount}
+                  availableColumnCount={childAvailableColumnCount}
                   columnWidth={columnWidth}
                   onResizeStart={onResizeStart}
                   onResize={onResize}
                   onResizeStop={onResizeStop}
                   isComponentVisible={isComponentVisible}
                   onChangeTab={onChangeTab}
-                  isInView={isInView}
+                  isInView={responsiveLayout || isInView}
+                  responsiveLayout={responsiveLayout}
                 />
                 {editMode && (
                   <Droppable
@@ -415,7 +428,9 @@ const Row = memo((props: RowProps) => {
       onResize,
       onResizeStart,
       onResizeStop,
+      childAvailableColumnCount,
       remainColumnCount,
+      responsiveLayout,
       rowComponent,
       rowItems,
     ],
