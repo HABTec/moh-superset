@@ -803,7 +803,7 @@ _moh_roles %}
       var panel = getActionPanel();
       if (!panel) return false;
 
-      if (window.innerWidth >= DESKTOP_BP && !isResponsiveMobileDashboard()) {
+      if (window.innerWidth >= DESKTOP_BP || isResponsiveMobileDashboard()) {
         return mountToNav(panel);
       }
       restoreToHeader(panel);

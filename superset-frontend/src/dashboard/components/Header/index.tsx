@@ -18,6 +18,7 @@
  */
 /* eslint-env browser */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   isFeatureEnabled,
   FeatureFlag,
@@ -37,6 +38,7 @@ import { LOG_ACTIONS_TOGGLE_EDIT_DASHBOARD } from 'src/logger/LogUtils';
 import { Icons } from '@superset-ui/core/components/Icons';
 import {
   Button,
+  Dropdown,
   Tooltip,
   DeleteModal,
   UnsavedChangesModal,
@@ -98,6 +100,7 @@ import { logEvent } from '../../../logger/actions';
 import { dashboardInfoChanged } from '../../actions/dashboardInfo';
 import { ChartState } from 'src/explore/types';
 import { useChartIds } from '../../util/charts/useChartIds';
+import { isResponsiveDashboardEnabled } from '../../util/responsiveDashboard';
 import { useDashboardMetadataBar } from './useDashboardMetadataBar';
 import { useHeaderActionsMenu } from './useHeaderActionsDropdownMenu';
 import { useHeaderAutoRefresh } from './useHeaderAutoRefresh';
@@ -170,11 +173,77 @@ const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
   }
 
   @media (max-width: 767px) {
+    body.moh-responsive-dashboard-mobile .dashboard-header-container,
+    .dashboard-header-container.dashboard-header-container--responsive-actions {
+      height: 0 !important;
+      min-height: 0 !important;
+      border-bottom: none !important;
+      margin: 0 !important;
+      overflow: visible !important;
+      padding: 0 !important;
+      position: relative !important;
+      z-index: 14 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions,
+    .dashboard-header-container.dashboard-header-container--responsive-actions
+      .header-with-actions {
+      height: 0 !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      padding: 0 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions
+      .title-panel,
+    .dashboard-header-container.dashboard-header-container--responsive-actions
+      .header-with-actions
+      .title-panel {
+      display: none !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions
+      .right-button-panel,
+    .dashboard-header-container.dashboard-header-container--responsive-actions
+      .header-with-actions
+      .right-button-panel {
+      align-items: center !important;
+      display: flex !important;
+      gap: ${theme.sizeUnit}px !important;
+      height: ${theme.sizeUnit * 11}px !important;
+      inset-block-start: -${theme.sizeUnit * 14 + 1}px !important;
+      inset-inline-end: ${theme.sizeUnit * 18}px !important;
+      margin: 0 !important;
+      pointer-events: auto !important;
+      position: absolute !important;
+      width: auto !important;
+      z-index: 13 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions
+      .right-button-panel
+      .ant-btn,
+    .dashboard-header-container.dashboard-header-container--responsive-actions
+      .header-with-actions
+      .right-button-panel
+      .ant-btn {
+      height: ${theme.sizeUnit * 11}px !important;
+      min-width: ${theme.sizeUnit * 11}px !important;
+    }
+
     .dashboard-header-actions-menu.ant-dropdown {
       position: fixed !important;
       inset-block-start: max(
-        ${theme.sizeUnit * 31}px,
-        calc(env(safe-area-inset-top) + ${theme.sizeUnit * 31}px)
+        ${theme.sizeUnit * 14}px,
+        calc(env(safe-area-inset-top) + ${theme.sizeUnit * 14}px)
       ) !important;
       inset-inline-start: auto !important;
       inset-inline-end: ${theme.sizeUnit * 3}px !important;
@@ -310,6 +379,17 @@ const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
   }
 `;
 
+const mobileDashboardActionsStyle = (theme: SupersetTheme) => css`
+  align-items: center;
+  display: flex;
+  height: ${theme.sizeUnit * 11}px;
+
+  .ant-btn {
+    height: ${theme.sizeUnit * 11}px;
+    min-width: ${theme.sizeUnit * 11}px;
+  }
+`;
+
 const editButtonStyle = (theme: SupersetTheme) => css`
   color: ${theme.colorPrimary};
 `;
@@ -384,6 +464,8 @@ const Header = (): JSX.Element => {
   const [showingReportModal, setShowingReportModal] = useState(false);
   const [currentReportDeleting, setCurrentReportDeleting] =
     useState<AlertObject | null>(null);
+  const [mobileDashboardActionsHost, setMobileDashboardActionsHost] =
+    useState<HTMLElement | null>(null);
   const dashboardInfo = useSelector(
     (state: HeaderRootState) => state.dashboardInfo,
   );
@@ -440,6 +522,24 @@ const Header = (): JSX.Element => {
   const ctrlYTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctrlZTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousThemeRef = useRef(dashboardInfo.theme);
+
+  useEffect(() => {
+    const syncMobileActionsHost = () => {
+      setMobileDashboardActionsHost(
+        document.getElementById('moh-mobile-dashboard-actions-slot'),
+      );
+    };
+
+    syncMobileActionsHost();
+    const observer = new MutationObserver(syncMobileActionsHost);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', syncMobileActionsHost);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncMobileActionsHost);
+    };
+  }, []);
 
   const dashboardTitle = layout[DASHBOARD_HEADER_ID]?.meta?.text ?? '';
   const slug = dashboardInfo.slug ?? '';
@@ -702,6 +802,7 @@ const Header = (): JSX.Element => {
     findPermission('can_set_embedded', 'Dashboard', user.roles);
   const userCanExport = !!dashboardInfo.dash_export_perm;
   const isEmbedded = !dashboardInfo?.userId;
+  const isResponsiveDashboard = isResponsiveDashboardEnabled(dashboardInfo);
 
   const handleOnPropertiesChange = useCallback(
     (updates: DashboardPropertiesUpdate) => {
@@ -972,6 +1073,58 @@ const Header = (): JSX.Element => {
     lastModifiedTime: actualLastModifiedTime,
     logEvent: boundActionCreators.logEvent,
   });
+  useEffect(() => {
+    if (!(isResponsiveDashboard && mobileDashboardActionsHost)) {
+      return undefined;
+    }
+
+    const scrollContainer = document.getElementById('app');
+    const closeMobileDashboardActions = () => {
+      setIsDropdownVisible(false);
+    };
+
+    scrollContainer?.addEventListener('scroll', closeMobileDashboardActions, {
+      passive: true,
+    });
+
+    return () => {
+      scrollContainer?.removeEventListener(
+        'scroll',
+        closeMobileDashboardActions,
+      );
+    };
+  }, [isResponsiveDashboard, mobileDashboardActionsHost, setIsDropdownVisible]);
+
+  const renderMobileDashboardActions =
+    isResponsiveDashboard && mobileDashboardActionsHost
+      ? createPortal(
+          <div css={mobileDashboardActionsStyle}>
+            <Dropdown
+              trigger={['click']}
+              popupRender={() => menu}
+              open={isDropdownVisible}
+              onOpenChange={setIsDropdownVisible}
+              overlayClassName="dashboard-header-actions-menu"
+              placement="bottomRight"
+            >
+              <span>
+                <Button
+                  buttonStyle="tertiary"
+                  aria-label={t('Menu actions trigger')}
+                  data-test="actions-trigger"
+                >
+                  <Icons.EllipsisOutlined
+                    iconColor={theme.colorPrimary}
+                    iconSize="l"
+                  />
+                </Button>
+              </span>
+            </Dropdown>
+          </div>,
+          mobileDashboardActionsHost,
+        )
+      : null;
+
   return (
     <div
       css={headerContainerStyle}
@@ -994,7 +1147,11 @@ const Header = (): JSX.Element => {
         additionalActionsMenu={menu}
         showFaveStar={Boolean(user?.userId && dashboardInfo?.id)}
         showTitlePanelItems
+        showMenuDropdown={
+          !(isResponsiveDashboard && mobileDashboardActionsHost)
+        }
       />
+      {renderMobileDashboardActions}
       {showingPropertiesModal && (
         <PropertiesModal
           dashboardId={dashboardInfo.id}

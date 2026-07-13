@@ -246,6 +246,11 @@ const StyledDesktopRightCol = styled(Col)`
         pointer-events: auto;
         width: auto !important;
       }
+
+      .moh-nav-dashboard-actions .ant-btn {
+        height: ${theme.sizeUnit * 11}px !important;
+        min-width: ${theme.sizeUnit * 11}px !important;
+      }
     }
   `}
 `;
@@ -272,6 +277,27 @@ const StyledMobileMenuButton = styled(Button)`
       padding: 0;
       position: relative;
       z-index: 12;
+    }
+  `}
+`;
+
+const StyledMobileDashboardActionsSlot = styled.div`
+  ${({ theme }) => css`
+    display: none;
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      body.moh-responsive-dashboard-mobile & {
+        align-items: center;
+        display: flex;
+        height: ${theme.sizeUnit * 11}px;
+        margin-left: auto;
+        pointer-events: auto;
+      }
+
+      body.moh-responsive-dashboard-mobile & .ant-btn {
+        height: ${theme.sizeUnit * 11}px;
+        min-width: ${theme.sizeUnit * 11}px;
+      }
     }
   `}
 `;
@@ -561,12 +587,18 @@ export function Menu({
             />
           )}
           {useMobileNavigation && (
-            <StyledMobileMenuButton
-              aria-label={t('Open navigation menu')}
-              icon={<Icons.MenuOutlined iconSize="m" />}
-              onClick={() => setMobileMenuOpen(true)}
-              type="default"
-            />
+            <>
+              <StyledMobileDashboardActionsSlot
+                id="moh-mobile-dashboard-actions-slot"
+                aria-label={t('Dashboard actions')}
+              />
+              <StyledMobileMenuButton
+                aria-label={t('Open navigation menu')}
+                icon={<Icons.MenuOutlined iconSize="m" />}
+                onClick={() => setMobileMenuOpen(true)}
+                type="default"
+              />
+            </>
           )}
         </StyledCol>
         <StyledDesktopRightCol md={8} xs={24}>
