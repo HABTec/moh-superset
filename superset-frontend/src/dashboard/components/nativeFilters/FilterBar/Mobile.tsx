@@ -47,8 +47,15 @@ const MobileFiltersTrigger = styled.div`
       width: 100%;
       min-height: 48px;
       border-radius: ${theme.borderRadius}px;
+      color: ${theme.colorWhite};
       box-shadow: ${theme.boxShadowSecondary};
       pointer-events: auto;
+    }
+
+    .mobile-filter-trigger .ant-badge,
+    .mobile-filter-trigger .ant-badge span,
+    .mobile-filter-trigger .anticon {
+      color: ${theme.colorWhite};
     }
   `}
 `;

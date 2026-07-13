@@ -258,6 +258,56 @@ const dashboardHeaderGlobalStyle = (theme: SupersetTheme) => css`
     font-size: ${theme.fontSizeSM}px !important;
     line-height: 1.05 !important;
   }
+
+  body.moh-responsive-dashboard-mobile
+    #mohAiToggle[aria-expanded='true'] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  body.moh-responsive-dashboard-mobile #mohAiPanel.open {
+    position: fixed !important;
+    box-sizing: border-box !important;
+    inset-block-start: max(
+      ${theme.sizeUnit * 3}px,
+      calc(env(safe-area-inset-top) + ${theme.sizeUnit * 3}px)
+    ) !important;
+    inset-inline-start: ${theme.sizeUnit * 3}px !important;
+    inset-inline-end: ${theme.sizeUnit * 3}px !important;
+    inset-block-end: max(
+      ${theme.sizeUnit * 18}px,
+      calc(env(safe-area-inset-bottom) + ${theme.sizeUnit * 18}px)
+    ) !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: calc(100vw - ${theme.sizeUnit * 6}px) !important;
+    max-height: calc(100dvh - ${theme.sizeUnit * 21}px) !important;
+    min-width: 0 !important;
+    min-height: min(
+      ${theme.sizeUnit * 80}px,
+      calc(100dvh - ${theme.sizeUnit * 21}px)
+    ) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    transform: none !important;
+    z-index: 1002 !important;
+  }
+
+  body.moh-responsive-dashboard-mobile #mohAiPanel.open header {
+    flex: 0 0 auto !important;
+    min-height: ${theme.sizeUnit * 12}px !important;
+  }
+
+  body.moh-responsive-dashboard-mobile #mohAiPanel.open #mohAiIframe {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+  }
 `;
 
 const editButtonStyle = (theme: SupersetTheme) => css`
