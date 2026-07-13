@@ -33,9 +33,9 @@ import {
   SetDataMaskHook,
 } from '@superset-ui/core';
 
-import { PolygonLayer } from '@deck.gl/layers';
+import { PathLayer, PolygonLayer } from '@deck.gl/layers';
 
-import { Color } from '@deck.gl/core';
+import { Color, Layer } from '@deck.gl/core';
 import Legend from '../../components/Legend';
 import TooltipRow from '../../TooltipRow';
 import {
@@ -54,7 +54,7 @@ import {
   DeckGLContainerStyledWrapper,
 } from '../../DeckGLContainer';
 import { TooltipProps } from '../../components/Tooltip';
-import { GetLayerType } from '../../factory';
+import { GetLayerTypeParams } from '../../factory';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
 import { DEFAULT_DECKGL_COLOR } from '../../utilities/Shared_DeckGL';
 import {
@@ -103,7 +103,48 @@ function defaultTooltipGenerator(
   );
 }
 
-export const getLayer: GetLayerType<PolygonLayer> = function ({
+function getFeatureProp(d: JsonObject, key: string): unknown {
+  // Extra data for JS lands under extraProps; tooltip/other cols are top-level.
+  return d[key] ?? d.extraProps?.[key];
+}
+
+function getLayerType(d: JsonObject): unknown {
+  return getFeatureProp(d, 'layer_type');
+}
+
+function isBlank(value: unknown): boolean {
+  return value == null || value === '';
+}
+
+/**
+ * Region outline rows from the MoH woreda+region SQL use layer_type='region'.
+ * Fallback: those rows also ship empty woreda/zone while woredas do not.
+ * Only use the fallback when woreda/zone are actually present on the feature
+ * (e.g. via tooltip columns); otherwise every row would match.
+ */
+function isRegionBoundaryFeature(d: JsonObject): boolean {
+  const layerType = getLayerType(d);
+  if (layerType === 'region') {
+    return true;
+  }
+  if (layerType === 'woreda') {
+    return false;
+  }
+
+  const extraProps =
+    d.extraProps && typeof d.extraProps === 'object'
+      ? (d.extraProps as Record<string, unknown>)
+      : undefined;
+  const hasWoredaProp = 'woreda' in d || (extraProps != null && 'woreda' in extraProps);
+  const hasZoneProp = 'zone' in d || (extraProps != null && 'zone' in extraProps);
+  if (!hasWoredaProp && !hasZoneProp) {
+    return false;
+  }
+
+  return isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'));
+}
+
+export const getLayer = function ({
   formData,
   payload,
   setTooltip,
@@ -112,7 +153,7 @@ export const getLayer: GetLayerType<PolygonLayer> = function ({
   onContextMenu,
   onSelect,
   emitCrossFilters,
-}) {
+}: GetLayerTypeParams): Layer | Layer[] {
   const fd = formData as PolygonFormData;
   const fc: { r: number; g: number; b: number; a: number } =
     fd.fill_color_picker;
@@ -126,6 +167,8 @@ export const getLayer: GetLayerType<PolygonLayer> = function ({
     const jsFnMutator = sandboxedEval(fd.js_data_mutator);
     data = jsFnMutator(data);
   }
+
+  const hasRegionOutlines = data.some(isRegionBoundaryFeature);
 
   const colorSchemeType = fd.color_scheme_type;
 
@@ -204,31 +247,108 @@ export const getLayer: GetLayerType<PolygonLayer> = function ({
     defaultTooltipGenerator(o, fd, metricLabel),
   );
 
+  const regionLineColor: [number, number, number, number] = sc
+    ? [sc.r, sc.g, sc.b, 255 * sc.a]
+    : [70, 70, 70, 255];
+  const transparentFill: [number, number, number, number] = [0, 0, 0, 0];
+  const noLine: [number, number, number, number] = [0, 0, 0, 0];
+
+  const getFillColorForFeature = (d: JsonObject) => {
+    if (isRegionBoundaryFeature(d)) {
+      return transparentFill;
+    }
+    return colorScaler(d as { polygon: Point[] });
+  };
+
+  const getLineColorForFeature = (d: JsonObject) => {
+    if (isRegionBoundaryFeature(d)) {
+      return regionLineColor;
+    }
+    return noLine;
+  };
+
+  const getLineWidthForFeature = (d: JsonObject) =>
+    isRegionBoundaryFeature(d) ? Math.max(Number(fd.line_width) || 1, 2.5) : 0;
+
+  const getElevationForFeature = (d: JsonObject) => {
+    if (isRegionBoundaryFeature(d)) {
+      return 0;
+    }
+    return getElevation(d as { polygon: Point[] }, colorScaler);
+  };
+
+  const commonProps = commonLayerProps({
+    formData: fd,
+    setTooltip,
+    setTooltipContent: tooltipContentGenerator,
+    onSelect,
+    filterState,
+    onContextMenu,
+    setDataMask,
+    emitCrossFilters,
+  });
+
+  if (hasRegionOutlines) {
+    const woredaData = data.filter(d => !isRegionBoundaryFeature(d));
+    const regionData = data.filter(isRegionBoundaryFeature).map(d => ({
+      ...d,
+      path: getPointsFromPolygon(d as { polygon: Point[] }),
+    }));
+
+    const woredaLayer = new PolygonLayer({
+      id: `woreda-layer-${fd.slice_id}` as const,
+      data: woredaData,
+      filled: fd.filled,
+      stroked: false,
+      getPolygon: getPointsFromPolygon,
+      getFillColor: getFillColorForFeature,
+      getLineColor: getLineColorForFeature,
+      getLineWidth: getLineWidthForFeature,
+      extruded: fd.extruded,
+      lineWidthUnits: fd.line_width_unit,
+      getElevation: getElevationForFeature,
+      elevationScale: fd.multiplier,
+      fp64: true,
+      opacity: fd.opacity ? fd.opacity / 100 : 1,
+      ...commonProps,
+    });
+
+    // PathLayer draws region borders above fills more reliably than
+    // PolygonLayer stroke (transparent-fill polygons can hide strokes).
+    const regionOutlineWidth = Math.max(Number(fd.line_width) || 1, 4);
+    const regionLayer = new PathLayer({
+      id: `region-outline-layer-${fd.slice_id}` as const,
+      data: regionData,
+      pickable: false,
+      widthUnits: fd.line_width_unit || 'pixels',
+      widthMinPixels: regionOutlineWidth,
+      getPath: (d: JsonObject) => d.path as Point[],
+      getColor: regionLineColor,
+      getWidth: regionOutlineWidth,
+      jointRounded: true,
+      capRounded: true,
+      fp64: true,
+    });
+
+    return [woredaLayer, regionLayer];
+  }
+
   return new PolygonLayer({
     id: `path-layer-${fd.slice_id}` as const,
     data,
     filled: fd.filled,
     stroked: fd.stroked,
     getPolygon: getPointsFromPolygon,
-    getFillColor: colorScaler,
-    getLineColor: sc ? [sc.r, sc.g, sc.b, 255 * sc.a] : undefined,
-    getLineWidth: fd.line_width,
+    getFillColor: getFillColorForFeature,
+    getLineColor: getLineColorForFeature,
+    getLineWidth: getLineWidthForFeature,
     extruded: fd.extruded,
     lineWidthUnits: fd.line_width_unit,
-    getElevation: (d: JsonObject) => getElevation(d, colorScaler),
+    getElevation: getElevationForFeature,
     elevationScale: fd.multiplier,
     fp64: true,
     opacity: fd.opacity ? fd.opacity / 100 : 1,
-    ...commonLayerProps({
-      formData: fd,
-      setTooltip,
-      setTooltipContent: tooltipContentGenerator,
-      onSelect,
-      filterState,
-      onContextMenu,
-      setDataMask,
-      emitCrossFilters,
-    }),
+    ...commonProps,
   });
 };
 
@@ -324,7 +444,7 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
       emitCrossFilters,
     });
 
-    return [layer];
+    return Array.isArray(layer) ? layer : [layer];
   }, [setTooltip, props]);
 
   const { payload, formData, setControlValue } = props;

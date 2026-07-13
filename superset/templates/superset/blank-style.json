@@ -1,0 +1,14 @@
+{
+  "version": 8,
+  "name": "Blank (Ethiopia only)",
+  "sources": {},
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f5f5f5"
+      }
+    }
+  ]
+}

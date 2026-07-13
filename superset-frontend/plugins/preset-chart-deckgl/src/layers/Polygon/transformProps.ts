@@ -138,7 +138,7 @@ function processPolygonData(
   const excludeKeys = new Set([line_column, ...(js_columns || [])]);
 
   return records.flatMap(record => {
-    let feature: PolygonFeature = {
+    let feature: PolygonFeature & { layer_type?: unknown } = {
       extraProps: {},
       metrics: {},
     };
@@ -149,7 +149,17 @@ function processPolygonData(
       record,
       excludeKeys,
     );
-    feature = updatedFeature as unknown as PolygonFeature;
+    feature = updatedFeature as unknown as PolygonFeature & {
+      layer_type?: unknown;
+    };
+
+    // Keep layer_type on the feature root even when it was requested via
+    // Extra data for JS (which otherwise only stores it under extraProps).
+    const layerType =
+      feature.extraProps?.layer_type ?? getOwnRecordValue(record, 'layer_type');
+    if (layerType !== undefined) {
+      feature.layer_type = layerType;
+    }
 
     const rawPolygonData = getOwnRecordValue(record, line_column);
     if (!rawPolygonData) {

@@ -350,6 +350,28 @@ describe('Polygon buildQuery', () => {
       expect(query.columns).toContain('another_tooltip_col');
     });
 
+    test('should not add metric null filter when layer_type is in js_columns', () => {
+      const formDataWithRegionOutlines = {
+        ...baseFormData,
+        filter_nulls: true,
+        metric: 'target_achievement_pct',
+        js_columns: ['layer_type'],
+      };
+
+      const queryContext = buildQuery(formDataWithRegionOutlines);
+      const [query] = queryContext.queries;
+
+      expect(query.filters).toContainEqual({
+        col: 'polygon_geom',
+        op: 'IS NOT NULL',
+      });
+      expect(query.filters).not.toContainEqual({
+        col: 'target_achievement_pct',
+        op: 'IS NOT NULL',
+      });
+      expect(query.columns).toContain('layer_type');
+    });
+
     test('should not add null filters when filter_nulls is false', () => {
       const formDataWithoutNullFilters = {
         ...baseFormData,
