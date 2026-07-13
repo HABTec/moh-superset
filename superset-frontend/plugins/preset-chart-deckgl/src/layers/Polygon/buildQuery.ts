@@ -111,7 +111,10 @@ export default function buildQuery(formData: DeckPolygonFormData) {
         },
       ];
 
-      if (metric) {
+      // Region outline rows intentionally have NULL metrics. Keep them when
+      // layer_type is requested so outer boundaries are not dropped.
+      const keepNullMetricRows = jsColumns.includes('layer_type');
+      if (metric && !keepNullMetricRows) {
         nullFilters.push({
           col: getMetricLabel(metric),
           op: 'IS NOT NULL',

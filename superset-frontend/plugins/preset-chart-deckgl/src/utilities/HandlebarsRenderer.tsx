@@ -88,6 +88,16 @@ export const HandlebarsRenderer: React.FC<HandlebarsRendererProps> = memo(
   },
 );
 
+Handlebars.registerHelper(
+  'ifeq',
+  function (this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
+    if (a === b) {
+      return options.fn(this);
+    }
+    return options.inverse(this);
+  },
+);
+
 Handlebars.registerHelper('dateFormat', function (context, options) {
   const format = options.hash.format || 'YYYY-MM-DD HH:mm:ss';
   if (!context) return '';

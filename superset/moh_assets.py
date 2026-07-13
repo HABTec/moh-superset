@@ -40,6 +40,7 @@ _ALLOWED_FILES: set[str] = {
     "logomohnewww.png",
     "moh_icon.png",
     "arrow.png",
+    "blank-style.json",
 }
 
 
