@@ -29,7 +29,7 @@ export const RESPONSIVE_DASHBOARD_BREAKPOINTS = {
 };
 export const RESPONSIVE_DASHBOARD_MIN_CHART_WIDTH = 240;
 
-const RESPONSIVE_DASHBOARD_PILOT_IDS = new Set([8]);
+const RESPONSIVE_DASHBOARD_PILOT_IDS = new Set([3, 8]);
 const RESPONSIVE_DASHBOARD_METADATA_KEYS = [
   'responsive_mobile_enabled',
   'responsive_dashboard_enabled',
@@ -86,6 +86,17 @@ export function getResponsiveChartHeight(
   const preferredHeight = Math.round(viewportHeight * 0.58);
   const minHeight = 260;
   const maxHeight = Math.max(320, preferredHeight);
+
+  return Math.max(minHeight, Math.min(layoutHeight, maxHeight));
+}
+
+export function getResponsiveKpiChartHeight(
+  layoutHeight: number,
+  viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight,
+): number {
+  const preferredHeight = Math.round(viewportHeight * 0.2);
+  const minHeight = 136;
+  const maxHeight = Math.max(160, preferredHeight);
 
   return Math.max(minHeight, Math.min(layoutHeight, maxHeight));
 }

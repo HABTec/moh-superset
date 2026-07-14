@@ -121,6 +121,83 @@ const getFormatter = (
   );
 };
 
+const COMPACT_MIXED_CHART_WIDTH = 420;
+const CROWDED_BAR_LABEL_THRESHOLD = 10;
+const COMPACT_BAR_LABEL_GRID_GUTTER = 48;
+const COMPACT_BAR_LABEL_WIDTH_PER_CHAR = 7;
+const COMPACT_BAR_LABEL_GAP = 2;
+
+const getMaxSeriesDataLength = (chartSeries: SeriesOption[]) =>
+  chartSeries.reduce(
+    (maxLength, entry) =>
+      Math.max(maxLength, Array.isArray(entry.data) ? entry.data.length : 0),
+    0,
+  );
+
+const getNumericDatumValue = (
+  datum: unknown,
+  valueIndex: number,
+): number | undefined => {
+  const getNumericValue = (value: unknown) => {
+    const numericValue = Array.isArray(value) ? value[valueIndex] : value;
+    return typeof numericValue === 'number' && Number.isFinite(numericValue)
+      ? numericValue
+      : undefined;
+  };
+
+  if (Array.isArray(datum)) {
+    return getNumericValue(datum);
+  }
+
+  if (datum && typeof datum === 'object' && 'value' in datum) {
+    return getNumericValue((datum as { value?: unknown }).value);
+  }
+
+  return getNumericValue(datum);
+};
+
+const getCompactBarValueLabelLength = (value: number) => {
+  const roundedValue = Number.isInteger(value)
+    ? value
+    : Number(value.toFixed(Math.abs(value) >= 100 ? 1 : 2));
+  return String(roundedValue).length;
+};
+
+const getMaxCompactBarValueLabelLength = (
+  chartSeries: SeriesOption[],
+  valueIndex: number,
+) =>
+  chartSeries.reduce((maxLength, entry) => {
+    if (!Array.isArray(entry.data)) {
+      return maxLength;
+    }
+
+    return entry.data.reduce((seriesMaxLength, datum) => {
+      const value = getNumericDatumValue(datum, valueIndex);
+      return value === undefined
+        ? seriesMaxLength
+        : Math.max(seriesMaxLength, getCompactBarValueLabelLength(value));
+    }, maxLength);
+  }, 0);
+
+const shouldRotateCompactBarValueLabels = (
+  chartWidth: number,
+  categoryCount: number,
+  seriesCount: number,
+  maxLabelLength: number,
+) => {
+  const labelCount = categoryCount * Math.max(seriesCount, 1);
+  if (labelCount < CROWDED_BAR_LABEL_THRESHOLD || maxLabelLength === 0) {
+    return false;
+  }
+
+  const availableWidth = Math.max(1, chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER);
+  const labelSlotWidth = availableWidth / labelCount;
+  const estimatedLabelWidth = maxLabelLength * COMPACT_BAR_LABEL_WIDTH_PER_CHAR;
+
+  return estimatedLabelWidth + COMPACT_BAR_LABEL_GAP > labelSlotWidth;
+};
+
 export default function transformProps(
   chartProps: EchartsMixedTimeseriesProps,
 ): EchartsMixedTimeseriesChartTransformedProps {
@@ -296,6 +373,56 @@ export default function transformProps(
     xAxisType,
   });
   const series: SeriesOption[] = [];
+  const barSeriesCount =
+    Number(seriesType === EchartsTimeseriesSeriesType.Bar) +
+    Number(seriesTypeB === EchartsTimeseriesSeriesType.Bar);
+  const categoryCount = Math.max(
+    getMaxSeriesDataLength(rawSeriesA),
+    getMaxSeriesDataLength(rawSeriesB),
+  );
+  const compactMobileMixedChart = width <= COMPACT_MIXED_CHART_WIDTH;
+  const compactMobileMixedBarChart =
+    compactMobileMixedChart && barSeriesCount > 0;
+  const compactMobileMixedLineChart =
+    compactMobileMixedChart && barSeriesCount === 0;
+  const hideCompactSecondaryAxisLabels =
+    compactMobileMixedChart && !yAxisTitleSecondary;
+  const barValueLabelSeriesCount =
+    (seriesType === EchartsTimeseriesSeriesType.Bar ? rawSeriesA.length : 0) +
+    (seriesTypeB === EchartsTimeseriesSeriesType.Bar ? rawSeriesB.length : 0);
+  const maxBarValueLabelLength = Math.max(
+    seriesType === EchartsTimeseriesSeriesType.Bar
+      ? getMaxCompactBarValueLabelLength(rawSeriesA, 1)
+      : 0,
+    seriesTypeB === EchartsTimeseriesSeriesType.Bar
+      ? getMaxCompactBarValueLabelLength(rawSeriesB, 1)
+      : 0,
+  );
+  const rotateCrowdedBarLabels =
+    compactMobileMixedBarChart &&
+    shouldRotateCompactBarValueLabels(
+      width,
+      categoryCount,
+      Math.max(barValueLabelSeriesCount, barSeriesCount),
+      maxBarValueLabelLength,
+    );
+  const crowdedBarValueLabel = rotateCrowdedBarLabels
+    ? {
+        rotate: 90,
+        align: 'left' as const,
+        verticalAlign: 'middle' as const,
+        distance: 4,
+        fontSize: 10,
+      }
+    : undefined;
+  const crowdedBarValueLabelLayout = rotateCrowdedBarLabels
+    ? {
+        rotate: 90,
+        align: 'left' as const,
+        verticalAlign: 'middle' as const,
+        dy: -2,
+      }
+    : undefined;
 
   const resolvedCurrency = resolveAutoCurrency(
     currencyFormat,
@@ -484,6 +611,14 @@ export default function transformProps(
                 formatter: seriesFormatter,
               })
             : seriesFormatter,
+        valueLabel:
+          seriesType === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabel
+            : undefined,
+        valueLabelLayout:
+          seriesType === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabelLayout
+            : undefined,
         totalStackedValues: sortedTotalValuesA,
         showValueIndexes: showValueIndexesA,
         thresholdValues,
@@ -558,6 +693,14 @@ export default function transformProps(
                 formatter: seriesFormatter,
               })
             : seriesFormatter,
+        valueLabel:
+          seriesTypeB === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabel
+            : undefined,
+        valueLabelLayout:
+          seriesTypeB === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabelLayout
+            : undefined,
         totalStackedValues: sortedTotalValuesB,
         showValueIndexes: showValueIndexesB,
         thresholdValues: thresholdValuesB,
@@ -673,6 +816,31 @@ export default function transformProps(
     convertInteger(yAxisTitleMargin),
     convertInteger(xAxisTitleMargin),
   );
+  let responsiveChartPadding = chartPadding;
+  if (compactMobileMixedLineChart) {
+    responsiveChartPadding = {
+      ...chartPadding,
+      left: Math.min(chartPadding.left, 28),
+      right: Math.min(
+        chartPadding.right,
+        hideCompactSecondaryAxisLabels ? 4 : 28,
+      ),
+      ...(!zoomable
+        ? {
+            bottom: Math.max(
+              chartPadding.bottom,
+              xAxisLabelRotation === 0 ? 28 : 56,
+            ),
+          }
+        : {}),
+    };
+  } else if (compactMobileMixedBarChart) {
+    responsiveChartPadding = {
+      ...chartPadding,
+      left: Math.min(chartPadding.left, 4),
+      right: Math.min(chartPadding.right, 4),
+    };
+  }
 
   const { setDataMask = () => {}, onContextMenu } = hooks;
   const alignTicks = yAxisIndex !== yAxisIndexB;
@@ -681,7 +849,8 @@ export default function transformProps(
     useUTC: true,
     grid: {
       ...defaultGrid,
-      ...chartPadding,
+      ...(compactMobileMixedLineChart ? { containLabel: false } : {}),
+      ...responsiveChartPadding,
     },
     xAxis: {
       type: xAxisType,
@@ -754,6 +923,7 @@ export default function transformProps(
         splitLine: { show: false },
         minorSplitLine: { show: minorSplitLine },
         axisLabel: {
+          ...(hideCompactSecondaryAxisLabels ? { show: false } : {}),
           formatter: getYAxisFormatter(
             metricsB,
             !!contributionMode,
@@ -842,7 +1012,7 @@ export default function transformProps(
         theme,
         zoomable,
         legendState,
-        chartPadding,
+        responsiveChartPadding,
       ),
       data: legendData,
     },

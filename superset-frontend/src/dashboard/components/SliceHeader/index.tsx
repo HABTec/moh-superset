@@ -46,6 +46,10 @@ import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip'
 import { DashboardPageIdContext } from 'src/dashboard/containers/DashboardPage';
 import RowCountLabel from 'src/components/RowCountLabel';
 import { Link } from 'react-router-dom';
+import {
+  isResponsiveDashboardEnabled,
+  isResponsiveDashboardMobileViewport,
+} from 'src/dashboard/util/responsiveDashboard';
 
 const extensionsRegistry = getExtensionsRegistry();
 
@@ -194,6 +198,9 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
     const isCrossFiltersEnabled = useSelector<RootState, boolean>(
       ({ dashboardInfo }) => dashboardInfo.crossFiltersEnabled,
     );
+    const dashboardInfo = useSelector<RootState, RootState['dashboardInfo']>(
+      state => state.dashboardInfo,
+    );
 
     const firstQueryResponse = useSelector<RootState, QueryData | undefined>(
       state => state.charts[slice.slice_id].queriesResponse?.[0],
@@ -223,7 +230,13 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
               0,
           );
 
-    const canExplore = !editMode && supersetCanExplore;
+    const viewportWidth =
+      typeof window === 'undefined' ? width : window.innerWidth;
+    const isMobileResponsiveDashboard =
+      isResponsiveDashboardEnabled(dashboardInfo) &&
+      isResponsiveDashboardMobileViewport(viewportWidth);
+    const canExplore =
+      !editMode && supersetCanExplore && !isMobileResponsiveDashboard;
     const showRowLimitWarning =
       shouldShowRowLimitWarning && sqlRowCount >= rowLimit && rowLimit > 0;
 
@@ -366,7 +379,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
                   exportFullCSV={exportFullCSV}
                   exportXLSX={exportXLSX}
                   exportFullXLSX={exportFullXLSX}
-                  supersetCanExplore={supersetCanExplore}
+                  supersetCanExplore={canExplore}
                   supersetCanShare={supersetCanShare}
                   supersetCanCSV={supersetCanCSV}
                   componentId={componentId}

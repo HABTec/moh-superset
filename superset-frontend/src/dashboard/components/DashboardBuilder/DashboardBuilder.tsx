@@ -255,10 +255,10 @@ const StyledContent = styled.div<{
 
   body.${RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS} & {
     grid-column: 1 / -1;
-    max-width: 100vw;
+    max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
-    width: 100vw;
+    width: 100%;
   }
 `;
 
@@ -293,6 +293,7 @@ const DashboardContentWrapper = styled.div`
     }
 
     &.${RESPONSIVE_DASHBOARD_MOBILE_CLASS} {
+      box-sizing: border-box;
       max-width: 100vw;
       min-width: 0;
       overflow-x: hidden;
@@ -562,12 +563,12 @@ const StyledDashboardContent = styled.div<{
         }
 
         .dashboard-component-chart-holder {
-          margin-inline: ${theme.sizeUnit * 2}px !important;
-          max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+          margin-inline: ${theme.sizeUnit}px !important;
+          max-width: calc(100% - ${theme.sizeUnit * 2}px) !important;
           min-width: 0;
           overflow: visible !important;
-          padding: ${theme.sizeUnit * 5}px !important;
-          width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+          padding: ${theme.sizeUnit * 2}px !important;
+          width: calc(100% - ${theme.sizeUnit * 2}px) !important;
         }
 
         .dashboard-component-chart-holder .dashboard-chart,
@@ -577,6 +578,8 @@ const StyledDashboardContent = styled.div<{
         .dashboard-component-chart-holder [data-test='slice-container'],
         .dashboard-component-chart-holder .slice_container,
         .dashboard-component-chart-holder [data-test='slice-container'] > div {
+          padding-left: 0 !important;
+          padding-right: 0 !important;
           overflow: visible !important;
         }
 
@@ -604,6 +607,7 @@ const StyledDashboardContent = styled.div<{
     }
 
     .${RESPONSIVE_DASHBOARD_MOBILE_CLASS} & {
+      box-sizing: border-box;
       flex-direction: column;
       width: 100%;
       min-width: 0;
@@ -613,9 +617,10 @@ const StyledDashboardContent = styled.div<{
       );
 
       .grid-container {
-        width: 100%;
+        box-sizing: border-box;
+        width: calc(100% - ${theme.sizeUnit * 4}px) !important;
         min-width: 0;
-        max-width: calc(100vw - ${theme.sizeUnit * 4}px);
+        max-width: calc(100% - ${theme.sizeUnit * 4}px);
         margin: ${theme.sizeUnit * 2}px;
         margin-left: ${theme.sizeUnit * 2}px;
       }
@@ -633,21 +638,25 @@ const StyledDashboardContent = styled.div<{
       .ant-tabs,
       .ant-tabs-content,
       .ant-tabs-tabpane {
+        box-sizing: border-box !important;
         width: 100% !important;
         min-width: 0 !important;
         max-width: 100% !important;
       }
 
       .dashboard-component-chart-holder {
-        width: calc(100% - ${theme.sizeUnit * 4}px) !important;
-        max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
-        margin-inline: ${theme.sizeUnit * 2}px !important;
-        padding: ${theme.sizeUnit * 5}px !important;
+        box-sizing: border-box !important;
+        width: calc(100% - ${theme.sizeUnit * 2}px) !important;
+        max-width: calc(100% - ${theme.sizeUnit * 2}px) !important;
+        margin-inline: ${theme.sizeUnit}px !important;
+        padding: ${theme.sizeUnit * 2}px !important;
         min-width: 0;
-        overflow: visible !important;
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
       }
 
       .chart-slice {
+        box-sizing: border-box;
         width: 100%;
         min-width: 0;
         max-width: 100%;
@@ -660,10 +669,14 @@ const StyledDashboardContent = styled.div<{
       [data-test='chart-grid-component'],
       [data-test='slice-container'],
       [data-test='slice-container'] > div {
+        box-sizing: border-box !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
         min-width: 0 !important;
-        overflow: visible !important;
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
       }
 
       [data-test='slice-container'] > div {
@@ -699,6 +712,38 @@ const StyledDashboardContent = styled.div<{
       .superset-legacy-chart-big-number .header-line {
         font-size: clamp(42px, 13vw, 80px) !important;
         white-space: nowrap !important;
+      }
+
+      .dashboard-component-chart-holder--compact-kpi
+        .superset-legacy-chart-big-number,
+      .dashboard-component-chart-holder--compact-kpi
+        .superset-legacy-chart-big-number
+        .text-container {
+        align-items: center !important;
+        display: flex !important;
+        justify-content: center !important;
+        text-align: center !important;
+        width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder--compact-kpi
+        .superset-legacy-chart-big-number {
+        height: 100% !important;
+      }
+
+      .dashboard-component-chart-holder--compact-kpi
+        .superset-legacy-chart-big-number
+        .text-container {
+        min-height: 100% !important;
+      }
+
+      .dashboard-component-chart-holder--compact-kpi
+        .superset-legacy-chart-big-number
+        .header-line {
+        justify-content: center !important;
+        margin-bottom: 0 !important;
+        text-align: center !important;
+        width: 100% !important;
       }
 
       [data-test='slice-container'] table,
@@ -898,6 +943,51 @@ const DashboardBuilder = () => {
       document.body.classList.remove(RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS);
     };
   }, [responsiveDashboardEnabled, responsiveDashboardMobile]);
+
+  useEffect(() => {
+    if (!responsiveDashboardEnabled) return undefined;
+
+    const targets = [
+      document.documentElement,
+      document.body,
+      document.getElementById('app'),
+    ].filter((element): element is HTMLElement => Boolean(element));
+    const previousStyles = targets.map(element => ({
+      element,
+      maxWidth: element.style.maxWidth,
+      maxWidthPriority: element.style.getPropertyPriority('max-width'),
+      overflowX: element.style.overflowX,
+      overflowXPriority: element.style.getPropertyPriority('overflow-x'),
+    }));
+
+    targets.forEach(element => {
+      element.style.setProperty('max-width', '100vw', 'important');
+      element.style.setProperty('overflow-x', 'hidden', 'important');
+    });
+
+    return () => {
+      previousStyles.forEach(
+        ({
+          element,
+          maxWidth,
+          maxWidthPriority,
+          overflowX,
+          overflowXPriority,
+        }) => {
+          element.style.setProperty(
+            'max-width',
+            maxWidth,
+            maxWidthPriority,
+          );
+          element.style.setProperty(
+            'overflow-x',
+            overflowX,
+            overflowXPriority,
+          );
+        },
+      );
+    };
+  }, [responsiveDashboardEnabled]);
 
   useEffect(() => {
     if (!responsiveDashboardMobile) return undefined;

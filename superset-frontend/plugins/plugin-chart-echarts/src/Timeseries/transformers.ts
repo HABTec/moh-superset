@@ -35,6 +35,7 @@ import type {
   CallbackDataParams,
   DefaultStatesMixin,
   ItemStyleOption,
+  LabelLayoutOption,
   LineStyleOption,
   OptionName,
   SeriesLabelOption,
@@ -229,6 +230,8 @@ export function transformSeries(
     theme?: SupersetTheme;
     hasDimensions?: boolean;
     colorByPrimaryAxis?: boolean;
+    valueLabel?: Partial<SeriesLabelOption>;
+    valueLabelLayout?: LabelLayoutOption;
   },
 ): SeriesOption | undefined {
   const { name, data } = series;
@@ -260,6 +263,8 @@ export function transformSeries(
     timeShiftColor,
     theme,
     colorByPrimaryAxis = false,
+    valueLabel,
+    valueLabelLayout,
   } = opts;
   const contexts = seriesContexts[name || ''] || [];
   const hasForecast =
@@ -410,6 +415,7 @@ export function transformSeries(
             opacity: opacity * areaOpacity,
           }
         : undefined,
+    ...(valueLabelLayout ? { labelLayout: valueLabelLayout } : {}),
     emphasis,
     showSymbol,
     symbol,
@@ -419,6 +425,7 @@ export function transformSeries(
       position: isHorizontal ? 'right' : 'top',
       color: theme?.colorText,
       textBorderWidth: 0,
+      ...valueLabel,
       formatter: (params: any) => {
         // don't show confidence band value labels, as they're already visible on the tooltip
         if (

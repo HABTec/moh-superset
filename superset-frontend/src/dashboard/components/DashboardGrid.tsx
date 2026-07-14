@@ -80,6 +80,7 @@ const GridContent = styled.div<{
   responsiveLayout?: boolean;
 }>`
   ${({ theme, editMode, responsiveLayout }) => css`
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     ${responsiveLayout &&
