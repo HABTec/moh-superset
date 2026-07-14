@@ -71,13 +71,18 @@ const LEGEND_MARGIN_GUTTER = 45;
 // values intentionally overestimate selector space to avoid clipping.
 const ESTIMATED_LEGEND_SELECTOR_WIDTH = 112;
 const LEGEND_TEXT_WIDTH_CACHE = new Map<string, number>();
+const LEGEND_ITEM_TOOLTIP_HIDE_DELAY = 5000;
 
 type LegendDataItem =
   | string
   | number
   | null
   | undefined
-  | { name?: string | number | null };
+  | {
+      name?: string | number | null;
+      tooltip?: Record<string, unknown>;
+      [key: string]: unknown;
+    };
 
 export type LegendLayoutResult = {
   effectiveMargin?: number;
@@ -98,6 +103,45 @@ function getLegendLabel(item: LegendDataItem): string {
   }
 
   return String(item.name);
+}
+
+function getLegendItemTooltipOption() {
+  return {
+    appendToBody:
+      typeof document !== 'undefined' ? !document.fullscreenElement : true,
+    confine: false,
+    enterable: true,
+    hideDelay: LEGEND_ITEM_TOOLTIP_HIDE_DELAY,
+    show: true,
+    triggerOn: 'mousemove|click',
+  };
+}
+
+export function getLegendDataWithTooltip(
+  items: LegendDataItem[],
+): LegendDataItem[] {
+  const tooltip = getLegendItemTooltipOption();
+  return items.map(item => {
+    const label = getLegendLabel(item);
+    if (!label) {
+      return item;
+    }
+
+    if (typeof item === 'object') {
+      return {
+        ...item,
+        tooltip: {
+          ...tooltip,
+          ...(item?.tooltip ?? {}),
+        },
+      };
+    }
+
+    return {
+      name: item,
+      tooltip,
+    };
+  });
 }
 
 function measureLegendTextWidth(text: string, theme: SupersetTheme): number {
@@ -795,6 +839,7 @@ export function getLegendProps(
   zoomable = false,
   legendState?: LegendState,
   padding?: LegendPaddingType,
+  showSelectors = true,
 ): LegendComponentOption {
   const legend: LegendComponentOption = {
     orient: [LegendOrientation.Top, LegendOrientation.Bottom].includes(
@@ -805,7 +850,7 @@ export function getLegendProps(
     show,
     type,
     selected: legendState ?? {},
-    selector: ['all', 'inverse'],
+    selector: showSelectors ? ['all', 'inverse'] : false,
     selectorLabel: {
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSizeSM,

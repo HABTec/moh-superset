@@ -120,109 +120,109 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
       : `${theme.sizeUnit * 2}px`;
 
     return css`
-    grid-column: 2;
-    grid-row: 1;
-    position: sticky;
-    top: 0;
-    z-index: 99;
-    box-sizing: border-box;
-    max-width: calc(100vw - ${filterBarWidth}px);
-    min-width: 0;
-    width: calc(100vw - ${filterBarWidth}px);
-
-    .empty-droptarget {
-      min-height: ${theme.sizeUnit * 4}px;
-    }
-
-    .empty-droptarget:before {
-      position: absolute;
-      content: '';
-      display: none;
-      width: calc(100% - ${theme.sizeUnit * 2}px);
-      height: calc(100% - ${theme.sizeUnit * 2}px);
-      left: ${theme.sizeUnit}px;
-      top: ${theme.sizeUnit}px;
-      border: 1px dashed transparent;
-      border-radius: ${theme.borderRadius}px;
-      opacity: 0.5;
-    }
-
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object'] {
-      margin-left: ${headerInsetMarginLeft} !important;
-      max-width: ${headerInsetWidth} !important;
-      min-width: 0 !important;
-      width: ${headerInsetWidth} !important;
-    }
-
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object']
-      .dashboard-component-tabs,
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object']
-      .dashboard-component-tabs
-      > .ant-tabs,
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object']
-      .dashboard-component-tabs
-      .ant-tabs-content-holder,
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object']
-      .dashboard-component-tabs
-      .ant-tabs-content,
-    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
-      &
-      > [data-test='dragdroppable-object']
-      .dashboard-component-tabs
-      .ant-tabs-tabpane {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      z-index: 99;
       box-sizing: border-box;
-      max-width: 100% !important;
-      min-width: 0 !important;
-      width: 100% !important;
-    }
+      max-width: calc(100vw - ${filterBarWidth}px);
+      min-width: 0;
+      width: calc(100vw - ${filterBarWidth}px);
 
-    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
-      body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
-        box-sizing: border-box;
-        grid-column: ${compactGridColumn};
-        max-width: ${compactHeaderWidth};
-        min-width: 0;
-        overflow-x: hidden;
-        padding-inline: ${hasVerticalFilterBar
-          ? 0
-          : `${theme.sizeUnit * 2}px`};
-        width: ${compactHeaderWidth};
+      .empty-droptarget {
+        min-height: ${theme.sizeUnit * 4}px;
+      }
 
-        & > [data-test='dragdroppable-object'] {
-          margin-left: 0 !important;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          width: 100% !important;
-        }
+      .empty-droptarget:before {
+        position: absolute;
+        content: '';
+        display: none;
+        width: calc(100% - ${theme.sizeUnit * 2}px);
+        height: calc(100% - ${theme.sizeUnit * 2}px);
+        left: ${theme.sizeUnit}px;
+        top: ${theme.sizeUnit}px;
+        border: 1px dashed transparent;
+        border-radius: ${theme.borderRadius}px;
+        opacity: 0.5;
+      }
 
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object'] {
+        margin-left: ${headerInsetMarginLeft} !important;
+        max-width: ${headerInsetWidth} !important;
+        min-width: 0 !important;
+        width: ${headerInsetWidth} !important;
+      }
+
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object']
         .dashboard-component-tabs,
-        .dashboard-component-tabs > .ant-tabs,
-        .dashboard-component-tabs .ant-tabs-content-holder,
-        .dashboard-component-tabs .ant-tabs-content,
-        .dashboard-component-tabs .ant-tabs-tabpane {
-          box-sizing: border-box;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          width: 100% !important;
-        }
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object']
+        .dashboard-component-tabs
+        > .ant-tabs,
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object']
+        .dashboard-component-tabs
+        .ant-tabs-content-holder,
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object']
+        .dashboard-component-tabs
+        .ant-tabs-content,
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+        &
+        > [data-test='dragdroppable-object']
+        .dashboard-component-tabs
+        .ant-tabs-tabpane {
+        box-sizing: border-box;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        width: 100% !important;
+      }
 
-        .dashboard-component-tabs > .ant-tabs > .ant-tabs-nav {
-          max-width: 100%;
-          overflow-x: auto;
+      @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+        body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
+          box-sizing: border-box;
+          grid-column: ${compactGridColumn};
+          max-width: ${compactHeaderWidth};
+          min-width: 0;
+          overflow-x: hidden;
+          padding-inline: ${hasVerticalFilterBar
+            ? 0
+            : `${theme.sizeUnit * 2}px`};
+          width: ${compactHeaderWidth};
+
+          & > [data-test='dragdroppable-object'] {
+            margin-left: 0 !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+
+          .dashboard-component-tabs,
+          .dashboard-component-tabs > .ant-tabs,
+          .dashboard-component-tabs .ant-tabs-content-holder,
+          .dashboard-component-tabs .ant-tabs-content,
+          .dashboard-component-tabs .ant-tabs-tabpane {
+            box-sizing: border-box;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+
+          .dashboard-component-tabs > .ant-tabs > .ant-tabs-nav {
+            max-width: 100%;
+            overflow-x: auto;
+          }
         }
       }
-    }
-  `;
+    `;
   }}
 `;
 
@@ -231,13 +231,13 @@ const StyledContent = styled.div<{
   filterBarWidth: number;
 }>`
   ${({ filterBarWidth }) => css`
-  grid-column: 2;
-  grid-row: 2;
-  box-sizing: border-box;
-  max-width: calc(100vw - ${filterBarWidth}px);
-  min-width: 0;
-  width: calc(100vw - ${filterBarWidth}px);
-  // @z-index-above-dashboard-header (100) + 1 = 101
+    grid-column: 2;
+    grid-row: 2;
+    box-sizing: border-box;
+    max-width: calc(100vw - ${filterBarWidth}px);
+    min-width: 0;
+    width: calc(100vw - ${filterBarWidth}px);
+    // @z-index-above-dashboard-header (100) + 1 = 101
   `}
 
   ${({ fullSizeChartId }) => fullSizeChartId && `z-index: 101;`}
@@ -679,6 +679,31 @@ const StyledDashboardContent = styled.div<{
         overflow-y: hidden !important;
       }
 
+      .dashboard-markdown,
+      .dashboard-markdown .dashboard-component-chart-holder,
+      .chart-slice[data-test-viz-type='handlebars'],
+      .chart-slice[data-test-viz-type='handlebars'] .dashboard-chart,
+      .chart-slice[data-test-viz-type='handlebars']
+        [data-test='chart-container'],
+      .chart-slice[data-test-viz-type='handlebars']
+        [data-test='slice-container'],
+      .chart-slice[data-test-viz-type='handlebars']
+        [data-test='slice-container']
+        > div {
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+      }
+
+      .dashboard-markdown .dashboard-component-chart-holder,
+      .chart-slice[data-test-viz-type='handlebars']
+        [data-test='slice-container']
+        > div {
+        padding-bottom: calc(
+          ${theme.sizeUnit * 20}px + env(safe-area-inset-bottom)
+        ) !important;
+      }
+
       [data-test='slice-container'] > div {
         flex-shrink: 1 !important;
       }
@@ -974,16 +999,8 @@ const DashboardBuilder = () => {
           overflowX,
           overflowXPriority,
         }) => {
-          element.style.setProperty(
-            'max-width',
-            maxWidth,
-            maxWidthPriority,
-          );
-          element.style.setProperty(
-            'overflow-x',
-            overflowX,
-            overflowXPriority,
-          );
+          element.style.setProperty('max-width', maxWidth, maxWidthPriority);
+          element.style.setProperty('overflow-x', overflowX, overflowXPriority);
         },
       );
     };

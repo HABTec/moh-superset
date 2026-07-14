@@ -81,6 +81,7 @@ import {
   getAxisType,
   getColtypesMapping,
   getHorizontalLegendAvailableWidth,
+  getLegendDataWithTooltip,
   getLegendProps,
   getMinAndMaxFromBounds,
 } from '../utils/series';
@@ -232,7 +233,10 @@ const shouldRotateCompactBarValueLabels = (
     return false;
   }
 
-  const availableWidth = Math.max(1, chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER);
+  const availableWidth = Math.max(
+    1,
+    chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER,
+  );
   const labelSlotWidth = availableWidth / labelCount;
   const estimatedLabelWidth = maxLabelLength * COMPACT_BAR_LABEL_WIDTH_PER_CHAR;
 
@@ -438,8 +442,11 @@ export default function transformProps(
     },
   );
   const categoryCount = getMaxSeriesDataLength(rawSeries);
+  const compactMobileTimeseriesTooltip =
+    width <= COMPACT_TIMESERIES_CHART_WIDTH;
   const compactMobileTimeseriesChart =
     width <= COMPACT_TIMESERIES_CHART_WIDTH && !isHorizontal;
+  const useAxisTooltip = richTooltip || compactMobileTimeseriesChart;
   const useFlatCompactXAxisLabels =
     compactMobileTimeseriesChart &&
     xAxisType === AxisType.Category &&
@@ -1190,19 +1197,22 @@ export default function transformProps(
     tooltip: {
       ...getDefaultTooltip(refs),
       show: !inContextMenu,
-      trigger: richTooltip ? 'axis' : 'item',
+      trigger: useAxisTooltip ? 'axis' : 'item',
+      ...(compactMobileTimeseriesTooltip
+        ? { appendToBody: false, confine: true, hideDelay: 3000 }
+        : {}),
       formatter: (params: any) => {
         const [xIndex, yIndex] = isHorizontal ? [1, 0] : [0, 1];
-        const xValue: number = richTooltip
+        const xValue: number = useAxisTooltip
           ? params[0].value[xIndex]
           : params.value[xIndex];
-        const forecastValue: CallbackDataParams[] = richTooltip
+        const forecastValue: CallbackDataParams[] = useAxisTooltip
           ? params
           : [params];
         const sortedKeys = extractTooltipKeys(
           forecastValue,
           yIndex,
-          richTooltip,
+          useAxisTooltip,
           tooltipSortByMetric,
         );
         const filteredForecastValue = forecastValue.filter(
@@ -1304,12 +1314,13 @@ export default function transformProps(
         zoomable,
         legendState,
         padding,
+        !compactMobileTimeseriesChart,
       ),
       scrollDataIndex: legendIndex || 0,
       data:
         colorByPrimaryAxis && groupBy.length === 0
-          ? colorByPrimaryAxisLegendData
-          : sortedLegendData,
+          ? getLegendDataWithTooltip(colorByPrimaryAxisLegendData)
+          : getLegendDataWithTooltip(sortedLegendData),
       // Disable legend selection and buttons when colorByPrimaryAxis is enabled
       ...(colorByPrimaryAxis && groupBy.length === 0
         ? {

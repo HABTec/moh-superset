@@ -69,6 +69,7 @@ import {
   getAxisType,
   getColtypesMapping,
   getHorizontalLegendAvailableWidth,
+  getLegendDataWithTooltip,
   getLegendProps,
   getMinAndMaxFromBounds,
   getOverMaxHiddenFormatter,
@@ -191,7 +192,10 @@ const shouldRotateCompactBarValueLabels = (
     return false;
   }
 
-  const availableWidth = Math.max(1, chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER);
+  const availableWidth = Math.max(
+    1,
+    chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER,
+  );
   const labelSlotWidth = availableWidth / labelCount;
   const estimatedLabelWidth = maxLabelLength * COMPACT_BAR_LABEL_WIDTH_PER_CHAR;
 
@@ -381,6 +385,7 @@ export default function transformProps(
     getMaxSeriesDataLength(rawSeriesB),
   );
   const compactMobileMixedChart = width <= COMPACT_MIXED_CHART_WIDTH;
+  const useAxisTooltip = richTooltip || compactMobileMixedChart;
   const compactMobileMixedBarChart =
     compactMobileMixedChart && barSeriesCount > 0;
   const compactMobileMixedLineChart =
@@ -940,18 +945,21 @@ export default function transformProps(
     tooltip: {
       ...getDefaultTooltip(refs),
       show: !inContextMenu,
-      trigger: richTooltip ? 'axis' : 'item',
+      trigger: useAxisTooltip ? 'axis' : 'item',
+      ...(compactMobileMixedChart
+        ? { appendToBody: false, confine: true, hideDelay: 3000 }
+        : {}),
       formatter: (params: any) => {
-        const xValue: number = richTooltip
+        const xValue: number = useAxisTooltip
           ? params[0].value[0]
           : params.value[0];
-        const forecastValue: any[] = richTooltip ? params : [params];
+        const forecastValue: any[] = useAxisTooltip ? params : [params];
 
         const sortedKeys = extractTooltipKeys(
           forecastValue,
           // horizontal mode is not supported in mixed series chart
           1,
-          richTooltip,
+          useAxisTooltip,
           tooltipSortByMetric,
         );
 
@@ -1013,8 +1021,9 @@ export default function transformProps(
         zoomable,
         legendState,
         responsiveChartPadding,
+        !compactMobileMixedChart,
       ),
-      data: legendData,
+      data: getLegendDataWithTooltip(legendData),
     },
     series: dedupSeries(reorderForecastSeries(series) as SeriesOption[]),
     toolbox: {

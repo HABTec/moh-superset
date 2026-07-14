@@ -56,6 +56,7 @@ import { Refs } from '../types';
 import { getContributionLabel } from './utils';
 
 const percentFormatter = getNumberFormatter(NumberFormats.PERCENT_2_POINT);
+const COMPACT_PIE_CHART_WIDTH = 420;
 
 export function parseParams({
   params,
@@ -176,6 +177,7 @@ export default function transformProps(
     ...formData,
   };
   const refs: Refs = {};
+  const compactMobilePieChart = width <= COMPACT_PIE_CHART_WIDTH;
   const metricLabel = getMetricLabel(metric);
   const contributionLabel = getContributionLabel(metricLabel);
   const groupbyLabels = groupby.map(getColumnLabel);
@@ -445,6 +447,9 @@ export default function transformProps(
       ...getDefaultTooltip(refs),
       show: !inContextMenu,
       trigger: 'item',
+      ...(compactMobilePieChart
+        ? { appendToBody: false, confine: true, hideDelay: 3000 }
+        : {}),
       formatter: (params: any) => {
         const [name, formattedValue, formattedPercent] = parseParams({
           params,
