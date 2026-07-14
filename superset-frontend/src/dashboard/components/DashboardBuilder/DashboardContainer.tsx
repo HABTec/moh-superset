@@ -344,18 +344,38 @@ const DashboardContainer: FC<DashboardContainerProps> = ({ topLevelTabs }) => {
 
   const renderParentSizeChildren = useCallback(
     ({ width }: { width: number }) => {
-      const tabItems = childIds.map((id, index) => ({
-        key: index === 0 ? DASHBOARD_GRID_ID : index.toString(),
-        label: null,
-        children: (
-          <DashboardGrid
-            gridComponent={dashboardLayout[id]}
-            depth={DASHBOARD_ROOT_DEPTH + 1}
-            width={width}
-            isComponentVisible={index === tabIndex}
-          />
-        ),
-      }));
+      const tabItems = childIds.map((id, index) => {
+        const gridComponent = dashboardLayout[id];
+        // On dashboard 8, the top-level "Systems monitoring" tab embeds an
+        // external dashboard instead of rendering its own charts.
+        const isSystemsMonitoringTab =
+          dashboardInfo.id === 8 &&
+          gridComponent?.meta?.text?.trim().toLowerCase() ===
+            'systems monitoring';
+        return {
+          key: index === 0 ? DASHBOARD_GRID_ID : index.toString(),
+          label: null,
+          children: isSystemsMonitoringTab ? (
+            <iframe
+              title={gridComponent.meta.text}
+              src="https://system.dhis.et"
+              style={{
+                width: '100%',
+                height: '100%',
+                minHeight: '80vh',
+                border: 0,
+              }}
+            />
+          ) : (
+            <DashboardGrid
+              gridComponent={gridComponent}
+              depth={DASHBOARD_ROOT_DEPTH + 1}
+              width={width}
+              isComponentVisible={index === tabIndex}
+            />
+          ),
+        };
+      });
 
       return (
         <Tabs
@@ -371,7 +391,15 @@ const DashboardContainer: FC<DashboardContainerProps> = ({ topLevelTabs }) => {
         />
       );
     },
-    [activeKey, childIds, dashboardLayout, handleFocus, renderTabBar, tabIndex],
+    [
+      activeKey,
+      childIds,
+      dashboardLayout,
+      dashboardInfo.id,
+      handleFocus,
+      renderTabBar,
+      tabIndex,
+    ],
   );
 
   return (
