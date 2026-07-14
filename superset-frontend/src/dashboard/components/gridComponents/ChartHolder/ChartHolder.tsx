@@ -16,7 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  memo,
+  useLayoutEffect,
+} from 'react';
 
 import { ResizeCallback, ResizeStartCallback } from 're-resizable';
 import cx from 'classnames';
@@ -40,8 +48,20 @@ import {
   GRID_MIN_COLUMN_COUNT,
   GRID_MIN_ROW_UNITS,
 } from 'src/dashboard/util/constants';
+import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  RESPONSIVE_DASHBOARD_BODY_CLASS,
+  getResponsiveChartHeight,
+  getResponsiveChartWidth,
+} from 'src/dashboard/util/responsiveDashboard';
 
 export const CHART_MARGIN = 32;
+const PHEM_FILL_HEIGHT_CHART_IDS = new Set([153, 154]);
+const PHEM_TALL_VIEWPORT_CHART_OFFSET = 470;
+const CHART_INTERACTION_HOLDER_CLASS =
+  'dashboard-component-chart-holder--interaction-active';
+const CHART_INTERACTION_LAYOUT_CLASS =
+  'dashboard-component-chart-layout--interaction-active';
 
 export interface ChartHolderProps {
   id: string;
@@ -70,6 +90,8 @@ export interface ChartHolderProps {
   handleComponentDrop: (...args: unknown[]) => unknown;
   setFullSizeChartId: (chartId: number | null) => void;
   isInView: boolean;
+  responsiveDashboardEnabled?: boolean;
+  responsiveLayout?: boolean;
 }
 
 const ChartHolder = ({
@@ -94,6 +116,8 @@ const ChartHolder = ({
   handleComponentDrop,
   setFullSizeChartId,
   isInView,
+  responsiveDashboardEnabled = false,
+  responsiveLayout = false,
 }: ChartHolderProps) => {
   const theme = useTheme();
   const fullSizeStyle = css`
@@ -108,6 +132,13 @@ const ChartHolder = ({
   const { chartId } = component.meta;
   const isFullSize = fullSizeChartId === chartId;
   const chartHolderRef = useRef<HTMLDivElement | null>(null);
+  const [responsiveChartWidth, setResponsiveChartWidth] = useState<
+    number | undefined
+  >();
+  const responsiveDashboardActive =
+    responsiveDashboardEnabled ||
+    (typeof document !== 'undefined' &&
+      document.body.classList.contains(RESPONSIVE_DASHBOARD_BODY_CLASS));
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -187,29 +218,127 @@ const ChartHolder = ({
     parentComponent.type,
   ]);
 
-  const { chartWidth, chartHeight } = useMemo(() => {
+  const effectiveWidthMultiple = responsiveLayout ? 1 : widthMultiple;
+  const measureResponsiveChartWidth = useCallback(() => {
+    const holder = chartHolderRef.current;
+    if (
+      !responsiveDashboardActive ||
+      !holder ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
+
+    const style = window.getComputedStyle(holder);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const horizontalPadding = paddingLeft + paddingRight;
+    const holderRect = holder.getBoundingClientRect();
+    const measuredWidth =
+      Math.min(holder.clientWidth, holderRect.width) - horizontalPadding;
+    const viewportWidth =
+      window.innerWidth - Math.max(holderRect.left, 0) - horizontalPadding - 2;
+    const nextWidth = getResponsiveChartWidth(measuredWidth, viewportWidth);
+
+    setResponsiveChartWidth(current =>
+      current === nextWidth ? current : nextWidth,
+    );
+  }, [responsiveDashboardActive]);
+
+  useLayoutEffect(() => {
+    if (!responsiveDashboardActive || typeof window === 'undefined') {
+      setResponsiveChartWidth(undefined);
+      return undefined;
+    }
+
+    measureResponsiveChartWidth();
+
+    const holder = chartHolderRef.current;
+    const observedElements: Element[] = [];
+    if (holder) {
+      observedElements.push(holder);
+    }
+    if (holder?.parentElement) {
+      observedElements.push(holder.parentElement);
+    }
+
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measureResponsiveChartWidth);
+      observedElements.forEach(element => resizeObserver?.observe(element));
+    }
+
+    window.addEventListener('resize', measureResponsiveChartWidth);
+    window.addEventListener('orientationchange', measureResponsiveChartWidth);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measureResponsiveChartWidth);
+      window.removeEventListener(
+        'orientationchange',
+        measureResponsiveChartWidth,
+      );
+    };
+  }, [measureResponsiveChartWidth, responsiveDashboardActive]);
+
+  const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
     let height = 0;
+    let heightMultiple = component.meta.height ?? GRID_MIN_ROW_UNITS;
 
     if (isFullSize) {
       width = window.innerWidth - CHART_MARGIN;
       height = window.innerHeight - CHART_MARGIN;
     } else {
       width = Math.floor(
-        widthMultiple * columnWidth +
-          (widthMultiple - 1) * GRID_GUTTER_SIZE -
+        effectiveWidthMultiple * columnWidth +
+          (effectiveWidthMultiple - 1) * GRID_GUTTER_SIZE -
           CHART_MARGIN,
       );
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
       );
+      if (responsiveLayout) {
+        width = responsiveChartWidth ?? width;
+        height = getResponsiveChartHeight(height);
+        heightMultiple = Math.max(
+          GRID_MIN_ROW_UNITS,
+          Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
+        );
+      } else if (responsiveDashboardActive) {
+        width = responsiveChartWidth ?? width;
+        if (
+          chartId != null &&
+          PHEM_FILL_HEIGHT_CHART_IDS.has(chartId) &&
+          window.innerWidth > RESPONSIVE_DASHBOARD_BREAKPOINTS.compact
+        ) {
+          height = Math.max(
+            height,
+            window.innerHeight - PHEM_TALL_VIEWPORT_CHART_OFFSET,
+          );
+          heightMultiple = Math.max(
+            GRID_MIN_ROW_UNITS,
+            Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
+          );
+        }
+      }
     }
 
     return {
       chartWidth: width,
       chartHeight: height,
+      effectiveHeightMultiple: heightMultiple,
     };
-  }, [columnWidth, component, isFullSize, widthMultiple]);
+  }, [
+    columnWidth,
+    component.meta.height,
+    chartId,
+    effectiveWidthMultiple,
+    isFullSize,
+    responsiveDashboardActive,
+    responsiveChartWidth,
+    responsiveLayout,
+  ]);
 
   const handleDeleteComponent = useCallback(() => {
     deleteComponent(id, parentId);
@@ -241,6 +370,36 @@ const ChartHolder = ({
     }));
   }, []);
 
+  const setChartInteractionLayer = useCallback(
+    (active: boolean) => {
+      const holder = chartHolderRef.current;
+      if (!responsiveDashboardActive || !holder) return;
+
+      holder.classList.toggle(CHART_INTERACTION_HOLDER_CLASS, active);
+
+      [
+        holder.closest('.resizable-container'),
+        holder.closest('.dragdroppable-column'),
+        holder.closest('.dragdroppable-row'),
+        holder.closest('.grid-row'),
+        holder.closest('.grid-column'),
+      ].forEach(element => {
+        if (element instanceof HTMLElement) {
+          element.classList.toggle(CHART_INTERACTION_LAYOUT_CLASS, active);
+        }
+      });
+    },
+    [responsiveDashboardActive],
+  );
+
+  useEffect(
+    () => () => setChartInteractionLayer(false),
+    [setChartInteractionLayer],
+  );
+
+  const shouldRenderChart =
+    !responsiveLayout || isFullSize || responsiveChartWidth !== undefined;
+
   const renderChild = useCallback(
     ({ dragSourceRef }: { dragSourceRef?: ConnectDragSource }) => (
       <ResizableContainer
@@ -248,12 +407,12 @@ const ChartHolder = ({
         adjustableWidth={parentComponent.type === ROW_TYPE}
         adjustableHeight
         widthStep={columnWidth}
-        widthMultiple={widthMultiple}
+        widthMultiple={effectiveWidthMultiple}
         heightStep={GRID_BASE_UNIT}
-        heightMultiple={component.meta.height ?? GRID_MIN_ROW_UNITS}
+        heightMultiple={effectiveHeightMultiple}
         minWidthMultiple={GRID_MIN_COLUMN_COUNT}
         minHeightMultiple={GRID_MIN_ROW_UNITS}
-        maxWidthMultiple={availableColumnCount + widthMultiple}
+        maxWidthMultiple={availableColumnCount + effectiveWidthMultiple}
         onResizeStart={onResizeStart}
         onResize={onResize}
         onResizeStop={onResizeStop}
@@ -276,6 +435,18 @@ const ChartHolder = ({
           data-test="dashboard-component-chart-holder"
           style={focusHighlightStyles}
           css={isFullSize ? fullSizeStyle : undefined}
+          onMouseEnter={() => setChartInteractionLayer(true)}
+          onMouseLeave={() => setChartInteractionLayer(false)}
+          onFocus={() => setChartInteractionLayer(true)}
+          onBlur={event => {
+            const nextTarget = event.relatedTarget;
+            if (
+              !(nextTarget instanceof Node) ||
+              !event.currentTarget.contains(nextTarget)
+            ) {
+              setChartInteractionLayer(false);
+            }
+          }}
           className={cx(
             'dashboard-component',
             'dashboard-component-chart-holder',
@@ -307,28 +478,31 @@ const ChartHolder = ({
                     }`}
               </style>
             )}
-            <Chart
-              componentId={component.id}
-              id={component.meta.chartId ?? 0}
-              dashboardId={dashboardId}
-              width={chartWidth}
-              height={chartHeight}
-              sliceName={
-                component.meta.sliceNameOverride ||
-                component.meta.sliceName ||
-                ''
-              }
-              updateSliceName={(_sliceId: number, name: string) =>
-                handleUpdateSliceName(name)
-              }
-              isComponentVisible={isComponentVisible}
-              handleToggleFullSize={handleToggleFullSize}
-              isFullSize={isFullSize}
-              setControlValue={handleExtraControl}
-              extraControls={extraControls}
-              isInView={isInView}
-              chartHolderRef={chartHolderRef}
-            />
+            {shouldRenderChart && (
+              <Chart
+                componentId={component.id}
+                id={component.meta.chartId ?? 0}
+                dashboardId={dashboardId}
+                width={chartWidth}
+                height={chartHeight}
+                sliceName={
+                  component.meta.sliceNameOverride ||
+                  component.meta.sliceName ||
+                  ''
+                }
+                updateSliceName={(_sliceId: number, name: string) =>
+                  handleUpdateSliceName(name)
+                }
+                isComponentVisible={isComponentVisible}
+                handleToggleFullSize={handleToggleFullSize}
+                isFullSize={isFullSize}
+                setControlValue={handleExtraControl}
+                extraControls={extraControls}
+                isInView={isInView}
+                chartHolderRef={chartHolderRef}
+                responsiveLayout={responsiveLayout}
+              />
+            )}
             {editMode && (
               <HoverMenu position="top">
                 <div data-test="dashboard-delete-component-button">
@@ -349,6 +523,7 @@ const ChartHolder = ({
       parentComponent.type,
       columnWidth,
       widthMultiple,
+      effectiveWidthMultiple,
       availableColumnCount,
       onResizeStart,
       onResize,
@@ -363,12 +538,16 @@ const ChartHolder = ({
       dashboardId,
       chartWidth,
       chartHeight,
+      effectiveHeightMultiple,
       handleUpdateSliceName,
       isComponentVisible,
       handleToggleFullSize,
       handleExtraControl,
       extraControls,
       isInView,
+      responsiveLayout,
+      setChartInteractionLayer,
+      shouldRenderChart,
       handleDeleteComponent,
     ],
   );

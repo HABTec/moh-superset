@@ -28,7 +28,7 @@ import {
 } from '@superset-ui/core';
 import { FilterBarOrientation } from 'src/dashboard/types';
 
-interface CommonFiltersBarProps {
+export interface CommonFiltersBarProps {
   actions: ReactNode;
   canEdit: boolean;
   dataMaskSelected: DataMaskStateWithId;
@@ -57,6 +57,7 @@ interface VerticalBarConfig {
 
 export interface FiltersBarProps {
   hidden?: boolean;
+  mobile?: boolean;
   orientation: FilterBarOrientation;
   verticalConfig?: VerticalBarConfig;
 }
@@ -68,3 +69,5 @@ export type HorizontalBarProps = CommonFiltersBarProps & {
 export type VerticalBarProps = Omit<FiltersBarProps, 'orientation'> &
   CommonFiltersBarProps &
   VerticalBarConfig;
+
+export type MobileBarProps = CommonFiltersBarProps;

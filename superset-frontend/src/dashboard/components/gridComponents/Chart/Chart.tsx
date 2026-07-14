@@ -20,6 +20,7 @@ import cx from 'classnames';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useMemo,
   useState,
@@ -41,6 +42,7 @@ import {
   StreamingExportModal,
   useStreamingExport,
 } from 'src/components/StreamingExportModal';
+import { RESPONSIVE_DASHBOARD_BODY_CLASS } from 'src/dashboard/util/responsiveDashboard';
 import {
   LOG_ACTIONS_CHANGE_DASHBOARD_FILTER,
   LOG_ACTIONS_EXPLORE_DASHBOARD_CHART,
@@ -98,11 +100,17 @@ interface ChartProps {
   isInView?: boolean;
   cacheBusterProp?: string | number;
   chartHolderRef?: RefObject<HTMLDivElement>;
+  responsiveLayout?: boolean;
 }
 
 const RESIZE_TIMEOUT = 500;
 const DEFAULT_HEADER_HEIGHT = 22;
 const QUERIED_LABEL_HEIGHT = 24;
+const CHART_INTERACTION_HOLDER_CLASS =
+  'dashboard-component-chart-holder--interaction-active';
+const CHART_INTERACTION_LAYOUT_CLASS =
+  'dashboard-component-chart-layout--interaction-active';
+const CHART_TOOLTIP_SELECTOR = '.chart-tooltip, [class*="tooltip"]';
 
 const ChartWrapper = styled.div`
   overflow: hidden;
@@ -167,6 +175,7 @@ const Chart = (props: ChartProps) => {
   const dispatch = useDispatch();
   const descriptionRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const chartWrapperRef = useRef<HTMLDivElement>(null);
 
   const boundActionCreators = useMemo(
     () =>
@@ -256,8 +265,14 @@ const Chart = (props: ChartProps) => {
   );
 
   const [descriptionHeight, setDescriptionHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_HEIGHT);
   const [height, setHeight] = useState(props.height);
   const [width, setWidth] = useState(props.width);
+  const [chartBodyWidth, setChartBodyWidth] = useState(props.width);
+  const responsiveDashboardActive =
+    props.responsiveLayout ||
+    (typeof document !== 'undefined' &&
+      document.body.classList.contains(RESPONSIVE_DASHBOARD_BODY_CLASS));
 
   const [isStreamingModalVisible, setIsStreamingModalVisible] = useState(false);
   const { progress, startExport, cancelExport, resetExport, retryExport } =
@@ -326,6 +341,205 @@ const Chart = (props: ChartProps) => {
     }
   }, [isExpanded]);
 
+  const measureHeaderHeight = useCallback((): number => {
+    if (headerRef.current) {
+      const computedMarginBottom = getComputedStyle(
+        headerRef.current,
+      ).getPropertyValue('margin-bottom');
+      const marginBottom = parseInt(computedMarginBottom, 10) || 0;
+      const headerElementHeight = Math.ceil(
+        headerRef.current.getBoundingClientRect().height,
+      );
+
+      return (headerElementHeight || DEFAULT_HEADER_HEIGHT) + marginBottom;
+    }
+    return DEFAULT_HEADER_HEIGHT;
+  }, []);
+
+  const measureChartBodyWidth = useCallback((): number => {
+    if (!responsiveDashboardActive || !chartWrapperRef.current) {
+      return width;
+    }
+
+    const wrapperWidth = Math.floor(
+      chartWrapperRef.current.getBoundingClientRect().width,
+    );
+
+    if (wrapperWidth <= 0) {
+      return width;
+    }
+
+    return Math.max(20, Math.min(width, wrapperWidth));
+  }, [responsiveDashboardActive, width]);
+
+  const setChartInteractionLayer = useCallback(
+    (active: boolean) => {
+      const holder = props.chartHolderRef?.current;
+      if (!responsiveDashboardActive || !holder) return;
+
+      holder.classList.toggle(CHART_INTERACTION_HOLDER_CLASS, active);
+
+      [
+        holder.closest('.resizable-container'),
+        holder.closest('.dragdroppable-column'),
+        holder.closest('.dragdroppable-row'),
+        holder.closest('.grid-row'),
+        holder.closest('.grid-column'),
+      ].forEach(element => {
+        if (element instanceof HTMLElement) {
+          element.classList.toggle(CHART_INTERACTION_LAYOUT_CLASS, active);
+        }
+      });
+    },
+    [props.chartHolderRef, responsiveDashboardActive],
+  );
+
+  const syncResponsiveTooltipLayer = useCallback(() => {
+    if (!responsiveDashboardActive || !chartWrapperRef.current) return;
+
+    const hasVisibleTooltip = Array.from(
+      chartWrapperRef.current.querySelectorAll<HTMLElement>(
+        CHART_TOOLTIP_SELECTOR,
+      ),
+    ).some(tooltip => {
+      const tooltipRect = tooltip.getBoundingClientRect();
+      return tooltipRect.width > 0 && tooltipRect.height > 0;
+    });
+
+    setChartInteractionLayer(hasVisibleTooltip);
+  }, [responsiveDashboardActive, setChartInteractionLayer]);
+
+  useLayoutEffect(() => {
+    const updateMeasuredLayout = () => {
+      setHeaderHeight(current => {
+        const nextHeight = measureHeaderHeight();
+        return current === nextHeight ? current : nextHeight;
+      });
+
+      if (isExpanded) {
+        const nextDescriptionHeight = descriptionRef.current?.offsetHeight ?? 0;
+        setDescriptionHeight(current =>
+          current === nextDescriptionHeight ? current : nextDescriptionHeight,
+        );
+      }
+
+      setChartBodyWidth(current => {
+        const nextWidth = measureChartBodyWidth();
+        return current === nextWidth ? current : nextWidth;
+      });
+    };
+
+    updateMeasuredLayout();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateMeasuredLayout);
+      return () => window.removeEventListener('resize', updateMeasuredLayout);
+    }
+
+    const resizeObserver = new ResizeObserver(updateMeasuredLayout);
+    if (headerRef.current) resizeObserver.observe(headerRef.current);
+    if (descriptionRef.current) resizeObserver.observe(descriptionRef.current);
+    if (chartWrapperRef.current) resizeObserver.observe(chartWrapperRef.current);
+    if (props.chartHolderRef?.current) {
+      resizeObserver.observe(props.chartHolderRef.current);
+    }
+
+    window.addEventListener('resize', updateMeasuredLayout);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateMeasuredLayout);
+    };
+  }, [
+    isExpanded,
+    measureChartBodyWidth,
+    measureHeaderHeight,
+    props.chartHolderRef,
+    props.height,
+    props.sliceName,
+    props.width,
+  ]);
+
+  const fitResponsiveSvgCharts = useCallback(() => {
+    if (!responsiveDashboardActive || !chartWrapperRef.current) return;
+
+    chartWrapperRef.current
+      .querySelectorAll<SVGSVGElement>('[data-test="chart-container"] svg')
+      .forEach(svg => {
+        const chartContainer = svg.closest('[data-test="chart-container"]');
+        const chartContainerWidth = chartContainer?.clientWidth ?? 0;
+        const svgWidth = parseFloat(svg.getAttribute('width') ?? '');
+        const svgHeight = parseFloat(svg.getAttribute('height') ?? '');
+
+        if (
+          !chartContainerWidth ||
+          !Number.isFinite(svgWidth) ||
+          !Number.isFinite(svgHeight) ||
+          svgWidth <= 0 ||
+          svgHeight <= 0 ||
+          svgWidth <= chartContainerWidth + 1
+        ) {
+          return;
+        }
+
+        if (!svg.hasAttribute('viewBox')) {
+          svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+        }
+        svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+        svg.style.display = 'block';
+        svg.style.height = 'auto';
+        svg.style.maxWidth = '100%';
+        svg.style.overflow = 'visible';
+        svg.style.width = '100%';
+      });
+  }, [responsiveDashboardActive]);
+
+  useLayoutEffect(() => {
+    if (!responsiveDashboardActive || !chartWrapperRef.current) {
+      return undefined;
+    }
+
+    const wrapper = chartWrapperRef.current;
+    const syncResponsiveChartLayer = () => {
+      fitResponsiveSvgCharts();
+      syncResponsiveTooltipLayer();
+    };
+
+    syncResponsiveChartLayer();
+
+    const mutationObserver = new MutationObserver(syncResponsiveChartLayer);
+    mutationObserver.observe(wrapper, {
+      attributeFilter: ['height', 'width'],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(syncResponsiveChartLayer);
+      resizeObserver.observe(wrapper);
+    } else {
+      window.addEventListener('resize', syncResponsiveChartLayer);
+    }
+
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+      setChartInteractionLayer(false);
+      if (typeof ResizeObserver === 'undefined') {
+        window.removeEventListener('resize', syncResponsiveChartLayer);
+      }
+    };
+  }, [
+    chartStatus,
+    fitResponsiveSvgCharts,
+    responsiveDashboardActive,
+    setChartInteractionLayer,
+    syncResponsiveTooltipLayer,
+    width,
+  ]);
+
   useEffect(
     () => () => {
       resize.cancel();
@@ -334,24 +548,21 @@ const Chart = (props: ChartProps) => {
   );
 
   useEffect(() => {
-    resize();
-  }, [resize, props.isFullSize]);
-
-  const getHeaderHeight = useCallback((): number => {
-    if (headerRef.current) {
-      const computedMarginBottom = getComputedStyle(
-        headerRef.current,
-      ).getPropertyValue('margin-bottom');
-      const marginBottom = parseInt(computedMarginBottom, 10) || 0;
-      const computedHeight = getComputedStyle(
-        headerRef.current,
-      ).getPropertyValue('height');
-      const headerHeight =
-        parseInt(computedHeight, 10) || DEFAULT_HEADER_HEIGHT;
-      return headerHeight + marginBottom;
+    if (props.responsiveLayout) {
+      resize.cancel();
+      setHeight(props.height);
+      setWidth(props.width);
+      return;
     }
-    return DEFAULT_HEADER_HEIGHT;
-  }, [headerRef]);
+
+    resize();
+  }, [
+    resize,
+    props.height,
+    props.isFullSize,
+    props.responsiveLayout,
+    props.width,
+  ]);
 
   const queriedDttm: string | null = Array.isArray(queriesResponse)
     ? (((queriesResponse[queriesResponse.length - 1] as JsonObject)
@@ -359,7 +570,6 @@ const Chart = (props: ChartProps) => {
     : null;
 
   const getChartHeight = useCallback((): number => {
-    const headerHeight = getHeaderHeight();
     const queriedLabelHeight =
       showChartTimestamps && queriedDttm != null ? QUERIED_LABEL_HEIGHT : 0;
     return Math.max(
@@ -367,13 +577,12 @@ const Chart = (props: ChartProps) => {
       20,
     );
   }, [
-    getHeaderHeight,
     height,
+    headerHeight,
     descriptionHeight,
     queriedDttm,
     showChartTimestamps,
   ]);
-
   const handleFilterMenuOpen = useCallback(
     (chartId: number, column: string) => {
       boundActionCreators.setFocusedFilterField(chartId, column);
@@ -697,8 +906,8 @@ const Chart = (props: ChartProps) => {
           formData as unknown as import('@superset-ui/core').QueryFormData
         }
         exploreUrl=""
-        width={width}
-        height={getHeaderHeight()}
+        width={chartBodyWidth}
+        height={headerHeight}
         exportPivotExcel={exportPivotExcel as unknown as (arg0: string) => void}
         chartHolderRef={props.chartHolderRef}
       />
@@ -723,20 +932,18 @@ const Chart = (props: ChartProps) => {
       )}
 
       <ChartWrapper
+        ref={chartWrapperRef}
         className={cx('dashboard-chart')}
         aria-label={slice.description}
       >
         {isLoading && !suppressLoadingSpinner && (
           <ChartOverlay
-            style={{
-              width,
-              height: getChartHeight(),
-            }}
+            style={{ width: chartBodyWidth, height: getChartHeight() }}
           />
         )}
 
         <ChartContainer
-          width={width}
+          width={chartBodyWidth}
           height={getChartHeight()}
           addFilter={addFilter}
           onFilterMenuOpen={handleFilterMenuOpen}
@@ -771,7 +978,7 @@ const Chart = (props: ChartProps) => {
           datasetsStatus={
             datasetsStatus as 'loading' | 'error' | 'complete' | undefined
           }
-          isInView={props.isInView}
+          isInView={props.responsiveLayout || props.isInView}
           emitCrossFilters={emitCrossFilters}
           onChartStateChange={handleChartStateChange}
           suppressLoadingSpinner={suppressLoadingSpinner}
@@ -816,6 +1023,7 @@ export default memo(Chart, (prevProps: ChartProps, nextProps: ChartProps) => {
       prevProps.sliceName === nextProps.sliceName &&
       prevProps.updateSliceName === nextProps.updateSliceName &&
       prevProps.width === nextProps.width &&
-      prevProps.height === nextProps.height)
+      prevProps.height === nextProps.height &&
+      prevProps.responsiveLayout === nextProps.responsiveLayout)
   );
 });

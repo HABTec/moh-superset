@@ -51,6 +51,7 @@
     "cover": "cross-env NODE_ENV=test NODE_OPTIONS=\"--max-old-space-size=4096\" jest --coverage",
     "dev": "webpack --mode=development --color --watch",
     "dev-server": "cross-env NODE_ENV=development BABEL_ENV=development node --max_old_space_size=4096 ./node_modules/webpack-dev-server/bin/webpack-dev-server.js --mode=development",
+    "dev-server:moh": "cross-env DISABLE_TS_CHECKER=true MOH_SUPERSET_URL=https://mohss.habtechsolution.com/superset/dashboard/8/ npm run dev-server",
     "format": "npm run _prettier -- --write",
     "eslint": "npm run lint",
     "lint": "npx oxlint --config oxlint.json --quiet",

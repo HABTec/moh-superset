@@ -1,419 +1,704 @@
-{#
-    Licensed to the Apache Software Foundation (ASF) under one
-    or more contributor license agreements.  See the NOTICE file
-    distributed with this work for additional information
-    regarding copyright ownership.  The ASF licenses this file
-    to you under the Apache License, Version 2.0 (the
-    "License"); you may not use this file except in compliance
-    with the License.  You may obtain a copy of the License at
+{# Licensed to the Apache Software Foundation (ASF) under one or more
+contributor license agreements. See the NOTICE file distributed with this work
+for additional information regarding copyright ownership. The ASF licenses this
+file to you under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by
+applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License. #} {# MoH — mobile &
+tablet responsiveness overrides for the Superset React SPA. #} {% set _moh_roles
+= (current_user.roles | map(attribute='name') | list) if (current_user and
+current_user.is_authenticated) else [] %} {% set _moh_is_admin = 'Admin' in
+_moh_roles %}
 
-      http://www.apache.org/licenses/LICENSE-2.0
+<style>
+  .dashboard-header-container .header-with-actions .title-panel {
+    display: none !important;
+  }
+  .header-with-actions .right-button-panel {
+    margin-left: auto !important;
+  }
+  .header-with-actions [data-test="actions-trigger"] {
+    padding: 6px 10px !important;
+    border-radius: 8px !important;
+  }
 
-    Unless required by applicable law or agreed to in writing,
-    software distributed under the License is distributed on an
-    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-    KIND, either express or implied.  See the License for the
-    specific language governing permissions and limitations
-    under the License.
-  #}
+  .dashboard-component-chart-holder .ant-dropdown-trigger {
+    flex: 0 0 auto !important;
+    min-width: 28px !important;
+    margin-left: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 
-  {#
-    MoH — mobile & tablet responsiveness overrides for the Superset React SPA.
-  #}
-
-  {% set _moh_roles = (current_user.roles | map(attribute='name') | list)
-                       if (current_user and current_user.is_authenticated) else [] %}
-  {% set _moh_is_admin = 'Admin' in _moh_roles %}
-
-  <style>
-    .dashboard-header-container .header-with-actions .title-panel {
-      display: none !important;
-    }
-    .header-with-actions .right-button-panel {
-      margin-left: auto !important;
-    }
-    .header-with-actions [data-test="actions-trigger"] {
-      padding: 6px 10px !important;
-      border-radius: 8px !important;
-    }
-
-    .dashboard-component-chart-holder .ant-dropdown-trigger {
-      flex: 0 0 auto !important;
-      min-width: 28px !important;
-      margin-left: auto !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      pointer-events: auto !important;
-    }
-
-    /*
+  /*
       Charts — flex-start keeps legend top / x-axis bottom (not vertically centered).
-      Desktop: clip inside the grid cell (no inner scrollbars).
-      Mobile/tablet: allow slight overflow for rotated axis labels.
+      Keep chart pixels inside the card while header actions remain paintable.
     */
+  .dashboard-component-chart-holder [data-test="chart-container"],
+  .dashboard-component-chart-holder [data-test="slice-container"],
+  .dashboard-component-chart-holder .slice_container {
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+  }
+  .dashboard-component-chart-holder [data-test="slice-container"] > div {
+    flex-shrink: 0 !important;
+    align-self: stretch !important;
+  }
+  .dashboard-component-chart-holder canvas {
+    touch-action: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  @media (min-width: 901px) {
+    .dashboard-component-chart-holder {
+      overflow: visible !important;
+    }
+    .dashboard-component-chart-holder .dashboard-chart,
+    .dashboard-component-chart-holder
+      .dashboard-chart.dashboard-chart--overflowable {
+      overflow: visible !important;
+    }
     .dashboard-component-chart-holder [data-test="chart-container"],
     .dashboard-component-chart-holder [data-test="slice-container"],
-    .dashboard-component-chart-holder .slice_container {
-      justify-content: flex-start !important;
-      align-items: stretch !important;
-    }
+    .dashboard-component-chart-holder .slice_container,
     .dashboard-component-chart-holder [data-test="slice-container"] > div {
-      flex-shrink: 0 !important;
-      align-self: stretch !important;
+      overflow: visible !important;
+      max-height: 100% !important;
     }
-    .dashboard-component-chart-holder canvas {
-      touch-action: none !important;
-      user-select: none !important;
-      -webkit-user-select: none !important;
+    .dashboard-component-chart-holder [data-test="chart-container"] svg {
+      max-width: 100% !important;
     }
+  }
 
-    @media (min-width: 901px) {
-      .dashboard-component-chart-holder {
-        overflow: hidden !important;
-      }
-      .dashboard-component-chart-holder .dashboard-chart,
-      .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
-        overflow: hidden !important;
-      }
-      .dashboard-component-chart-holder [data-test="chart-container"],
-      .dashboard-component-chart-holder [data-test="slice-container"],
-      .dashboard-component-chart-holder .slice_container,
-      .dashboard-component-chart-holder [data-test="slice-container"] > div {
-        overflow: hidden !important;
-        max-height: 100% !important;
-      }
+  @media (max-width: 900px) {
+    .dashboard-component-chart-holder {
+      overflow: visible !important;
     }
-
-    @media (max-width: 900px) {
-      .dashboard-component-chart-holder {
-        overflow: visible !important;
-      }
-      .dashboard-component-chart-holder .dashboard-chart,
-      .dashboard-component-chart-holder .dashboard-chart.dashboard-chart--overflowable {
-        overflow: visible !important;
-      }
-      .dashboard-component-chart-holder [data-test="chart-container"],
-      .dashboard-component-chart-holder [data-test="slice-container"],
-      .dashboard-component-chart-holder .slice_container {
-        overflow: visible !important;
-        max-height: none !important;
-      }
+    .dashboard-component-chart-holder .dashboard-chart,
+    .dashboard-component-chart-holder
+      .dashboard-chart.dashboard-chart--overflowable {
+      overflow: visible !important;
     }
-
-    /* Chart header menu (⋯) and downloads must stay clickable above the chart */
-    .dashboard-component-chart-holder .slice-header,
-    .dashboard-component-chart-holder .header-title,
-    .dashboard-component-chart-holder .ant-dropdown-trigger,
-    .dashboard-component-chart-holder [data-test="slice-header"] {
-      pointer-events: auto !important;
-      position: relative !important;
-      z-index: 10 !important;
-    }
-
-    /* During image export, unclip chart so canvas pixels copy correctly */
-    .dashboard-component-chart-holder.moh-exporting,
-    .dashboard-component-chart-holder.moh-exporting .dashboard-chart,
-    .dashboard-component-chart-holder.moh-exporting [data-test="chart-container"],
-    .dashboard-component-chart-holder.moh-exporting [data-test="slice-container"],
-    .dashboard-component-chart-holder.moh-exporting .slice_container,
-    .dashboard-component-chart-holder.moh-exporting [data-test="slice-container"] > div {
+    .dashboard-component-chart-holder [data-test="chart-container"],
+    .dashboard-component-chart-holder [data-test="slice-container"],
+    .dashboard-component-chart-holder .slice_container,
+    .dashboard-component-chart-holder [data-test="slice-container"] > div {
       overflow: visible !important;
       max-height: none !important;
     }
-
-    /* Chart ⋯ menu renders in a portal — keep it above clipped chart cards */
-    .ant-dropdown .ant-dropdown-menu,
-    .ant-dropdown-menu-item {
-      pointer-events: auto !important;
+    .dashboard-component-chart-holder [data-test="chart-container"] svg {
+      max-width: 100% !important;
     }
+  }
 
-    /*
+  /* Chart header menu (⋯) and downloads must stay clickable above the chart */
+  .dashboard-component-chart-holder .slice-header,
+  .dashboard-component-chart-holder .header-title,
+  .dashboard-component-chart-holder .ant-dropdown-trigger,
+  .dashboard-component-chart-holder [data-test="slice-header"] {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 10 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder {
+    box-sizing: border-box !important;
+    padding: 20px !important;
+  }
+
+  @media (min-width: 1121px) {
+    body.moh-responsive-dashboard .dashboard-component-chart-holder {
+      padding: 16px !important;
+    }
+  }
+
+  body.moh-responsive-dashboard .dragdroppable-column,
+  body.moh-responsive-dashboard .grid-column,
+  body.moh-responsive-dashboard .resizable-container,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder {
+    z-index: 0;
+  }
+
+  body.moh-responsive-dashboard .dragdroppable:hover,
+  body.moh-responsive-dashboard .dragdroppable:focus-within,
+  body.moh-responsive-dashboard .grid-row:hover,
+  body.moh-responsive-dashboard .grid-row:focus-within,
+  body.moh-responsive-dashboard .grid-column:hover,
+  body.moh-responsive-dashboard .grid-column:focus-within,
+  body.moh-responsive-dashboard .resizable-container:hover,
+  body.moh-responsive-dashboard .resizable-container:focus-within,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-layout--interaction-active {
+    z-index: 30 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder:hover,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder:focus-within,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder--interaction-active {
+    z-index: 31 !important;
+  }
+
+  body.moh-responsive-dashboard
+    .dragdroppable-column.dashboard-component-chart-layout--interaction-active {
+    transform: none !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .chart-tooltip,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    [class*="tooltip"] {
+    z-index: 32 !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .slice-header,
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    [data-test="slice-header"] {
+    height: max-content !important;
+    margin-bottom: 8px !important;
+    min-height: max-content !important;
+    overflow: visible !important;
+  }
+  body.moh-responsive-dashboard
+    .dashboard-component-chart-holder
+    .header-title {
+    display: block !important;
+    max-width: calc(100% - 48px) !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    -webkit-line-clamp: unset !important;
+  }
+
+  body.moh-responsive-dashboard
+    .superset-legacy-chart-big-number
+    .text-container,
+  body.moh-responsive-dashboard .superset-legacy-chart-big-number .header-line {
+    max-width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .superset-legacy-chart-big-number .header-line {
+    font-size: clamp(42px, 3.75vw, 80px) !important;
+    white-space: nowrap !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pivot_table_v_2,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ant-table-wrapper,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .table-condensed,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ag-root-wrapper {
+    max-width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable {
+    display: block !important;
+    table-layout: auto !important;
+    width: 100% !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable th,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable td {
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+  }
+
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pivot_table_v_2,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ant-table-wrapper,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .pvtTable,
+  body.moh-responsive-dashboard .dashboard-component-chart-holder .ag-root-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  body.moh-responsive-dashboard [data-test="filter-bar"].open {
+    max-height: calc(100vh - 80px) !important;
+    overflow: hidden !important;
+  }
+
+  body.moh-responsive-dashboard [data-test="filter-bar"].open > .open {
+    height: auto !important;
+    max-height: inherit !important;
+    overflow: hidden !important;
+  }
+
+  body.moh-responsive-dashboard
+    [data-test="filter-bar"].open
+    > .open
+    > div:nth-child(2) {
+    flex: 0 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  body.moh-responsive-dashboard
+    [data-test="filter-bar"].open
+    > .open
+    > div:nth-child(2)
+    > div {
+    padding-bottom: 16px !important;
+  }
+
+  /* During image export, unclip chart so canvas pixels copy correctly */
+  .dashboard-component-chart-holder.moh-exporting,
+  .dashboard-component-chart-holder.moh-exporting .dashboard-chart,
+  .dashboard-component-chart-holder.moh-exporting [data-test="chart-container"],
+  .dashboard-component-chart-holder.moh-exporting [data-test="slice-container"],
+  .dashboard-component-chart-holder.moh-exporting .slice_container,
+  .dashboard-component-chart-holder.moh-exporting
+    [data-test="slice-container"]
+    > div {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Chart ⋯ menu renders in a portal — keep it above clipped chart cards */
+  .ant-dropdown .ant-dropdown-menu,
+  .ant-dropdown-menu-item {
+    pointer-events: auto !important;
+  }
+
+  /*
       Desktop ≥ 901px — move "Edit dashboard" + "…" into #main-menu
     */
-    @media (min-width: 901px) {
-      .dashboard-header-container {
-        border-bottom: none !important;
-        background: transparent !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-      .dashboard-header-container .header-with-actions {
-        background: transparent !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        border: none !important;
-      }
-      .dashboard-header-container .header-with-actions .title-panel {
-        display: none !important;
-      }
-      #main-menu .ant-col-md-8 > div {
-        flex-wrap: nowrap !important;
-      }
-      #main-menu .moh-nav-dashboard-actions {
-        display: flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-        margin-left: 12px !important;
-        flex-shrink: 0 !important;
-        position: static !important;
-        top: auto !important;
-        right: auto !important;
-        z-index: auto !important;
-      }
-      [data-test="dashboard-header-wrapper"] {
-        padding-top: 0 !important;
-      }
+  @media (min-width: 901px) {
+    .dashboard-header-container {
+      border-bottom: none !important;
+      background: transparent !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .dashboard-header-container .header-with-actions {
+      background: transparent !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: none !important;
+    }
+    .dashboard-header-container .header-with-actions .title-panel {
+      display: none !important;
+    }
+    #main-menu .ant-col-md-8 > div {
+      flex-wrap: nowrap !important;
+    }
+    #main-menu .moh-nav-dashboard-actions {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      margin-left: 12px !important;
+      flex-shrink: 0 !important;
+      position: static !important;
+      top: auto !important;
+      right: auto !important;
+      z-index: auto !important;
+    }
+    [data-test="dashboard-header-wrapper"] {
+      padding-top: 0 !important;
     }
 
-    /* ── Below desktop ≤ 900px — restore actions to dashboard header ── */
-    @media (max-width: 900px) {
-      .dashboard-header-container .header-with-actions {
-        height: auto !important;
-        min-height: auto !important;
-        overflow: visible !important;
-      }
+    body.moh-responsive-dashboard-mobile .dashboard-header-container {
+      height: auto !important;
+      min-height: 0 !important;
+    }
+    body.moh-responsive-dashboard-mobile
+      .dashboard-header-container
+      .header-with-actions {
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+    }
+  }
+
+  /* ── Below desktop ≤ 900px — restore actions to dashboard header ── */
+  @media (max-width: 900px) {
+    .dashboard-header-container .header-with-actions {
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+    }
+  }
+
+  /* ── Tablet + phone ≤ 1024px ── */
+  @media (max-width: 1024px) {
+    .ant-breadcrumb {
+      white-space: normal !important;
+      flex-wrap: wrap !important;
+    }
+    .dashboard-header-container {
+      flex-wrap: wrap !important;
+      height: auto !important;
+      row-gap: 4px !important;
+    }
+    .superset-list-view .header,
+    .superset-list-view .body {
+      flex-wrap: wrap !important;
+    }
+    .dashboard-header-container .header-with-actions .right-button-panel {
+      margin-left: auto !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
     }
 
-    /* ── Tablet + phone ≤ 1024px ── */
-    @media (max-width: 1024px) {
-      .ant-breadcrumb {
-        white-space: normal !important;
-        flex-wrap: wrap !important;
-      }
-      .dashboard-header-container {
-        flex-wrap: wrap !important;
-        height: auto !important;
-        row-gap: 4px !important;
-      }
-      .superset-list-view .header,
-      .superset-list-view .body {
-        flex-wrap: wrap !important;
-      }
-      .dashboard-header-container .header-with-actions .right-button-panel {
-        margin-left: auto !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 4px !important;
-      }
+    [data-test="filter-bar"].moh-filter-horizontal {
+      max-height: 56px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    [data-test="filter-bar"].moh-filter-vertical:not(.open) {
+      width: 32px !important;
+      min-width: 32px !important;
+      max-width: 32px !important;
+    }
+  }
 
-      [data-test="filter-bar"].moh-filter-horizontal {
-        max-height: 56px !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        -webkit-overflow-scrolling: touch !important;
-      }
-      [data-test="filter-bar"].moh-filter-vertical:not(.open) {
-        width: 32px !important;
-        min-width: 32px !important;
-        max-width: 32px !important;
-      }
+  /* ── Mobile/tablet ≤ 1024px — full-width grid + chart layout ── */
+  @media (max-width: 1024px) {
+    html,
+    body,
+    #app {
+      overflow-x: hidden !important;
+      max-width: 100vw !important;
     }
 
-    /* ── Mobile/tablet ≤ 1024px — full-width grid + chart layout ── */
-    @media (max-width: 1024px) {
-      html, body, #app {
-        overflow-x: hidden !important;
-        max-width: 100vw !important;
-      }
-
-      .grid-container {
-        margin: 8px !important;
-        margin-left: 8px !important;
-        width: auto !important;
-        flex: 1 1 100% !important;
-        max-width: 100% !important;
-      }
-
-      .dashboard-grid .grid-row,
-      .dashboard-grid .dragdroppable-row {
-        flex-direction: column !important;
-        flex-wrap: nowrap !important;
-      }
-      .dashboard-grid .grid-row > :not(:last-child):not(.hover-menu) {
-        margin-right: 0 !important;
-        margin-bottom: 12px !important;
-      }
-      .dashboard-grid .grid-column,
-      .dashboard-grid .dragdroppable-column,
-      .dashboard-grid .resizable-container,
-      .dashboard-grid .dashboard-component-chart-holder {
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-      }
-      .dashboard-grid .empty-droptarget {
-        min-width: 0 !important;
-      }
-
-      .dashboard-grid .resizable-container {
-        width: 100% !important;
-      }
-      .dashboard-component-chart-holder [data-test="chart-container"],
-      .dashboard-component-chart-holder [data-test="slice-container"] > div {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-      .dashboard-component-chart-holder .vega-embed {
-        width: 100% !important;
-        max-width: 100% !important;
-      }
-      .dashboard-component-chart-holder .slice-header,
-      .dashboard-component-chart-holder .header-title {
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-      }
-      .dashboard-component-chart-holder .pvtTable {
-        display: block !important;
-        max-width: 100% !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-      }
-
-      .dashboard-header-container,
-      [data-test="dashboard-header-wrapper"] {
-        border-bottom: none !important;
-        box-shadow: none !important;
-      }
-      .dashboard-component-tabs > .ant-tabs-nav {
-        margin-bottom: 0 !important;
-      }
+    .grid-container {
+      margin: 8px !important;
+      margin-left: 8px !important;
+      width: auto !important;
+      flex: 1 1 100% !important;
+      max-width: 100% !important;
     }
 
-    /* ── Phone ≤ 767px — touch targets + modals ── */
-    @media (max-width: 767px) {
-      .ant-btn {
-        min-height: 44px !important;
-        min-width: 44px !important;
-      }
-      .ant-modal {
-        max-width: 100vw !important;
-        margin: 0 !important;
-        top: 0 !important;
-        padding-bottom: 0 !important;
-      }
-      .ant-modal-content {
-        border-radius: 0 !important;
-        min-height: 100vh !important;
-      }
-      .ant-table-wrapper {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-      }
-      .ant-form-item-control {
-        width: 100% !important;
-      }
-      .ant-select, .ant-picker, .ant-input {
-        width: 100% !important;
-      }
-      .ant-list-item {
-        flex-direction: column !important;
-      }
+    .dashboard-grid .grid-row,
+    .dashboard-grid .dragdroppable-row {
+      flex-direction: column !important;
+      flex-wrap: nowrap !important;
+    }
+    .dashboard-grid .grid-row > :not(:last-child):not(.hover-menu) {
+      margin-right: 0 !important;
+      margin-bottom: 12px !important;
+    }
+    .dashboard-grid .grid-column,
+    .dashboard-grid .dragdroppable-column,
+    .dashboard-grid .resizable-container,
+    .dashboard-grid .dashboard-component-chart-holder {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+    }
+    .dashboard-grid .empty-droptarget {
+      min-width: 0 !important;
     }
 
-    /* ── Small phone ≤ 640px ── */
-    @media (max-width: 640px) {
-      .ant-layout-header {
-        padding: 0 12px !important;
-      }
-      .dashboard-header-container {
-        padding: 8px 12px !important;
-      }
-      .dashboard-grid {
-        padding: 4px !important;
-      }
-      .ant-btn {
-        padding: 4px 12px !important;
-      }
+    .dashboard-grid .resizable-container {
+      width: 100% !important;
+    }
+    .dashboard-component-chart-holder [data-test="chart-container"],
+    .dashboard-component-chart-holder [data-test="slice-container"] > div {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .dashboard-component-chart-holder .vega-embed {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .dashboard-component-chart-holder .slice-header,
+    .dashboard-component-chart-holder .header-title {
+      height: max-content !important;
+      min-height: max-content !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+    .dashboard-component-chart-holder .pvtTable {
+      display: block !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
     }
 
-    /* ── Tiny phone ≤ 380px ── */
-    @media (max-width: 380px) {
-      .ant-layout-header {
-        padding: 0 8px !important;
-      }
-      .dashboard-grid {
-        padding: 2px !important;
-      }
-      .dashboard-header-container {
-        padding: 2px 4px !important;
-      }
-      .ant-btn {
-        font-size: 0.82rem !important;
-        padding: 4px 8px !important;
-      }
-      .ant-breadcrumb {
-        font-size: 0.82rem !important;
-      }
-      .ant-modal-body {
-        padding: 12px !important;
-      }
+    .dashboard-header-container,
+    [data-test="dashboard-header-wrapper"] {
+      border-bottom: none !important;
+      box-shadow: none !important;
     }
 
-    /* ── Landscape soft nudge ── */
-    @media screen and (max-width: 1024px) and (orientation: portrait) {
-      #moh-rotate-overlay { display: flex !important; }
+    body.moh-responsive-dashboard-mobile [data-test="dashboard-header-wrapper"] {
+      box-sizing: border-box !important;
+      grid-column: 1 / -1 !important;
+      max-width: 100vw !important;
+      min-width: 0 !important;
+      overflow-x: hidden !important;
+      padding-left: 8px !important;
+      padding-right: 8px !important;
     }
-    @media screen and (min-width: 1025px), screen and (orientation: landscape) {
-      #moh-rotate-overlay { display: none !important; }
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      > [data-test="dragdroppable-object"] {
+      margin-left: 0 !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      width: 100% !important;
     }
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs,
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs
+      > .ant-tabs,
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs
+      .ant-tabs-content-holder,
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs
+      .ant-tabs-content,
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs
+      .ant-tabs-tabpane {
+      box-sizing: border-box !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+    body.moh-responsive-dashboard-mobile
+      [data-test="dashboard-header-wrapper"]
+      .dashboard-component-tabs
+      > .ant-tabs
+      > .ant-tabs-nav {
+      max-width: 100% !important;
+      overflow-x: auto !important;
+    }
+    .dashboard-component-tabs > .ant-tabs-nav {
+      margin-bottom: 0 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile .grid-container,
+    body.moh-responsive-dashboard-mobile .dashboard-grid,
+    body.moh-responsive-dashboard-mobile .grid-content,
+    body.moh-responsive-dashboard-mobile .dragdroppable,
+    body.moh-responsive-dashboard-mobile .dragdroppable-row,
+    body.moh-responsive-dashboard-mobile .dragdroppable-column,
+    body.moh-responsive-dashboard-mobile .grid-row,
+    body.moh-responsive-dashboard-mobile .grid-column,
+    body.moh-responsive-dashboard-mobile .resizable-container,
+    body.moh-responsive-dashboard-mobile .dashboard-component-chart-holder,
+    body.moh-responsive-dashboard-mobile .dashboard-component-tabs,
+    body.moh-responsive-dashboard-mobile .dashboard-component-tabs-content,
+    body.moh-responsive-dashboard-mobile .ant-tabs,
+    body.moh-responsive-dashboard-mobile .ant-tabs-content,
+    body.moh-responsive-dashboard-mobile .ant-tabs-tabpane {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+    }
+
+    body.moh-responsive-dashboard-mobile .dashboard-component-chart-holder,
+    body.moh-responsive-dashboard-mobile .dashboard-chart,
+    body.moh-responsive-dashboard-mobile [data-test="chart-container"],
+    body.moh-responsive-dashboard-mobile [data-test="slice-container"],
+    body.moh-responsive-dashboard-mobile [data-test="slice-container"] > div,
+    body.moh-responsive-dashboard-mobile .slice_container {
+      overflow: visible !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+    }
+
+    body.moh-responsive-dashboard-mobile [data-test="slice-container"] > div {
+      flex-shrink: 1 !important;
+    }
+
+    body.moh-responsive-dashboard-mobile [data-test="chart-container"] svg {
+      max-width: 100% !important;
+    }
+
+    body.moh-responsive-dashboard-mobile .ant-table-wrapper,
+    body.moh-responsive-dashboard-mobile .pvtTable,
+    body.moh-responsive-dashboard-mobile .ag-root-wrapper {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .text-container,
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .header-line {
+      max-width: 100% !important;
+    }
+
+    body.moh-responsive-dashboard-mobile
+      .superset-legacy-chart-big-number
+      .header-line {
+      font-size: clamp(42px, 13vw, 80px) !important;
+      white-space: nowrap !important;
+    }
+  }
+
+  /* ── Phone ≤ 767px — touch targets + modals ── */
+  @media (max-width: 767px) {
+    .ant-btn {
+      min-height: 44px !important;
+      min-width: 44px !important;
+    }
+    .ant-modal {
+      max-width: 100vw !important;
+      margin: 0 !important;
+      top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .ant-modal-content {
+      border-radius: 0 !important;
+      min-height: 100vh !important;
+    }
+    .ant-table-wrapper {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    .ant-form-item-control {
+      width: 100% !important;
+    }
+    .ant-select,
+    .ant-picker,
+    .ant-input {
+      width: 100% !important;
+    }
+    .ant-list-item {
+      flex-direction: column !important;
+    }
+  }
+
+  /* ── Small phone ≤ 640px ── */
+  @media (max-width: 640px) {
+    .ant-layout-header {
+      padding: 0 12px !important;
+    }
+    .dashboard-header-container {
+      padding: 8px 12px !important;
+    }
+    .dashboard-grid {
+      padding: 4px !important;
+    }
+    .ant-btn {
+      padding: 4px 12px !important;
+    }
+  }
+
+  /* ── Tiny phone ≤ 380px ── */
+  @media (max-width: 380px) {
+    .ant-layout-header {
+      padding: 0 8px !important;
+    }
+    .dashboard-grid {
+      padding: 2px !important;
+    }
+    .dashboard-header-container {
+      padding: 2px 4px !important;
+    }
+    .ant-btn {
+      font-size: 0.82rem !important;
+      padding: 4px 8px !important;
+    }
+    .ant-breadcrumb {
+      font-size: 0.82rem !important;
+    }
+    .ant-modal-body {
+      padding: 12px !important;
+    }
+  }
+
+  /* ── Landscape soft nudge ── */
+  @media screen and (max-width: 1024px) and (orientation: portrait) {
     #moh-rotate-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 99999;
-      background: rgba(10, 30, 60, 0.93);
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      padding: 32px 24px;
-      text-align: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex !important;
     }
-    #moh-rotate-overlay.moh-dismissed { display: none !important; }
-    #moh-rotate-icon {
-      width: 64px;
-      height: 64px;
-      animation: moh-spin 1.6s ease-in-out infinite;
+    body.moh-responsive-dashboard-mobile #moh-rotate-overlay {
+      display: none !important;
     }
-    @keyframes moh-spin {
-      0%   { transform: rotate(0deg);   }
-      30%  { transform: rotate(-90deg); }
-      60%  { transform: rotate(-90deg); }
-      85%  { transform: rotate(0deg);   }
-      100% { transform: rotate(0deg);   }
+  }
+  @media screen and (min-width: 1025px), screen and (orientation: landscape) {
+    #moh-rotate-overlay {
+      display: none !important;
     }
-    #moh-rotate-overlay h2 {
-      color: #fff;
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin: 0;
+  }
+  #moh-rotate-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(10, 30, 60, 0.93);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 32px 24px;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  #moh-rotate-overlay.moh-dismissed {
+    display: none !important;
+  }
+  #moh-rotate-icon {
+    width: 64px;
+    height: 64px;
+    animation: moh-spin 1.6s ease-in-out infinite;
+  }
+  @keyframes moh-spin {
+    0% {
+      transform: rotate(0deg);
     }
-    #moh-rotate-overlay p {
-      color: #a8c8f0;
-      font-size: 0.88rem;
-      margin: 0;
-      max-width: 260px;
-      line-height: 1.5;
+    30% {
+      transform: rotate(-90deg);
     }
-    #moh-rotate-dismiss {
-      background: transparent;
-      border: 1px solid rgba(168, 200, 240, 0.4);
-      color: #a8c8f0;
-      font-size: 0.8rem;
-      padding: 8px 20px;
-      border-radius: 20px;
-      cursor: pointer;
+    60% {
+      transform: rotate(-90deg);
     }
-    #moh-rotate-dismiss:active {
-      background: rgba(168, 200, 240, 0.15);
+    85% {
+      transform: rotate(0deg);
     }
-  </style>
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+  #moh-rotate-overlay h2 {
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  #moh-rotate-overlay p {
+    color: #a8c8f0;
+    font-size: 0.88rem;
+    margin: 0;
+    max-width: 260px;
+    line-height: 1.5;
+  }
+  #moh-rotate-dismiss {
+    background: transparent;
+    border: 1px solid rgba(168, 200, 240, 0.4);
+    color: #a8c8f0;
+    font-size: 0.8rem;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+  #moh-rotate-dismiss:active {
+    background: rgba(168, 200, 240, 0.15);
+  }
+</style>
 
-  <script>
+<script>
   (function () {
     var DESKTOP_BP = 901;
     var TABLET_BP = 1024;
@@ -426,29 +711,47 @@
     var POLL_MS = 250;
 
     function isDashboardPage() {
-      return /\/dashboard\//.test(window.location.pathname) ||
-        !!document.querySelector('[data-test="dashboard-header-container"]');
+      return (
+        /\/dashboard\//.test(window.location.pathname) ||
+        !!document.querySelector('[data-test="dashboard-header-container"]')
+      );
     }
 
     function isMobileOrTablet() {
       return window.innerWidth <= TABLET_BP;
     }
 
+    function isResponsiveDashboardPath() {
+      return /\/dashboard\/8(?:\/|$)/.test(window.location.pathname);
+    }
+
+    function isResponsiveMobileDashboard() {
+      return (
+        isMobileOrTablet() &&
+        (document.body.classList.contains("moh-responsive-dashboard-mobile") ||
+          isResponsiveDashboardPath())
+      );
+    }
+
+    function shouldDisableChartZoom() {
+      return isDashboardPage() && !isResponsiveMobileDashboard();
+    }
+
     function getNavTarget() {
-      return document.querySelector('#main-menu .ant-col-md-8 > div');
+      return document.querySelector("#main-menu .ant-col-md-8 > div");
     }
 
     function getHeaderHost() {
       return document.querySelector(
-        '.dashboard-header-container .header-with-actions'
+        ".dashboard-header-container .header-with-actions",
       );
     }
 
     function getActionPanel() {
       return (
-        document.querySelector('#main-menu .moh-nav-dashboard-actions') ||
+        document.querySelector("#main-menu .moh-nav-dashboard-actions") ||
         document.querySelector(
-          '.dashboard-header-container .header-with-actions .right-button-panel'
+          ".dashboard-header-container .header-with-actions .right-button-panel",
         )
       );
     }
@@ -465,29 +768,31 @@
       } else if (host && !host.contains(panel)) {
         host.appendChild(panel);
       }
-      panel.classList.remove('moh-nav-dashboard-actions');
+      panel.classList.remove("moh-nav-dashboard-actions");
     }
 
     function mountToNav(panel) {
       var target = getNavTarget();
       if (!panel || !target) return false;
-      if (panel.classList.contains('moh-nav-dashboard-actions') &&
-          target.contains(panel)) {
+      if (
+        panel.classList.contains("moh-nav-dashboard-actions") &&
+        target.contains(panel)
+      ) {
         navDone = true;
         return true;
       }
 
       var host = getHeaderHost();
       if (host && host.contains(panel) && !placeholders.has(panel)) {
-        var ph = document.createElement('span');
-        ph.className = 'moh-nav-actions-placeholder';
-        ph.setAttribute('aria-hidden', 'true');
-        ph.style.display = 'none';
+        var ph = document.createElement("span");
+        ph.className = "moh-nav-actions-placeholder";
+        ph.setAttribute("aria-hidden", "true");
+        ph.style.display = "none";
         panel.parentNode.insertBefore(ph, panel);
         placeholders.set(panel, ph);
       }
 
-      panel.classList.add('moh-nav-dashboard-actions');
+      panel.classList.add("moh-nav-dashboard-actions");
       target.appendChild(panel);
       navDone = true;
       return true;
@@ -498,7 +803,7 @@
       var panel = getActionPanel();
       if (!panel) return false;
 
-      if (window.innerWidth >= DESKTOP_BP) {
+      if (window.innerWidth >= DESKTOP_BP || isResponsiveMobileDashboard()) {
         return mountToNav(panel);
       }
       restoreToHeader(panel);
@@ -510,15 +815,17 @@
     }
 
     function getFilterBtn() {
-      return document.querySelector('button[data-test="filter-bar__collapse-button"]');
+      return document.querySelector(
+        'button[data-test="filter-bar__collapse-button"]',
+      );
     }
 
     function markFilterBarType() {
       var panel = getFilterPanel();
       var btn = getFilterBtn();
       if (!panel) return;
-      panel.classList.toggle('moh-filter-vertical', !!btn);
-      panel.classList.toggle('moh-filter-horizontal', !btn);
+      panel.classList.toggle("moh-filter-vertical", !!btn);
+      panel.classList.toggle("moh-filter-horizontal", !btn);
     }
 
     function tryFilterCollapse() {
@@ -540,45 +847,53 @@
     }
 
     function initLandscapeOverlay() {
+      if (!isDashboardPage()) return;
       if (window.innerWidth > TABLET_BP) return;
-      if (document.getElementById('moh-rotate-overlay')) return;
+      if (isResponsiveMobileDashboard()) return;
+      if (document.getElementById("moh-rotate-overlay")) return;
 
-      var el = document.createElement('div');
-      el.id = 'moh-rotate-overlay';
+      var el = document.createElement("div");
+      el.id = "moh-rotate-overlay";
       el.innerHTML =
         '<svg id="moh-rotate-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-          '<rect x="14" y="8" width="28" height="48" rx="4" stroke="#64b4ff" stroke-width="2.5" fill="none"/>' +
-          '<rect x="26" y="50" width="4" height="3" rx="1.5" fill="#64b4ff"/>' +
-          '<path d="M46 18 C54 18 58 26 54 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
-          '<path d="M54 34 L50 31 M54 34 L57 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
-          '<path d="M18 46 C10 46 6 38 10 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
-          '<path d="M10 30 L14 33 M10 30 L7 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
-        '</svg>' +
-        '<h2>Rotate for a better view</h2>' +
-        '<p>This dashboard is optimised for landscape mode. Please rotate your device sideways.</p>' +
+        '<rect x="14" y="8" width="28" height="48" rx="4" stroke="#64b4ff" stroke-width="2.5" fill="none"/>' +
+        '<rect x="26" y="50" width="4" height="3" rx="1.5" fill="#64b4ff"/>' +
+        '<path d="M46 18 C54 18 58 26 54 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
+        '<path d="M54 34 L50 31 M54 34 L57 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
+        '<path d="M18 46 C10 46 6 38 10 30" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round" fill="none"/>' +
+        '<path d="M10 30 L14 33 M10 30 L7 34" stroke="#a8c8f0" stroke-width="2" stroke-linecap="round"/>' +
+        "</svg>" +
+        "<h2>Rotate for a better view</h2>" +
+        "<p>This dashboard is optimised for landscape mode. Please rotate your device sideways.</p>" +
         '<button id="moh-rotate-dismiss" type="button">Continue in portrait</button>';
 
       (document.body || document.documentElement).insertBefore(
         el,
-        (document.body || document.documentElement).firstChild
+        (document.body || document.documentElement).firstChild,
       );
 
-      document.getElementById('moh-rotate-dismiss').addEventListener('click', function () {
-        el.classList.add('moh-dismissed');
-        try { sessionStorage.setItem('moh-rotate-dismissed', '1'); } catch (e) {}
-      });
+      document
+        .getElementById("moh-rotate-dismiss")
+        .addEventListener("click", function () {
+          el.classList.add("moh-dismissed");
+          try {
+            sessionStorage.setItem("moh-rotate-dismissed", "1");
+          } catch (e) {}
+        });
 
       try {
-        if (sessionStorage.getItem('moh-rotate-dismissed') === '1') {
-          el.classList.add('moh-dismissed');
+        if (sessionStorage.getItem("moh-rotate-dismissed") === "1") {
+          el.classList.add("moh-dismissed");
         }
       } catch (e) {}
 
-      window.addEventListener('orientationchange', function () {
+      window.addEventListener("orientationchange", function () {
         setTimeout(function () {
           if (window.innerHeight > window.innerWidth) {
-            el.classList.remove('moh-dismissed');
-            try { sessionStorage.removeItem('moh-rotate-dismissed'); } catch (e) {}
+            el.classList.remove("moh-dismissed");
+            try {
+              sessionStorage.removeItem("moh-rotate-dismissed");
+            } catch (e) {}
           }
         }, 400);
       });
@@ -589,42 +904,122 @@
     var cachedEcharts = null;
 
     function clearMohInlineChartStyles() {
-      document.querySelectorAll(
-        '[data-test="chart-container"], [data-test="slice-container"], ' +
-          '[data-test="slice-container"] > div'
-      ).forEach(function (el) {
-        el.style.height = '';
-        el.style.minHeight = '';
-        el.style.width = '';
-        el.style.maxHeight = '';
-        el.style.overflow = '';
-        el.style.overflowX = '';
-        el.style.overflowY = '';
-        el.style.display = '';
-        el.style.visibility = '';
-        el.style.opacity = '';
-      });
+      document
+        .querySelectorAll(
+          '[data-test="chart-container"], [data-test="slice-container"], ' +
+            '[data-test="slice-container"] > div',
+        )
+        .forEach(function (el) {
+          el.style.height = "";
+          el.style.minHeight = "";
+          el.style.width = "";
+          el.style.maxHeight = "";
+          el.style.overflow = "";
+          el.style.overflowX = "";
+          el.style.overflowY = "";
+          el.style.display = "";
+          el.style.visibility = "";
+          el.style.opacity = "";
+        });
     }
 
     function prepareCharts() {
       if (!isDashboardPage()) return;
-      document.querySelectorAll(
-        '[data-test="dashboard-component-chart-holder"]'
-      ).forEach(function (holder) {
-        var chartWrap = holder.querySelector('.dashboard-chart');
-        if (!chartWrap) return;
-        if (window.innerWidth <= 900) {
-          chartWrap.classList.add('dashboard-chart--overflowable');
-        } else {
-          chartWrap.classList.remove('dashboard-chart--overflowable');
-        }
-      });
+      document
+        .querySelectorAll('[data-test="dashboard-component-chart-holder"]')
+        .forEach(function (holder) {
+          var chartWrap = holder.querySelector(".dashboard-chart");
+          if (!chartWrap) return;
+          if (isResponsiveMobileDashboard()) {
+            chartWrap.classList.remove("dashboard-chart--overflowable");
+          } else if (window.innerWidth <= 900) {
+            chartWrap.classList.add("dashboard-chart--overflowable");
+          } else {
+            chartWrap.classList.remove("dashboard-chart--overflowable");
+          }
+        });
+      fitResponsiveSvgCharts();
+    }
+
+    function fitResponsiveSvgCharts() {
+      if (
+        !isDashboardPage() ||
+        !document.body.classList.contains("moh-responsive-dashboard")
+      ) {
+        return;
+      }
+      document
+        .querySelectorAll('[data-test="chart-container"] > svg')
+        .forEach(function (svg) {
+          var chartContainer = svg.closest('[data-test="chart-container"]');
+          var chartContainerWidth = chartContainer
+            ? chartContainer.clientWidth
+            : 0;
+          var svgWidth = parseFloat(svg.getAttribute("width") || "");
+          var svgHeight = parseFloat(svg.getAttribute("height") || "");
+
+          if (
+            !chartContainerWidth ||
+            !Number.isFinite(svgWidth) ||
+            !Number.isFinite(svgHeight) ||
+            svgWidth <= 0 ||
+            svgHeight <= 0 ||
+            svgWidth <= chartContainerWidth + 1
+          ) {
+            return;
+          }
+
+          if (!svg.hasAttribute("viewBox")) {
+            svg.setAttribute("viewBox", "0 0 " + svgWidth + " " + svgHeight);
+          }
+          svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+          svg.style.display = "block";
+          svg.style.height = "auto";
+          svg.style.maxWidth = "100%";
+          svg.style.overflow = "visible";
+          svg.style.width = "100%";
+        });
+    }
+
+    function fitResponsiveBigNumbers() {
+      if (
+        !isDashboardPage() ||
+        !document.body.classList.contains("moh-responsive-dashboard")
+      ) {
+        return;
+      }
+      document
+        .querySelectorAll(".superset-legacy-chart-big-number .header-line")
+        .forEach(function (header) {
+          var root = header.closest(".superset-legacy-chart-big-number");
+          if (!root) return;
+
+          header.style.fontSize = "";
+          var availableWidth = root.clientWidth * 0.92;
+          var currentFontSize = parseFloat(
+            window.getComputedStyle(header).fontSize,
+          );
+          if (!availableWidth || !currentFontSize) return;
+
+          var textWidth = header.scrollWidth;
+          if (textWidth <= availableWidth) return;
+
+          var nextFontSize = Math.max(
+            42,
+            Math.floor((currentFontSize * availableWidth) / textWidth),
+          );
+          header.style.setProperty(
+            "font-size",
+            nextFontSize + "px",
+            "important",
+          );
+        });
     }
 
     function exportsHasEcharts(exp) {
       if (!exp) return null;
-      if (typeof exp.getInstanceByDom === 'function') return exp;
-      if (exp.default && typeof exp.default.getInstanceByDom === 'function') {
+      if (typeof exp.getInstanceByDom === "function") return exp;
+      if (exp.default && typeof exp.default.getInstanceByDom === "function") {
         return exp.default;
       }
       return null;
@@ -650,7 +1045,9 @@
     }
 
     function getEchartsGlobal() {
-      return window.echarts || window.__echarts || findEchartsFromWebpack() || null;
+      return (
+        window.echarts || window.__echarts || findEchartsFromWebpack() || null
+      );
     }
 
     function chartHasSeries(inst) {
@@ -664,7 +1061,7 @@
     }
 
     function stripZoomFromOption(option) {
-      if (!option || typeof option !== 'object') return option;
+      if (!option || typeof option !== "object") return option;
       var o = option;
       var needsCopy = false;
 
@@ -686,7 +1083,7 @@
       try {
         origSetOption(
           { dataZoom: [], toolbox: { show: false } },
-          { replaceMerge: ['dataZoom', 'toolbox'] }
+          { replaceMerge: ["dataZoom", "toolbox"] },
         );
       } catch (e) {}
     }
@@ -711,7 +1108,7 @@
       inst.dispatchAction = function (payload, opts) {
         if (
           payload &&
-          (payload.type === 'dataZoom' || payload.type === 'dataZoomSelect')
+          (payload.type === "dataZoom" || payload.type === "dataZoomSelect")
         ) {
           return;
         }
@@ -720,14 +1117,14 @@
 
       if (!inst.__mohZoomListener) {
         inst.__mohZoomListener = true;
-        inst.on('datazoom', function () {
+        inst.on("datazoom", function () {
           if (chartHasSeries(inst)) {
             mohClearChartZoom(inst, origSetOption);
           }
         });
       }
 
-      if (!inst.__mohResizePatched && typeof inst.resize === 'function') {
+      if (!inst.__mohResizePatched && typeof inst.resize === "function") {
         inst.__mohResizePatched = true;
         var origResize = inst.resize.bind(inst);
         inst.resize = function (opts) {
@@ -746,7 +1143,7 @@
 
     function patchEchartsGlobal(echarts) {
       if (!echarts || echarts.__mohGlobalPatched) return;
-      if (typeof echarts.init !== 'function') return;
+      if (typeof echarts.init !== "function") return;
       echarts.__mohGlobalPatched = true;
 
       var origInit = echarts.init.bind(echarts);
@@ -758,27 +1155,27 @@
     }
 
     function disableChartZoom() {
-      if (!isDashboardPage()) return;
+      if (!shouldDisableChartZoom()) return;
       var echarts = getEchartsGlobal();
-      if (!echarts || typeof echarts.getInstanceByDom !== 'function') return;
+      if (!echarts || typeof echarts.getInstanceByDom !== "function") return;
 
       patchEchartsGlobal(echarts);
 
-      document.querySelectorAll(
-        '[data-test="slice-container"] > div'
-      ).forEach(function (dom) {
-        if (!dom.getAttribute('_echarts_instance_')) return;
-        var inst = echarts.getInstanceByDom(dom);
-        if (inst) patchEchartsInstance(inst);
-      });
+      document
+        .querySelectorAll('[data-test="slice-container"] > div')
+        .forEach(function (dom) {
+          if (!dom.getAttribute("_echarts_instance_")) return;
+          var inst = echarts.getInstanceByDom(dom);
+          if (inst) patchEchartsInstance(inst);
+        });
     }
 
     function isChartPanSurface(target) {
       if (!target || !target.closest) return false;
       return (
-        !!target.closest('.dashboard-component-chart-holder canvas') ||
+        !!target.closest(".dashboard-component-chart-holder canvas") ||
         !!target.closest(
-          '.dashboard-component-chart-holder [data-test="slice-container"] > div'
+          '.dashboard-component-chart-holder [data-test="slice-container"] > div',
         )
       );
     }
@@ -788,12 +1185,12 @@
     function rememberActiveChartHolder(e) {
       if (!isDashboardPage()) return;
       var holder = e.target.closest(
-        '[data-test="dashboard-component-chart-holder"]'
+        '[data-test="dashboard-component-chart-holder"]',
       );
       if (
         holder &&
-        (e.target.closest('.ant-dropdown-trigger') ||
-          e.target.closest('.header-controls'))
+        (e.target.closest(".ant-dropdown-trigger") ||
+          e.target.closest(".header-controls"))
       ) {
         mohActiveChartHolder = holder;
       }
@@ -801,21 +1198,24 @@
 
     function getChartHolderFromEvent(e) {
       var direct = e.target.closest(
-        '[data-test="dashboard-component-chart-holder"]'
+        '[data-test="dashboard-component-chart-holder"]',
       );
       if (direct) return direct;
 
-      if (mohActiveChartHolder && document.body.contains(mohActiveChartHolder)) {
+      if (
+        mohActiveChartHolder &&
+        document.body.contains(mohActiveChartHolder)
+      ) {
         return mohActiveChartHolder;
       }
 
-      if (e.target.closest('.ant-dropdown-menu-item')) {
+      if (e.target.closest(".ant-dropdown-menu-item")) {
         var holders = document.querySelectorAll(
-          '[data-test="dashboard-component-chart-holder"]'
+          '[data-test="dashboard-component-chart-holder"]',
         );
         for (var i = 0; i < holders.length; i += 1) {
           var trigger = holders[i].querySelector(
-            '.ant-dropdown-trigger[aria-expanded="true"]'
+            '.ant-dropdown-trigger[aria-expanded="true"]',
           );
           if (trigger) return holders[i];
         }
@@ -826,41 +1226,42 @@
 
     function getSliceName(holder) {
       var title = holder.querySelector(
-        '.slice-header .header-title, .header-title, [data-test="slice-header"]'
+        '.slice-header .header-title, .header-title, [data-test="slice-header"]',
       );
-      return title ? title.textContent.trim() : 'chart';
+      return title ? title.textContent.trim() : "chart";
     }
 
     function isDownloadImageMenuItem(target) {
-      var item = target.closest('.ant-dropdown-menu-item');
+      var item = target.closest(".ant-dropdown-menu-item");
       if (!item) return false;
-      var text = (item.textContent || '').trim().toLowerCase();
+      var text = (item.textContent || "").trim().toLowerCase();
       return (
-        text.indexOf('download') >= 0 &&
-        (text.indexOf('image') >= 0 || text.indexOf('jpeg') >= 0)
+        text.indexOf("download") >= 0 &&
+        (text.indexOf("image") >= 0 || text.indexOf("jpeg") >= 0)
       );
     }
 
     function beginChartExport(holder) {
       if (!holder) return;
-      holder.classList.add('moh-exporting');
+      holder.classList.add("moh-exporting");
       refreshChartsForExport(holder);
     }
 
     function endChartExport(holder) {
       if (!holder) return;
-      holder.classList.remove('moh-exporting');
+      holder.classList.remove("moh-exporting");
     }
 
     function refreshChartsForExport(holder) {
       var echarts = getEchartsGlobal();
       if (!echarts) return;
       var scope = holder || document;
-      scope.querySelectorAll('[data-test="slice-container"] > div').forEach(
-        function (dom) {
-          if (!dom.getAttribute('_echarts_instance_')) return;
+      scope
+        .querySelectorAll('[data-test="slice-container"] > div')
+        .forEach(function (dom) {
+          if (!dom.getAttribute("_echarts_instance_")) return;
           var inst = echarts.getInstanceByDom(dom);
-          if (inst && typeof inst.resize === 'function') {
+          if (inst && typeof inst.resize === "function") {
             try {
               inst.__mohExporting = true;
               inst.resize();
@@ -869,8 +1270,7 @@
               inst.__mohExporting = false;
             }
           }
-        }
-      );
+        });
     }
 
     function downloadChartViaEcharts(holder) {
@@ -884,23 +1284,23 @@
       if (!inst || !chartHasSeries(inst)) return false;
 
       try {
-        if (typeof inst.resize === 'function') {
+        if (typeof inst.resize === "function") {
           inst.__mohExporting = true;
           inst.resize();
         }
         var url = inst.getDataURL({
-          type: 'jpeg',
+          type: "jpeg",
           pixelRatio: 2,
-          backgroundColor: '#ffffff',
+          backgroundColor: "#ffffff",
         });
-        if (!url || url.indexOf('data:image') !== 0) return false;
+        if (!url || url.indexOf("data:image") !== 0) return false;
 
         var stem = getSliceName(holder)
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '');
-        var link = document.createElement('a');
-        link.download = (stem || 'chart') + '.jpg';
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        var link = document.createElement("a");
+        link.download = (stem || "chart") + ".jpg";
         link.href = url;
         link.click();
         return true;
@@ -912,20 +1312,20 @@
     }
 
     function initDownloadHelper() {
-      document.addEventListener('mousedown', rememberActiveChartHolder, true);
-      document.addEventListener('click', rememberActiveChartHolder, true);
+      document.addEventListener("mousedown", rememberActiveChartHolder, true);
+      document.addEventListener("click", rememberActiveChartHolder, true);
 
       document.addEventListener(
-        'mousedown',
+        "mousedown",
         function (e) {
           if (!isDashboardPage() || !isDownloadImageMenuItem(e.target)) return;
           beginChartExport(getChartHolderFromEvent(e));
         },
-        true
+        true,
       );
 
       document.addEventListener(
-        'click',
+        "click",
         function (e) {
           if (!isDashboardPage() || !isDownloadImageMenuItem(e.target)) return;
 
@@ -949,14 +1349,15 @@
             endChartExport(holder);
           }, 3000);
         },
-        true
+        true,
       );
     }
 
     function startZoomGuard() {
+      if (isResponsiveMobileDashboard()) return;
       if (zoomGuardTimer) return;
       zoomGuardTimer = setInterval(function () {
-        if (!isDashboardPage()) return;
+        if (!shouldDisableChartZoom()) return;
         disableChartZoom();
       }, 800);
     }
@@ -965,12 +1366,16 @@
       if (chartWatchDone || !isDashboardPage()) return;
       chartWatchDone = true;
 
-      var grid = document.querySelector('.dashboard-grid');
-      if (grid && typeof MutationObserver === 'function') {
+      var grid = document.querySelector(".dashboard-grid");
+      if (grid && typeof MutationObserver === "function") {
         var moTimer = null;
         var mo = new MutationObserver(function () {
           clearTimeout(moTimer);
-          moTimer = setTimeout(disableChartZoom, 300);
+          moTimer = setTimeout(function () {
+            prepareCharts();
+            fitResponsiveBigNumbers();
+            disableChartZoom();
+          }, 300);
         });
         mo.observe(grid, { childList: true, subtree: true });
       }
@@ -978,6 +1383,7 @@
 
     function onChartsReady() {
       prepareCharts();
+      fitResponsiveBigNumbers();
       disableChartZoom();
       initChartWatch();
       startZoomGuard();
@@ -991,19 +1397,20 @@
 
       /* Block wheel pan/zoom while the pointer is over a chart card */
       document.addEventListener(
-        'wheel',
+        "wheel",
         function (e) {
           if (!isDashboardPage()) return;
+          if (!shouldDisableChartZoom()) return;
           if (
             e.target.closest(
-              '.dashboard-component-chart-holder [data-test="chart-container"]'
+              '.dashboard-component-chart-holder [data-test="chart-container"]',
             )
           ) {
             e.preventDefault();
             e.stopImmediatePropagation();
           }
         },
-        blockOpts
+        blockOpts,
       );
 
       /*
@@ -1011,36 +1418,39 @@
         touchmove even when touch-action:none is set on the canvas.
       */
       document.addEventListener(
-        'touchmove',
+        "touchmove",
         function (e) {
           if (!isDashboardPage()) return;
+          if (!shouldDisableChartZoom()) return;
           if (!isChartPanSurface(e.target)) return;
           e.preventDefault();
           e.stopImmediatePropagation();
         },
-        blockOpts
+        blockOpts,
       );
 
       /* Pinch zoom on chart canvas */
       document.addEventListener(
-        'gesturestart',
+        "gesturestart",
         function (e) {
           if (!isDashboardPage()) return;
+          if (!shouldDisableChartZoom()) return;
           if (isChartPanSurface(e.target)) {
             e.preventDefault();
           }
         },
-        blockOpts
+        blockOpts,
       );
       document.addEventListener(
-        'gesturechange',
+        "gesturechange",
         function (e) {
           if (!isDashboardPage()) return;
+          if (!shouldDisableChartZoom()) return;
           if (isChartPanSurface(e.target)) {
             e.preventDefault();
           }
         },
-        blockOpts
+        blockOpts,
       );
     }
 
@@ -1056,10 +1466,14 @@
       if (isMobileOrTablet() && !filterDone) tryFilterCollapse();
       if (pollCount % 3 === 0) {
         prepareCharts();
+        fitResponsiveBigNumbers();
         disableChartZoom();
       }
 
-      if (pollCount >= MAX_POLLS || (navDone && (!isMobileOrTablet() || filterDone))) {
+      if (
+        pollCount >= MAX_POLLS ||
+        (navDone && (!isMobileOrTablet() || filterDone))
+      ) {
         clearInterval(pollTimer);
         if (isDashboardPage()) onChartsReady();
       }
@@ -1075,6 +1489,7 @@
         }
         if (isDashboardPage()) {
           prepareCharts();
+          fitResponsiveBigNumbers();
           disableChartZoom();
         }
       }, 300);
@@ -1087,6 +1502,7 @@
       setTimeout(function () {
         syncNavActions();
         tryFilterCollapse();
+        fitResponsiveBigNumbers();
         disableChartZoom();
       }, 300);
     }
@@ -1098,27 +1514,27 @@
     initDownloadHelper();
     onChartsReady();
 
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    document.addEventListener("visibilitychange", onVisibility);
 
     document.addEventListener(
-      'click',
+      "click",
       function (e) {
         if (
           isDashboardPage() &&
-          e.target.closest('.dashboard-component-tabs .ant-tabs-tab')
+          e.target.closest(".dashboard-component-tabs .ant-tabs-tab")
         ) {
           setTimeout(onChartsReady, 700);
         }
       },
-      true
+      true,
     );
 
-    if (typeof requestIdleCallback === 'function') {
+    if (typeof requestIdleCallback === "function") {
       requestIdleCallback(initLandscapeOverlay, { timeout: 2000 });
     } else {
       setTimeout(initLandscapeOverlay, 500);
     }
   })();
-  </script>
+</script>

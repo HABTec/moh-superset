@@ -52,39 +52,41 @@ enum SectionType {
   CrossFilters = 'crossFilters',
 }
 
-const BarWrapper = styled.div<{ width: number }>`
-  /* Mobile responsiveness: adjust width based on screen size */
-  @media (max-width: 575px) {
-    width: ${({ theme }) => theme.sizeUnit * 8}px;
-    
-    &.open {
-      width: 100%; /* Full width on mobile */
-    }
-  }
-  
-  @media (min-width: 576px) and (max-width: 768px) {
-    width: ${({ theme }) => theme.sizeUnit * 8}px;
-    
-    &.open {
-      width: 150px; /* Compact on tablet */
-    }
-  }
-  
-  @media (min-width: 769px) {
-    width: ${({ theme }) => theme.sizeUnit * 8}px;
+const cssLength = (value: number | string) =>
+  typeof value === 'number' ? `${value}px` : value;
 
-    &.open {
-      width: ${({ width }) => width}px; /* Full width on desktop */
-    }
-  }
+const BarWrapper = styled.div<{ height: number | string; width: number }>`
+  height: ${({ height }) => cssLength(height)};
+  max-height: ${({ height }) => cssLength(height)};
+  overflow: hidden;
+  position: relative;
+  width: ${({ theme }) => theme.sizeUnit * 8}px;
 
   & .ant-tabs-top > .ant-tabs-nav {
     margin: 0;
   }
+
+  @media (max-width: 575px) {
+    &.open {
+      width: 100%;
+    }
+  }
+
+  @media (min-width: 576px) and (max-width: 768px) {
+    &.open {
+      width: 150px;
+    }
+  }
+
+  @media (min-width: 769px) {
+    &.open {
+      width: ${({ width }) => width}px;
+    }
+  }
 `;
 
-const Bar = styled.div<{ width: number }>`
-  ${({ theme, width }) => `
+const Bar = styled.div<{ height: number | string; width: number }>`
+  ${({ theme, height, width }) => `
     & .ant-typography-edit-content {
       left: 0;
       margin-top: 0;
@@ -95,13 +97,15 @@ const Bar = styled.div<{ width: number }>`
     left: 0;
     flex-direction: column;
     flex-grow: 1;
+    max-height: ${cssLength(height)};
+    width: ${width}px;
     background: ${theme.colorBgContainer};
     border-right: 1px solid ${theme.colorSplit};
     border-bottom: 1px solid ${theme.colorSplit};
-    min-height: 100%;
+    min-height: 0;
+    overflow: hidden;
     display: none;
-    
-    /* Mobile: full width */
+
     @media (max-width: 575px) {
       width: 100%;
       &.open {
@@ -117,16 +121,14 @@ const Bar = styled.div<{ width: number }>`
         border-bottom: 1px solid ${theme.colorSplit};
       }
     }
-    
-    /* Tablet: compact width */
+
     @media (min-width: 576px) and (max-width: 768px) {
       width: 150px;
       &.open {
         display: flex;
       }
     }
-    
-    /* Desktop: full configured width */
+
     @media (min-width: 769px) {
       width: ${width}px;
       &.open {
@@ -183,24 +185,23 @@ const FilterControlsWrapper = styled.div`
     display: flex;
     flex-direction: column;
     gap: ${theme.sizeUnit * 2}px;
-    
-    /* Mobile: reduced padding */
+
     @media (max-width: 575px) {
       padding: ${theme.sizeUnit * 2}px;
-      padding-bottom: ${theme.sizeUnit * 12}px;
+      padding-top: 0;
+      padding-bottom: ${theme.sizeUnit * 4}px;
     }
-    
-    /* Tablet: medium padding */
+
     @media (min-width: 576px) and (max-width: 768px) {
       padding: ${theme.sizeUnit * 2.5}px;
-      padding-bottom: ${theme.sizeUnit * 20}px;
+      padding-top: 0;
+      padding-bottom: ${theme.sizeUnit * 4}px;
     }
-    
-    /* Desktop: full padding */
+
     @media (min-width: 769px) {
       padding: ${theme.sizeUnit * 4}px;
       padding-top: 0;
-      padding-bottom: ${theme.sizeUnit * 27}px;
+      padding-bottom: ${theme.sizeUnit * 4}px;
     }
   `}
 `;
@@ -252,8 +253,13 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
   }, [onScroll]);
 
   const tabPaneStyle = useMemo(
-    () => ({ overflow: 'auto', height, overscrollBehavior: 'contain' }),
-    [height],
+    () => ({
+      flex: '0 1 auto',
+      minHeight: 0,
+      overflow: 'auto',
+      overscrollBehavior: 'contain',
+    }),
+    [],
   );
 
   const dataMask = useSelector<RootState, DataMaskStateWithId>(
@@ -340,6 +346,7 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
       <BarWrapper
         {...getFilterBarTestId()}
         className={cx({ open: filtersOpen })}
+        height={height}
         width={width}
       >
         <CollapsedBar
@@ -365,7 +372,11 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
             iconSize="l"
           />
         </CollapsedBar>
-        <Bar className={cx({ open: filtersOpen })} width={width}>
+        <Bar
+          className={cx({ open: filtersOpen })}
+          height={height}
+          width={width}
+        >
           <Header toggleFiltersBar={toggleFiltersBar} />
           {!isInitialized ? (
             <div

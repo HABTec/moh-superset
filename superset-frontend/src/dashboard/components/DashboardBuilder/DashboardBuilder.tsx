@@ -37,6 +37,7 @@ import { URL_PARAMS } from 'src/constants';
 import { getUrlParam } from 'src/utils/urlUtils';
 import {
   DashboardLayout,
+  DashboardInfo,
   FilterBarOrientation,
   RootState,
 } from 'src/dashboard/types';
@@ -61,13 +62,25 @@ import { useUiConfig } from 'src/components/UiConfigContext';
 import ResizableSidebar from 'src/components/ResizableSidebar';
 import {
   BUILDER_SIDEPANEL_WIDTH,
+  CLOSED_FILTER_BAR_SHELL_WIDTH,
   CLOSED_FILTER_BAR_WIDTH,
+  FILTER_BAR_SHELL_PADDING,
+  FILTER_BAR_SHELL_WIDTH_OFFSET,
   FILTER_BAR_HEADER_HEIGHT,
   MAIN_HEADER_HEIGHT,
-  OPEN_FILTER_BAR_MAX_WIDTH,
-  OPEN_FILTER_BAR_WIDTH,
+  OPEN_FILTER_BAR_SHELL_MAX_WIDTH,
+  OPEN_FILTER_BAR_SHELL_WIDTH,
   EMPTY_CONTAINER_Z_INDEX,
 } from 'src/dashboard/constants';
+import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  RESPONSIVE_DASHBOARD_BODY_CLASS,
+  RESPONSIVE_DASHBOARD_CLASS,
+  RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
+  RESPONSIVE_DASHBOARD_MOBILE_CLASS,
+  isResponsiveDashboardEnabled,
+  isResponsiveDashboardMobileViewport,
+} from 'src/dashboard/util/responsiveDashboard';
 import { getRootLevelTabsComponent, shouldFocusTabs } from './utils';
 import DashboardContainer from './DashboardContainer';
 import { useNativeFilters } from './state';
@@ -75,9 +88,12 @@ import DashboardWrapper from './DashboardWrapper';
 
 // @z-index-above-dashboard-charts + 1 = 11
 const FiltersPanel = styled.div<{ width: number; hidden: boolean }>`
-  background-color: ${({ theme }) => theme.colorBgContainer};
+  background-color: #e8f2fb;
+  border-right: 2px solid #2893b3;
+  box-sizing: border-box;
   grid-column: 1;
   grid-row: 1 / span 2;
+  padding: ${FILTER_BAR_SHELL_PADDING}px;
   z-index: 11;
   width: ${({ width }) => width}px;
   ${({ hidden }) => hidden && `display: none;`}
@@ -92,13 +108,27 @@ const StickyPanel = styled.div<{ width: number }>`
 
 // @z-index-above-dashboard-popovers (99) + 1 = 100
 const StyledHeader = styled.div<{ filterBarWidth: number }>`
-  ${({ theme, filterBarWidth }) => css`
+  ${({ theme, filterBarWidth }) => {
+    const hasVerticalFilterBar = filterBarWidth > 0;
+    const compactGridColumn = hasVerticalFilterBar ? '2' : '1 / -1';
+    const compactHeaderWidth = `calc(100vw - ${filterBarWidth}px)`;
+    const headerInsetWidth = hasVerticalFilterBar
+      ? '100%'
+      : `calc(100vw - ${theme.sizeUnit * 4}px)`;
+    const headerInsetMarginLeft = hasVerticalFilterBar
+      ? '0'
+      : `${theme.sizeUnit * 2}px`;
+
+    return css`
     grid-column: 2;
     grid-row: 1;
     position: sticky;
     top: 0;
     z-index: 99;
+    box-sizing: border-box;
     max-width: calc(100vw - ${filterBarWidth}px);
+    min-width: 0;
+    width: calc(100vw - ${filterBarWidth}px);
 
     .empty-droptarget {
       min-height: ${theme.sizeUnit * 4}px;
@@ -116,16 +146,120 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
       border-radius: ${theme.borderRadius}px;
       opacity: 0.5;
     }
-  `}
+
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object'] {
+      margin-left: ${headerInsetMarginLeft} !important;
+      max-width: ${headerInsetWidth} !important;
+      min-width: 0 !important;
+      width: ${headerInsetWidth} !important;
+    }
+
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      > .ant-tabs,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-content-holder,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-content,
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
+      &
+      > [data-test='dragdroppable-object']
+      .dashboard-component-tabs
+      .ant-tabs-tabpane {
+      box-sizing: border-box;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
+        box-sizing: border-box;
+        grid-column: ${compactGridColumn};
+        max-width: ${compactHeaderWidth};
+        min-width: 0;
+        overflow-x: hidden;
+        padding-inline: ${hasVerticalFilterBar
+          ? 0
+          : `${theme.sizeUnit * 2}px`};
+        width: ${compactHeaderWidth};
+
+        & > [data-test='dragdroppable-object'] {
+          margin-left: 0 !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-tabs,
+        .dashboard-component-tabs > .ant-tabs,
+        .dashboard-component-tabs .ant-tabs-content-holder,
+        .dashboard-component-tabs .ant-tabs-content,
+        .dashboard-component-tabs .ant-tabs-tabpane {
+          box-sizing: border-box;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-tabs > .ant-tabs > .ant-tabs-nav {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+      }
+    }
+  `;
+  }}
 `;
 
 const StyledContent = styled.div<{
   fullSizeChartId: number | null;
+  filterBarWidth: number;
 }>`
+  ${({ filterBarWidth }) => css`
   grid-column: 2;
   grid-row: 2;
+  box-sizing: border-box;
+  max-width: calc(100vw - ${filterBarWidth}px);
+  min-width: 0;
+  width: calc(100vw - ${filterBarWidth}px);
   // @z-index-above-dashboard-header (100) + 1 = 101
+  `}
+
   ${({ fullSizeChartId }) => fullSizeChartId && `z-index: 101;`}
+
+  @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+    body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
+      grid-column: ${({ filterBarWidth }) =>
+        filterBarWidth > 0 ? '2' : '1 / -1'};
+      max-width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
+      min-width: 0;
+      overflow-x: hidden;
+      width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
+    }
+  }
+
+  body.${RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS} & {
+    grid-column: 1 / -1;
+    max-width: 100vw;
+    min-width: 0;
+    overflow-x: hidden;
+    width: 100vw;
+  }
 `;
 
 const DashboardContentWrapper = styled.div`
@@ -157,6 +291,14 @@ const DashboardContentWrapper = styled.div`
         background-color: ${theme.colorBgContainer};
       }
     }
+
+    &.${RESPONSIVE_DASHBOARD_MOBILE_CLASS} {
+      max-width: 100vw;
+      min-width: 0;
+      overflow-x: hidden;
+      width: 100vw;
+    }
+
     &.dashboard--editing {
       .grid-row:after,
       .dashboard-component-tabs > .hover-menu:hover + div:after {
@@ -313,6 +455,286 @@ const StyledDashboardContent = styled.div<{
       z-index: 1;
     }
 
+    .${RESPONSIVE_DASHBOARD_CLASS} & {
+      .dragdroppable-column,
+      .grid-column,
+      .resizable-container,
+      .dashboard-component-chart-holder {
+        z-index: 0;
+      }
+
+      .dragdroppable:hover,
+      .dragdroppable:focus-within,
+      .grid-row:hover,
+      .grid-row:focus-within,
+      .grid-column:hover,
+      .grid-column:focus-within,
+      .resizable-container:hover,
+      .resizable-container:focus-within,
+      .dashboard-component-chart-layout--interaction-active {
+        z-index: 30;
+      }
+
+      .dashboard-component-chart-holder:hover,
+      .dashboard-component-chart-holder:focus-within,
+      .dashboard-component-chart-holder--interaction-active {
+        z-index: 31;
+      }
+
+      .dragdroppable-column.dashboard-component-chart-layout--interaction-active {
+        transform: none !important;
+      }
+
+      .dashboard-component-chart-holder .chart-tooltip,
+      .dashboard-component-chart-holder [class*='tooltip'] {
+        z-index: 32 !important;
+      }
+
+      .superset-legacy-chart-big-number .text-container,
+      .superset-legacy-chart-big-number .header-line {
+        max-width: 100% !important;
+      }
+
+      .superset-legacy-chart-big-number .header-line {
+        font-size: clamp(42px, 3.75vw, 80px) !important;
+        white-space: nowrap !important;
+      }
+
+      .dashboard-component-chart-holder .pivot_table_v_2,
+      .dashboard-component-chart-holder .ant-table-wrapper,
+      .dashboard-component-chart-holder .table-condensed,
+      .dashboard-component-chart-holder .pvtTable,
+      .dashboard-component-chart-holder .ag-root-wrapper {
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .pvtTable {
+        display: block !important;
+        table-layout: auto !important;
+        width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .pvtTable th,
+      .dashboard-component-chart-holder .pvtTable td {
+        overflow-wrap: anywhere !important;
+        white-space: normal !important;
+      }
+
+      .dashboard-component-chart-holder .pivot_table_v_2,
+      .dashboard-component-chart-holder .ant-table-wrapper,
+      .dashboard-component-chart-holder .pvtTable,
+      .dashboard-component-chart-holder .ag-root-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      .${RESPONSIVE_DASHBOARD_CLASS} & {
+        min-width: 0;
+        overflow-x: hidden;
+        width: 100%;
+
+        .grid-container {
+          margin: ${theme.sizeUnit * 2}px;
+          margin-left: ${theme.sizeUnit * 2}px;
+          max-width: calc(100% - ${theme.sizeUnit * 4}px);
+          min-width: 0;
+          width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        }
+
+        .dashboard-grid,
+        .grid-content,
+        .dragdroppable,
+        .dragdroppable-row,
+        .dragdroppable-column,
+        .grid-row,
+        .grid-column,
+        .resizable-container,
+        .dashboard-component-tabs,
+        .dashboard-component-tabs-content,
+        .ant-tabs,
+        .ant-tabs-content,
+        .ant-tabs-tabpane {
+          max-width: 100% !important;
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder {
+          margin-inline: ${theme.sizeUnit * 2}px !important;
+          max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+          min-width: 0;
+          overflow: visible !important;
+          padding: ${theme.sizeUnit * 5}px !important;
+          width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        }
+
+        .dashboard-component-chart-holder .dashboard-chart,
+        .dashboard-component-chart-holder
+          .dashboard-chart.dashboard-chart--overflowable,
+        .dashboard-component-chart-holder [data-test='chart-container'],
+        .dashboard-component-chart-holder [data-test='slice-container'],
+        .dashboard-component-chart-holder .slice_container,
+        .dashboard-component-chart-holder [data-test='slice-container'] > div {
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder [data-test='chart-container'] svg {
+          max-width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .slice-header,
+        .dashboard-component-chart-holder [data-test='slice-header'] {
+          height: max-content !important;
+          margin-bottom: ${theme.sizeUnit * 2}px !important;
+          min-height: max-content !important;
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder .header-title {
+          display: block !important;
+          max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+          -webkit-line-clamp: unset !important;
+        }
+      }
+    }
+
+    .${RESPONSIVE_DASHBOARD_MOBILE_CLASS} & {
+      flex-direction: column;
+      width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+      padding-bottom: calc(
+        ${theme.sizeUnit * 16}px + env(safe-area-inset-bottom)
+      );
+
+      .grid-container {
+        width: 100%;
+        min-width: 0;
+        max-width: calc(100vw - ${theme.sizeUnit * 4}px);
+        margin: ${theme.sizeUnit * 2}px;
+        margin-left: ${theme.sizeUnit * 2}px;
+      }
+
+      .dashboard-grid,
+      .grid-content,
+      .dragdroppable,
+      .dragdroppable-row,
+      .dragdroppable-column,
+      .grid-row,
+      .grid-column,
+      .resizable-container,
+      .dashboard-component-tabs,
+      .dashboard-component-tabs-content,
+      .ant-tabs,
+      .ant-tabs-content,
+      .ant-tabs-tabpane {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder {
+        width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        max-width: calc(100% - ${theme.sizeUnit * 4}px) !important;
+        margin-inline: ${theme.sizeUnit * 2}px !important;
+        padding: ${theme.sizeUnit * 5}px !important;
+        min-width: 0;
+        overflow: visible !important;
+      }
+
+      .chart-slice {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .dashboard-chart,
+      .dashboard-component-chart-holder
+        .dashboard-chart.dashboard-chart--overflowable,
+      [data-test='chart-container'],
+      [data-test='chart-grid-component'],
+      [data-test='slice-container'],
+      [data-test='slice-container'] > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      [data-test='slice-container'] > div {
+        flex-shrink: 1 !important;
+      }
+
+      [data-test='chart-container'] svg {
+        max-width: 100% !important;
+      }
+
+      .dashboard-component-chart-holder .slice-header,
+      .dashboard-component-chart-holder [data-test='slice-header'] {
+        height: max-content !important;
+        margin-bottom: ${theme.sizeUnit * 2}px !important;
+        min-height: max-content !important;
+        overflow: visible !important;
+      }
+
+      .dashboard-component-chart-holder .header-title {
+        display: block !important;
+        max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: normal !important;
+        -webkit-line-clamp: unset !important;
+      }
+
+      .superset-legacy-chart-big-number .text-container,
+      .superset-legacy-chart-big-number .header-line {
+        max-width: 100% !important;
+      }
+
+      .superset-legacy-chart-big-number .header-line {
+        font-size: clamp(42px, 13vw, 80px) !important;
+        white-space: nowrap !important;
+      }
+
+      [data-test='slice-container'] table,
+      .ant-table-wrapper,
+      .table-condensed,
+      .pvtTable,
+      .ag-root-wrapper {
+        max-width: 100%;
+      }
+
+      .ant-table-wrapper,
+      .pvtTable,
+      .ag-root-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      canvas,
+      svg {
+        max-width: 100%;
+      }
+
+      .slice-header,
+      .header-title {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ant-btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+    }
+
     .dashboard-component-chart-holder {
       width: 100%;
       height: 100%;
@@ -354,6 +776,48 @@ const StyledDashboardContent = styled.div<{
         }
       }
     }
+
+    @media (min-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact + 1}px) {
+      .${RESPONSIVE_DASHBOARD_CLASS} & {
+        .dashboard-component-chart-holder {
+          max-width: 100% !important;
+          overflow: visible !important;
+          padding: ${theme.sizeUnit * 4}px !important;
+          width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .dashboard-chart,
+        .dashboard-component-chart-holder
+          .dashboard-chart.dashboard-chart--overflowable,
+        .dashboard-component-chart-holder [data-test='chart-container'],
+        .dashboard-component-chart-holder [data-test='slice-container'],
+        .dashboard-component-chart-holder .slice_container,
+        .dashboard-component-chart-holder [data-test='slice-container'] > div {
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder [data-test='chart-container'] svg {
+          max-width: 100% !important;
+        }
+
+        .dashboard-component-chart-holder .slice-header,
+        .dashboard-component-chart-holder [data-test='slice-header'] {
+          height: max-content !important;
+          margin-bottom: ${theme.sizeUnit * 2}px !important;
+          min-height: max-content !important;
+          overflow: visible !important;
+        }
+
+        .dashboard-component-chart-holder .header-title {
+          display: block !important;
+          max-width: calc(100% - ${theme.sizeUnit * 12}px) !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: normal !important;
+          -webkit-line-clamp: unset !important;
+        }
+      }
+    }
   `}
 `;
 
@@ -361,14 +825,23 @@ const ELEMENT_ON_SCREEN_OPTIONS = {
   threshold: [1],
 };
 
+const getViewportSize = () => ({
+  width: typeof window === 'undefined' ? 0 : window.innerWidth,
+  height: typeof window === 'undefined' ? 0 : window.innerHeight,
+});
+
 const DashboardBuilder = () => {
   const dispatch = useDispatch();
   const uiConfig = useUiConfig();
   const theme = useTheme();
+  const [viewportSize, setViewportSize] = useState(getViewportSize);
 
-  const dashboardId = useSelector<RootState, string>(
-    ({ dashboardInfo }) => `${dashboardInfo.id}`,
+  const dashboardInfo = useSelector<RootState, DashboardInfo>(
+    state => state.dashboardInfo,
   );
+  const dashboardId = `${dashboardInfo.id}`;
+  const responsiveDashboardEnabled =
+    isResponsiveDashboardEnabled(dashboardInfo);
   const dashboardLayout = useSelector<RootState, DashboardLayout>(
     state => state.dashboardLayout.present,
   );
@@ -387,6 +860,68 @@ const DashboardBuilder = () => {
   const filterBarOrientation = useSelector<RootState, FilterBarOrientation>(
     ({ dashboardInfo }) => dashboardInfo.filterBarOrientation,
   );
+  const responsiveDashboardMobile =
+    responsiveDashboardEnabled &&
+    !editMode &&
+    isResponsiveDashboardMobileViewport(
+      viewportSize.width,
+      viewportSize.height,
+    );
+
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportSize(getViewportSize());
+    };
+
+    syncViewportSize();
+    window.addEventListener('resize', syncViewportSize);
+    window.addEventListener('orientationchange', syncViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', syncViewportSize);
+      window.removeEventListener('orientationchange', syncViewportSize);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle(
+      RESPONSIVE_DASHBOARD_BODY_CLASS,
+      responsiveDashboardEnabled,
+    );
+    document.body.classList.toggle(
+      RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
+      responsiveDashboardMobile,
+    );
+
+    return () => {
+      document.body.classList.remove(RESPONSIVE_DASHBOARD_BODY_CLASS);
+      document.body.classList.remove(RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS);
+    };
+  }, [responsiveDashboardEnabled, responsiveDashboardMobile]);
+
+  useEffect(() => {
+    if (!responsiveDashboardMobile) return undefined;
+
+    const dismissRotateOverlay = () => {
+      const overlay = document.getElementById('moh-rotate-overlay');
+      if (!overlay) return;
+      overlay.classList.add('moh-dismissed');
+      overlay.setAttribute('aria-hidden', 'true');
+    };
+
+    dismissRotateOverlay();
+
+    const observer = new MutationObserver(dismissRotateOverlay);
+    observer.observe(document.body, { childList: true });
+    window.addEventListener('resize', dismissRotateOverlay);
+    window.addEventListener('orientationchange', dismissRotateOverlay);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', dismissRotateOverlay);
+      window.removeEventListener('orientationchange', dismissRotateOverlay);
+    };
+  }, [responsiveDashboardMobile]);
 
   const handleChangeTab = useCallback(
     ({ pathToTabIndex }: { pathToTabIndex: string[] }) => {
@@ -427,7 +962,7 @@ const DashboardBuilder = () => {
 
   const [barTopOffset, setBarTopOffset] = useState(0);
   const [currentFilterBarWidth, setCurrentFilterBarWidth] = useState(
-    CLOSED_FILTER_BAR_WIDTH,
+    CLOSED_FILTER_BAR_SHELL_WIDTH,
   );
 
   useEffect(() => {
@@ -475,6 +1010,8 @@ const DashboardBuilder = () => {
       marginLeft:
         dashboardFiltersOpen ||
         editMode ||
+        responsiveDashboardEnabled ||
+        responsiveDashboardMobile ||
         !nativeFiltersEnabled ||
         filterBarOrientation === FilterBarOrientation.Horizontal
           ? 0
@@ -483,6 +1020,8 @@ const DashboardBuilder = () => {
     [
       dashboardFiltersOpen,
       editMode,
+      responsiveDashboardEnabled,
+      responsiveDashboardMobile,
       filterBarOrientation,
       nativeFiltersEnabled,
     ],
@@ -514,6 +1053,7 @@ const DashboardBuilder = () => {
       <>
         {!hideDashboardHeader && <DashboardHeader />}
         {showFilterBar &&
+          !responsiveDashboardMobile &&
           filterBarOrientation === FilterBarOrientation.Horizontal && (
             <FilterBar
               orientation={FilterBarOrientation.Horizontal}
@@ -522,7 +1062,13 @@ const DashboardBuilder = () => {
           )}
       </>
     ),
-    [hideDashboardHeader, showFilterBar, filterBarOrientation, isReport],
+    [
+      hideDashboardHeader,
+      showFilterBar,
+      responsiveDashboardMobile,
+      filterBarOrientation,
+      isReport,
+    ],
   );
 
   const renderDraggableContent = useCallback(
@@ -553,6 +1099,7 @@ const DashboardBuilder = () => {
                 renderTabContent={false}
                 renderHoverMenu={false}
                 onChangeTab={handleChangeTab}
+                responsiveLayout={responsiveDashboardEnabled && !editMode}
               />
             </WithPopoverMenu>
           )}
@@ -563,6 +1110,7 @@ const DashboardBuilder = () => {
       handleChangeTab,
       handleDeleteTopLevelTabs,
       isReport,
+      responsiveDashboardEnabled,
       topLevelTabs,
       uiConfig.hideTab,
       uiConfig.hideNav,
@@ -575,26 +1123,30 @@ const DashboardBuilder = () => {
 
   const renderChild = useCallback(
     (adjustedWidth: number) => {
-      const filterBarWidth = dashboardFiltersOpen
-        ? adjustedWidth
-        : CLOSED_FILTER_BAR_WIDTH;
-      if (filterBarWidth !== currentFilterBarWidth) {
-        setCurrentFilterBarWidth(filterBarWidth);
+      const filterBarShellWidth = dashboardFiltersOpen
+        ? Math.max(adjustedWidth, OPEN_FILTER_BAR_SHELL_WIDTH)
+        : CLOSED_FILTER_BAR_SHELL_WIDTH;
+      const filterBarContentWidth = Math.max(
+        CLOSED_FILTER_BAR_WIDTH,
+        filterBarShellWidth - FILTER_BAR_SHELL_WIDTH_OFFSET,
+      );
+      if (filterBarShellWidth !== currentFilterBarWidth) {
+        setCurrentFilterBarWidth(filterBarShellWidth);
       }
       return (
         <FiltersPanel
-          width={filterBarWidth}
+          width={filterBarShellWidth}
           hidden={isReport}
           data-test="dashboard-filters-panel"
         >
-          <StickyPanel ref={containerRef} width={filterBarWidth}>
+          <StickyPanel ref={containerRef} width={filterBarContentWidth}>
             <ErrorBoundary>
               <FilterBar
                 orientation={FilterBarOrientation.Vertical}
                 verticalConfig={{
                   filtersOpen: dashboardFiltersOpen,
                   toggleFiltersBar: toggleDashboardFiltersOpen,
-                  width: filterBarWidth,
+                  width: filterBarContentWidth,
                   height: filterBarHeight,
                   offset: filterBarOffset,
                 }}
@@ -614,7 +1166,9 @@ const DashboardBuilder = () => {
   );
 
   const isVerticalFilterBarVisible =
-    showFilterBar && filterBarOrientation === FilterBarOrientation.Vertical;
+    showFilterBar &&
+    !responsiveDashboardMobile &&
+    filterBarOrientation === FilterBarOrientation.Vertical;
   const headerFilterBarWidth = isVerticalFilterBarVisible
     ? currentFilterBarWidth
     : 0;
@@ -623,11 +1177,11 @@ const DashboardBuilder = () => {
     <DashboardWrapper>
       {isVerticalFilterBarVisible && (
         <ResizableSidebar
-          id={`dashboard:${dashboardId}`}
+          id={`dashboard:${dashboardId}:filter-shell`}
           enable={dashboardFiltersOpen}
-          minWidth={OPEN_FILTER_BAR_WIDTH}
-          maxWidth={OPEN_FILTER_BAR_MAX_WIDTH}
-          initialWidth={OPEN_FILTER_BAR_WIDTH}
+          minWidth={OPEN_FILTER_BAR_SHELL_WIDTH}
+          maxWidth={OPEN_FILTER_BAR_SHELL_MAX_WIDTH}
+          initialWidth={OPEN_FILTER_BAR_SHELL_WIDTH}
         >
           {renderChild}
         </ResizableSidebar>
@@ -655,7 +1209,10 @@ const DashboardBuilder = () => {
           {renderDraggableContent}
         </Droppable>
       </StyledHeader>
-      <StyledContent fullSizeChartId={fullSizeChartId}>
+      <StyledContent
+        fullSizeChartId={fullSizeChartId}
+        filterBarWidth={headerFilterBarWidth}
+      >
         {!editMode &&
           !topLevelTabs &&
           dashboardLayout[DASHBOARD_GRID_ID]?.children?.length === 0 && (
@@ -678,7 +1235,12 @@ const DashboardBuilder = () => {
           )}
         <DashboardContentWrapper
           data-test="dashboard-content-wrapper"
-          className={cx('dashboard', editMode && 'dashboard--editing')}
+          className={cx(
+            'dashboard',
+            editMode && 'dashboard--editing',
+            responsiveDashboardEnabled && RESPONSIVE_DASHBOARD_CLASS,
+            responsiveDashboardMobile && RESPONSIVE_DASHBOARD_MOBILE_CLASS,
+          )}
         >
           <StyledDashboardContent
             className="dashboard-content"
@@ -719,6 +1281,9 @@ const DashboardBuilder = () => {
           </StyledDashboardContent>
         </DashboardContentWrapper>
       </StyledContent>
+      {showFilterBar && responsiveDashboardMobile && !isReport && (
+        <FilterBar orientation={filterBarOrientation} mobile />
+      )}
       {dashboardIsSaving && (
         <Loading
           css={css`

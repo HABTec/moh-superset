@@ -141,6 +141,9 @@ const defaultProps: Partial<ChartProps> = {
 
 const Styles = styled.div<{ height: number; width?: number }>`
   min-height: ${p => p.height}px;
+  width: ${p => (p.width ? `${p.width}px` : '100%')};
+  max-width: 100%;
+  overflow: hidden;
   position: relative;
 
   .chart-tooltip {

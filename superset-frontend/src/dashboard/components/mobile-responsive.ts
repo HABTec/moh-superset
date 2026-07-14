@@ -1,17 +1,31 @@
 /**
- * Mobile-first responsive design utilities for Apache Superset dashboards
- * Addresses: filter bar width, grid layout, chart heights, sidebar collapse
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 import { css } from '@apache-superset/core/theme';
 
 // Responsive breakpoints (pixels)
 export const BREAKPOINTS = {
-  xs: 0,      // Extra small: phones
-  sm: 576,    // Small: tablets
-  md: 768,    // Medium: small laptops
-  lg: 992,    // Large: desktops
-  xl: 1200,   // Extra large: large desktops
+  xs: 0, // Extra small: phones
+  sm: 576, // Small: tablets
+  md: 768, // Medium: small laptops
+  lg: 992, // Large: desktops
+  xl: 1200, // Extra large: large desktops
   xxl: 1600,
 };
 
@@ -48,43 +62,46 @@ export const media = {
 
 // Dashboard responsive grid columns
 export const getGridColumns = (screenWidth: number): number => {
-  if (screenWidth < BREAKPOINTS.sm) return 1;      // Phones: 1 column
-  if (screenWidth < BREAKPOINTS.md) return 2;      // Tablets: 2 columns
-  if (screenWidth < BREAKPOINTS.lg) return 4;      // Small laptops: 4 columns
-  return 12;                                         // Desktops: 12 columns
+  if (screenWidth < BREAKPOINTS.sm) return 1; // Phones: 1 column
+  if (screenWidth < BREAKPOINTS.md) return 2; // Tablets: 2 columns
+  if (screenWidth < BREAKPOINTS.lg) return 4; // Small laptops: 4 columns
+  return 12; // Desktops: 12 columns
 };
 
 // Responsive filter bar width
 export const getFilterBarWidth = (screenWidth: number): number => {
-  if (screenWidth < BREAKPOINTS.sm) return 0;      // Hidden on phones
-  if (screenWidth < BREAKPOINTS.md) return 150;    // Compact on tablets
-  return 260;                                        // Full width on desktop
+  if (screenWidth < BREAKPOINTS.sm) return 0; // Hidden on phones
+  if (screenWidth < BREAKPOINTS.md) return 150; // Compact on tablets
+  return 260; // Full width on desktop
 };
 
 // Responsive chart height (viewport-relative)
-export const getChartHeight = (screenHeight: number, baseHeight = 400): number => {
+export const getChartHeight = (
+  screenHeight: number,
+  baseHeight = 400,
+): number => {
   if (screenHeight < 600) return Math.min(baseHeight, screenHeight - 200);
   return baseHeight;
 };
 
 // Responsive sidebar width
 export const getSidebarWidth = (screenWidth: number): number => {
-  if (screenWidth < BREAKPOINTS.md) return 0;      // Hidden on tablets/phones
-  if (screenWidth < BREAKPOINTS.lg) return 200;    // Compact on small laptops
-  return 374;                                        // Full width on desktop
+  if (screenWidth < BREAKPOINTS.md) return 0; // Hidden on tablets/phones
+  if (screenWidth < BREAKPOINTS.lg) return 200; // Compact on small laptops
+  return 374; // Full width on desktop
 };
 
 /**
  * Usage in styled-components:
- * 
+ *
  * const MyDashboard = styled.div`
  *   display: flex;
- *   
+ *
  *   ${media.xs(css`
  *     flex-direction: column;
  *     gap: 12px;
  *   `)}
- *   
+ *
  *   ${media.md(css`
  *     flex-direction: row;
  *     gap: 24px;

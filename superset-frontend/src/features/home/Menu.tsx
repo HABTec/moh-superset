@@ -23,7 +23,15 @@ import { ensureStaticPrefix } from 'src/utils/assetUrl';
 import { ensureAppRoot } from 'src/utils/pathUtils';
 import { getUrlParam } from 'src/utils/urlUtils';
 import { MainNav, MenuItem } from '@superset-ui/core/components/Menu';
-import { Tooltip, Grid, Row, Col, Image } from '@superset-ui/core/components';
+import {
+  Button,
+  Drawer,
+  Tooltip,
+  Grid,
+  Row,
+  Col,
+  Image,
+} from '@superset-ui/core/components';
 import { GenericLink } from 'src/components';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from '@superset-ui/core/components/Icons';
@@ -35,6 +43,11 @@ import {
   MenuObjectProps,
   MenuData,
 } from 'src/types/bootstrapTypes';
+import {
+  RESPONSIVE_DASHBOARD_BREAKPOINTS,
+  isResponsiveDashboardCompact,
+  isResponsiveDashboardMobileViewport,
+} from 'src/dashboard/util/responsiveDashboard';
 import { datasetsLabel } from 'src/features/semanticLayers/label';
 import RightMenu from './RightMenu';
 import { NAVBAR_MENU_POPUP_OFFSET } from './commonMenuData';
@@ -50,6 +63,10 @@ const StyledHeader = styled.header`
     border-bottom: 1px solid ${theme.colorBorderSecondary};
     padding: 0 ${theme.sizeUnit * 4}px;
     z-index: 10;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      padding: 0 ${theme.sizeUnit * 4}px;
+    }
 
     &:nth-last-of-type(2) nav {
       margin-bottom: 2px;
@@ -172,6 +189,7 @@ const StyledBrandLink = styled(Typography.Link)`
 
 const StyledRow = styled(Row)`
   height: 100%;
+  position: relative;
 `;
 
 const StyledCol = styled(Col)`
@@ -179,6 +197,157 @@ const StyledCol = styled(Col)`
     display: flex;
     gap: ${theme.sizeUnit * 4}px;
     flex-wrap: wrap;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      align-items: center;
+      flex: 0 0 100%;
+      flex-wrap: nowrap;
+      gap: ${theme.sizeUnit * 2}px;
+      justify-content: space-between;
+      max-width: 100%;
+      min-height: ${theme.sizeUnit * 16}px;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      align-items: center;
+      flex: 0 0 100%;
+      flex-wrap: nowrap;
+      gap: ${theme.sizeUnit * 2}px;
+      justify-content: space-between;
+      max-width: 100%;
+      min-height: ${theme.sizeUnit * 16}px;
+    }
+  `}
+`;
+
+const StyledDesktopRightCol = styled(Col)`
+  ${({ theme }) => css`
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      display: block;
+      flex: 0 0 auto;
+      max-width: none;
+      pointer-events: none;
+      position: absolute;
+      right: ${theme.sizeUnit * 18}px;
+      top: ${theme.sizeUnit * 3}px;
+      width: auto;
+      z-index: 11;
+
+      > div > :not(.moh-nav-dashboard-actions) {
+        display: none !important;
+      }
+
+      .moh-nav-dashboard-actions {
+        align-items: center !important;
+        display: flex !important;
+        gap: ${theme.sizeUnit}px !important;
+        height: ${theme.sizeUnit * 11}px !important;
+        margin-left: 0 !important;
+        pointer-events: auto;
+        width: auto !important;
+      }
+
+      .moh-nav-dashboard-actions .ant-btn {
+        height: ${theme.sizeUnit * 11}px !important;
+        min-width: ${theme.sizeUnit * 11}px !important;
+      }
+    }
+  `}
+`;
+
+const StyledMobileMenuButton = styled(Button)`
+  ${({ theme }) => css`
+    display: none;
+
+    @media (max-width: ${theme.screenMDMax}px) {
+      align-items: center;
+      display: inline-flex;
+      height: ${theme.sizeUnit * 11}px;
+      justify-content: center;
+      min-width: ${theme.sizeUnit * 11}px;
+      padding: 0;
+    }
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      align-items: center;
+      display: inline-flex;
+      height: ${theme.sizeUnit * 11}px;
+      justify-content: center;
+      min-width: ${theme.sizeUnit * 11}px;
+      padding: 0;
+      position: relative;
+      z-index: 12;
+    }
+  `}
+`;
+
+const StyledMobileDashboardActionsSlot = styled.div`
+  ${({ theme }) => css`
+    display: none;
+
+    @media (max-width: ${RESPONSIVE_DASHBOARD_BREAKPOINTS.compact}px) {
+      body.moh-responsive-dashboard-mobile & {
+        align-items: center;
+        display: flex;
+        height: ${theme.sizeUnit * 11}px;
+        margin-left: auto;
+        pointer-events: auto;
+      }
+
+      body.moh-responsive-dashboard-mobile & .ant-btn {
+        height: ${theme.sizeUnit * 11}px;
+        min-width: ${theme.sizeUnit * 11}px;
+      }
+    }
+  `}
+`;
+
+const StyledMobileDrawerContent = styled.div`
+  ${({ theme }) => css`
+    display: flex;
+    flex-direction: column;
+    gap: ${theme.sizeUnit * 4}px;
+
+    .main-nav {
+      border-inline-end: none !important;
+    }
+
+    .ant-menu-inline {
+      width: 100%;
+    }
+
+    .ant-menu-item,
+    .ant-menu-submenu-title {
+      min-height: ${theme.sizeUnit * 11}px;
+    }
+  `}
+`;
+
+const StyledMobileDrawerActions = styled.div`
+  ${({ theme }) => css`
+    border-top: 1px solid ${theme.colorBorderSecondary};
+    padding-top: ${theme.sizeUnit * 4}px;
+
+    > div {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: ${theme.sizeUnit * 2}px;
+      height: auto;
+    }
+
+    .ant-menu {
+      border-inline-end: none !important;
+    }
+
+    .ant-menu-horizontal {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .ant-menu-submenu,
+    .ant-menu-submenu-title {
+      width: 100%;
+    }
   `}
 `;
 
@@ -187,6 +356,11 @@ const StyledImage = styled(Image)`
 `;
 
 const { useBreakpoint } = Grid;
+
+const getViewportSize = () => ({
+  width: typeof window === 'undefined' ? 0 : window.innerWidth,
+  height: typeof window === 'undefined' ? 0 : window.innerHeight,
+});
 
 export function Menu({
   data: {
@@ -201,6 +375,30 @@ export function Menu({
   const screens = useBreakpoint();
   const uiConfig = useUiConfig();
   const theme = useTheme();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [viewportSize, setViewportSize] = useState(getViewportSize);
+
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportSize(getViewportSize());
+    };
+
+    syncViewportSize();
+    window.addEventListener('resize', syncViewportSize);
+    window.addEventListener('orientationchange', syncViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', syncViewportSize);
+      window.removeEventListener('orientationchange', syncViewportSize);
+    };
+  }, []);
+  const useMobileNavigation =
+    screens.lg === false ||
+    isResponsiveDashboardCompact(viewportSize.width) ||
+    isResponsiveDashboardMobileViewport(
+      viewportSize.width,
+      viewportSize.height,
+    );
 
   enum Paths {
     Explore = '/explore',
@@ -282,10 +480,11 @@ export function Menu({
     return {
       key: label,
       label,
-      ...(screens.md && {
-        icon: <Icons.DownOutlined iconSize="xs" />,
-        popupOffset: NAVBAR_MENU_POPUP_OFFSET,
-      }),
+      ...(!useMobileNavigation &&
+        screens.md && {
+          icon: <Icons.DownOutlined iconSize="xs" />,
+          popupOffset: NAVBAR_MENU_POPUP_OFFSET,
+        }),
       children: childItems,
     };
   };
@@ -335,6 +534,26 @@ export function Menu({
     // ---------------------------------------------------------------------------------
     return <>{link}</>;
   };
+
+  const mainNavItems = menu.map(item => {
+    const props = {
+      ...item,
+      isFrontendRoute: isFrontendRoute(item.url),
+      childs: item.childs?.map(c => {
+        if (typeof c === 'string') {
+          return c;
+        }
+
+        return {
+          ...c,
+          isFrontendRoute: isFrontendRoute(c.url),
+        };
+      }),
+    };
+
+    return buildMenuItem(props);
+  });
+
   return (
     <StyledHeader
       className="top"
@@ -357,33 +576,32 @@ export function Menu({
               <span>{brand.text}</span>
             </StyledBrandText>
           )}
-          <StyledMainNav
-            mode={screens.md ? 'horizontal' : 'inline'}
-            data-test="navbar-top"
-            className="main-nav"
-            selectedKeys={activeTabs}
-            disabledOverflow
-            items={menu.map(item => {
-              const props = {
-                ...item,
-                isFrontendRoute: isFrontendRoute(item.url),
-                childs: item.childs?.map(c => {
-                  if (typeof c === 'string') {
-                    return c;
-                  }
-
-                  return {
-                    ...c,
-                    isFrontendRoute: isFrontendRoute(c.url),
-                  };
-                }),
-              };
-
-              return buildMenuItem(props);
-            })}
-          />
+          {!useMobileNavigation && (
+            <StyledMainNav
+              mode="horizontal"
+              data-test="navbar-top"
+              className="main-nav"
+              selectedKeys={activeTabs}
+              disabledOverflow
+              items={mainNavItems}
+            />
+          )}
+          {useMobileNavigation && (
+            <>
+              <StyledMobileDashboardActionsSlot
+                id="moh-mobile-dashboard-actions-slot"
+                aria-label={t('Dashboard actions')}
+              />
+              <StyledMobileMenuButton
+                aria-label={t('Open navigation menu')}
+                icon={<Icons.MenuOutlined iconSize="m" />}
+                onClick={() => setMobileMenuOpen(true)}
+                type="default"
+              />
+            </>
+          )}
         </StyledCol>
-        <Col md={8} xs={24}>
+        <StyledDesktopRightCol md={8} xs={24}>
           <RightMenu
             align={screens.md ? 'flex-end' : 'flex-start'}
             settings={settings}
@@ -391,8 +609,38 @@ export function Menu({
             isFrontendRoute={isFrontendRoute}
             environmentTag={environmentTag}
           />
-        </Col>
+        </StyledDesktopRightCol>
       </StyledRow>
+      {useMobileNavigation && (
+        <Drawer
+          title={t('Navigation')}
+          placement="right"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          width={320}
+        >
+          <StyledMobileDrawerContent>
+            <StyledMainNav
+              mode="inline"
+              data-test="navbar-mobile"
+              className="main-nav"
+              selectedKeys={activeTabs}
+              disabledOverflow
+              items={mainNavItems}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <StyledMobileDrawerActions>
+              <RightMenu
+                align="flex-start"
+                settings={settings}
+                navbarRight={navbarRight}
+                isFrontendRoute={isFrontendRoute}
+                environmentTag={environmentTag}
+              />
+            </StyledMobileDrawerActions>
+          </StyledMobileDrawerContent>
+        </Drawer>
+      )}
     </StyledHeader>
   );
 }

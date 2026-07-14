@@ -68,6 +68,7 @@ export interface TabsProps {
   onResizeStart?: () => void;
   onResize?: () => void;
   onResizeStop?: () => void;
+  responsiveLayout?: boolean;
 
   // dnd
   createComponent: (dropResult: DropResult) => void;
@@ -418,6 +419,7 @@ const Tabs = (props: TabsProps): ReactElement => {
     renderHoverMenu = true,
     isComponentVisible: isCurrentTabVisible,
     editMode,
+    responsiveLayout = false,
   } = props;
 
   const { children: tabIds } = tabsComponent;
@@ -428,6 +430,7 @@ const Tabs = (props: TabsProps): ReactElement => {
         ? 0
         : theme.sizeUnit * 4
       : 0;
+  const responsiveCarousel = responsiveLayout && renderTabContent === false;
 
   const showDropIndicators = useCallback(
     (currentDropTabIndex: number): ShowDropIndicatorsResult =>
@@ -477,6 +480,7 @@ const Tabs = (props: TabsProps): ReactElement => {
                 activeKey !== tabId && tabsToHighlight?.includes(tabId)
               }
               onTabTitleEditingChange={handleTabTitleEditingChange}
+              responsiveLayout={responsiveLayout}
             />
           </>
         ),
@@ -503,6 +507,7 @@ const Tabs = (props: TabsProps): ReactElement => {
             isComponentVisible={
               selectedTabIndex === tabIndex && isCurrentTabVisible
             }
+            responsiveLayout={responsiveLayout}
           />
         ) : undefined,
       })),
@@ -525,6 +530,7 @@ const Tabs = (props: TabsProps): ReactElement => {
       selectedTabIndex,
       isCurrentTabVisible,
       handleTabTitleEditingChange,
+      responsiveLayout,
     ],
   );
 
@@ -545,6 +551,8 @@ const Tabs = (props: TabsProps): ReactElement => {
         onTabsReorder={handleTabsReorder}
         isEditingTabTitle={isEditingTabTitle}
         onTabTitleEditingChange={handleTabTitleEditingChange}
+        responsiveLayout={responsiveLayout}
+        responsiveCarousel={responsiveCarousel}
       />
     ),
     [
@@ -561,6 +569,8 @@ const Tabs = (props: TabsProps): ReactElement => {
       handleTabsReorder,
       isEditingTabTitle,
       handleTabTitleEditingChange,
+      responsiveLayout,
+      responsiveCarousel,
     ],
   );
 

@@ -79,9 +79,13 @@ interface ExplorePageState {
   };
 }
 
+const toCssPixels = (value: number) => `${value}px`;
+
 const Styles = styled.div<EchartsStylesProps>`
-  height: ${({ height }) => height};
-  width: ${({ width }) => width};
+  height: ${({ height }) => toCssPixels(height)};
+  max-width: 100%;
+  overflow: hidden;
+  width: ${({ width }) => toCssPixels(width)};
 `;
 
 // eslint-disable-next-line react-hooks/rules-of-hooks -- This is ECharts' use function, not a React hook
@@ -284,8 +288,11 @@ function Echart(
       // setOption(notMerge:true) replaces the dataZoom config, dropping any
       // range the user has engaged. Preserve it across the call.
       const previousZoom = notMerge
-        ? (chartRef.current?.getOption() as { dataZoom?: DataZoomComponentOption[] })
-            ?.dataZoom
+        ? (
+            chartRef.current?.getOption() as {
+              dataZoom?: DataZoomComponentOption[];
+            }
+          )?.dataZoom
         : undefined;
       chartRef.current?.setOption(themedEchartOptions, {
         notMerge,

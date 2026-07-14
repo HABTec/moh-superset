@@ -75,6 +75,7 @@ import {
 import { createFilterKey, updateFilterKey } from './keyValue';
 import ActionButtons from './ActionButtons';
 import Horizontal from './Horizontal';
+import Mobile from './Mobile';
 import Vertical from './Vertical';
 import {
   useSelectFiltersInScope,
@@ -161,6 +162,7 @@ const FilterBar: FC<FiltersBarProps> = ({
   orientation = FilterBarOrientation.Vertical,
   verticalConfig,
   hidden = false,
+  mobile = false,
 }) => {
   const history = useHistory();
   const dataMaskApplied: DataMaskStateWithId = useAllAppliedDataMask();
@@ -602,7 +604,9 @@ const FilterBar: FC<FiltersBarProps> = ({
   const actions = useMemo(
     () => (
       <ActionButtons
-        filterBarOrientation={orientation}
+        filterBarOrientation={
+          mobile ? FilterBarOrientation.Vertical : orientation
+        }
         onApply={handleApply}
         onClearAll={handleClearAll}
         dataMaskSelected={dataMaskSelected}
@@ -614,6 +618,7 @@ const FilterBar: FC<FiltersBarProps> = ({
     ),
     [
       orientation,
+      mobile,
       handleApply,
       handleClearAll,
       dataMaskSelected,
@@ -624,44 +629,58 @@ const FilterBar: FC<FiltersBarProps> = ({
     ],
   );
 
-  const filterBarComponent =
-    orientation === FilterBarOrientation.Horizontal ? (
-      <Horizontal
-        actions={actions}
-        canEdit={canEdit}
-        dashboardId={dashboardId}
-        dataMaskSelected={dataMaskSelected}
-        filterValues={filterValues}
-        chartCustomizationValues={chartCustomizationValues}
-        isInitialized={isInitialized}
-        onSelectionChange={handleFilterSelectionChange}
-        onPendingCustomizationDataMaskChange={
-          handlePendingCustomizationDataMaskChange
-        }
-        clearAllTriggers={clearAllTriggers}
-        onClearAllComplete={handleClearAllComplete}
-      />
-    ) : verticalConfig ? (
-      <Vertical
-        actions={actions}
-        canEdit={canEdit}
-        dataMaskSelected={dataMaskSelected}
-        filtersOpen={verticalConfig.filtersOpen}
-        filterValues={filterValues}
-        chartCustomizationValues={chartCustomizationValues}
-        isInitialized={isInitialized}
-        height={verticalConfig.height}
-        offset={verticalConfig.offset}
-        onSelectionChange={handleFilterSelectionChange}
-        onPendingCustomizationDataMaskChange={
-          handlePendingCustomizationDataMaskChange
-        }
-        toggleFiltersBar={verticalConfig.toggleFiltersBar}
-        width={verticalConfig.width}
-        clearAllTriggers={clearAllTriggers}
-        onClearAllComplete={handleClearAllComplete}
-      />
-    ) : null;
+  const filterBarComponent = mobile ? (
+    <Mobile
+      actions={actions}
+      canEdit={canEdit}
+      dataMaskSelected={dataMaskSelected}
+      filterValues={filterValues}
+      chartCustomizationValues={chartCustomizationValues}
+      isInitialized={isInitialized}
+      onSelectionChange={handleFilterSelectionChange}
+      onPendingCustomizationDataMaskChange={
+        handlePendingCustomizationDataMaskChange
+      }
+      clearAllTriggers={clearAllTriggers}
+      onClearAllComplete={handleClearAllComplete}
+    />
+  ) : orientation === FilterBarOrientation.Horizontal ? (
+    <Horizontal
+      actions={actions}
+      canEdit={canEdit}
+      dashboardId={dashboardId}
+      dataMaskSelected={dataMaskSelected}
+      filterValues={filterValues}
+      chartCustomizationValues={chartCustomizationValues}
+      isInitialized={isInitialized}
+      onSelectionChange={handleFilterSelectionChange}
+      onPendingCustomizationDataMaskChange={
+        handlePendingCustomizationDataMaskChange
+      }
+      clearAllTriggers={clearAllTriggers}
+      onClearAllComplete={handleClearAllComplete}
+    />
+  ) : verticalConfig ? (
+    <Vertical
+      actions={actions}
+      canEdit={canEdit}
+      dataMaskSelected={dataMaskSelected}
+      filtersOpen={verticalConfig.filtersOpen}
+      filterValues={filterValues}
+      chartCustomizationValues={chartCustomizationValues}
+      isInitialized={isInitialized}
+      height={verticalConfig.height}
+      offset={verticalConfig.offset}
+      onSelectionChange={handleFilterSelectionChange}
+      onPendingCustomizationDataMaskChange={
+        handlePendingCustomizationDataMaskChange
+      }
+      toggleFiltersBar={verticalConfig.toggleFiltersBar}
+      width={verticalConfig.width}
+      clearAllTriggers={clearAllTriggers}
+      onClearAllComplete={handleClearAllComplete}
+    />
+  ) : null;
 
   return hidden ? (
     <HiddenFilterBar>{filterBarComponent}</HiddenFilterBar>

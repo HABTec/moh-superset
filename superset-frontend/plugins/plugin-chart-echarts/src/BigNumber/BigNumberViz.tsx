@@ -64,6 +64,7 @@ function BigNumberVis({
   const headerRef = useRef<HTMLDivElement>(null);
   const subheaderRef = useRef<HTMLDivElement>(null);
   const subtitleRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Convert componentDidMount
   useEffect(() => {
@@ -95,6 +96,13 @@ function BigNumberVis({
     return container;
   };
 
+  const getEffectiveWidth = () => {
+    const measuredWidth = rootRef.current?.clientWidth ?? 0;
+    return measuredWidth > 0
+      ? Math.min(props.width, measuredWidth)
+      : props.width;
+  };
+
   const renderFallbackWarning = () => {
     const { bigNumberFallback } = props;
     if (!formatTime || !bigNumberFallback || showTimestamp) return null;
@@ -113,10 +121,11 @@ function BigNumberVis({
   };
 
   const renderMetricName = (maxHeight: number) => {
-    const { metricName, width } = props;
+    const { metricName } = props;
     if (!showMetricName || !metricName) return null;
 
     const text = metricName;
+    const width = getEffectiveWidth();
 
     const container = createTemporaryContainer();
     document.body.append(container);
@@ -144,7 +153,7 @@ function BigNumberVis({
   };
 
   const renderKicker = (maxHeight: number) => {
-    const { timestamp, width } = props;
+    const { timestamp } = props;
     if (
       !formatTime ||
       !showTimestamp ||
@@ -155,6 +164,7 @@ function BigNumberVis({
       return null;
 
     const text = timestamp === null ? '' : formatTime(timestamp);
+    const width = getEffectiveWidth();
 
     const container = createTemporaryContainer();
     document.body.append(container);
@@ -182,7 +192,7 @@ function BigNumberVis({
   };
 
   const renderHeader = (maxHeight: number) => {
-    const { bigNumber, width, colorThresholdFormatters, onContextMenu } = props;
+    const { bigNumber, colorThresholdFormatters, onContextMenu } = props;
     // Format bigNumber based on its type: null/undefined -> "No data", number -> format, else -> string
     let text: string;
     if (bigNumber === null || bigNumber === undefined) {
@@ -215,6 +225,7 @@ function BigNumberVis({
       numberColor = theme.colorText;
     }
 
+    const width = getEffectiveWidth();
     const container = createTemporaryContainer();
     document.body.append(container);
     const fontSize = computeMaxFontSize({
@@ -252,10 +263,10 @@ function BigNumberVis({
   };
 
   const rendermetricComparisonSummary = (maxHeight: number) => {
-    const { width } = props;
     let fontSize = 0;
 
     const text = subheader;
+    const width = getEffectiveWidth();
 
     if (text) {
       const container = createTemporaryContainer();
@@ -289,8 +300,9 @@ function BigNumberVis({
   };
 
   const renderSubtitle = (maxHeight: number) => {
-    const { subtitle, width, bigNumber, bigNumberFallback } = props;
+    const { subtitle, bigNumber, bigNumberFallback } = props;
     let fontSize = 0;
+    const width = getEffectiveWidth();
 
     const NO_DATA_OR_HASNT_LANDED = t(
       'No data after filtering or data is NULL for the latest time record',
@@ -337,7 +349,6 @@ function BigNumberVis({
 
   const renderTrendline = (maxHeight: number) => {
     const {
-      width,
       trendLineData,
       echartOptions,
       refs,
@@ -345,6 +356,7 @@ function BigNumberVis({
       formData,
       xValueFormatter,
     } = props;
+    const width = getEffectiveWidth();
 
     // if can't find any non-null values, no point rendering the trendline
     if (!trendLineData?.some(d => d[1] !== null)) {
@@ -429,7 +441,7 @@ function BigNumberVis({
     const overflow = shouldApplyOverflow(allTextHeight);
 
     return (
-      <div className={componentClassName}>
+      <div ref={rootRef} className={componentClassName}>
         <div
           className="text-container"
           style={{
@@ -473,6 +485,7 @@ function BigNumberVis({
   const overflow = shouldApplyOverflow(height);
   return (
     <div
+      ref={rootRef}
       className={componentClassName}
       style={{
         height,

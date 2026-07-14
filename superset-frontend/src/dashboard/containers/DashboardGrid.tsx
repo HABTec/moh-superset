@@ -26,12 +26,14 @@ import {
 } from '../actions/dashboardLayout';
 import { setDirectPathToChild, setEditMode } from '../actions/dashboardState';
 import { RootState } from 'src/dashboard/types';
+import { isResponsiveDashboardEnabled } from 'src/dashboard/util/responsiveDashboard';
 
 function mapStateToProps({ dashboardState, dashboardInfo }: RootState) {
   return {
     editMode: dashboardState.editMode,
     canEdit: dashboardInfo.dash_edit_perm,
     dashboardId: dashboardInfo.id,
+    responsiveDashboardEnabled: isResponsiveDashboardEnabled(dashboardInfo),
   };
 }
 
