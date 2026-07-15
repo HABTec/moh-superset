@@ -346,19 +346,24 @@ const DashboardContainer: FC<DashboardContainerProps> = ({ topLevelTabs }) => {
     ({ width }: { width: number }) => {
       const tabItems = childIds.map((id, index) => {
         const gridComponent = dashboardLayout[id];
-        // On dashboard 8, the top-level "Systems monitoring" tab embeds an
-        // external dashboard instead of rendering its own charts.
+        const tabLabel = gridComponent?.meta?.text?.trim().toLowerCase() ?? '';
+        // On dashboard 8, the top-level "Systems monitoring" and "PHC"
+        // tabs embed external dashboards instead of rendering their own charts.
         const isSystemsMonitoringTab =
-          dashboardInfo.id === 8 &&
-          gridComponent?.meta?.text?.trim().toLowerCase() ===
-            'systems monitoring';
+          dashboardInfo.id === 8 && tabLabel === 'systems monitoring';
+        const isPhcTab = dashboardInfo.id === 8 && tabLabel === 'phc';
+        const externalDashboardUrl = isSystemsMonitoringTab
+          ? 'https://system.dhis.et'
+          : isPhcTab
+            ? 'https://public.tableau.com/views/PHCDashboard2026/EthiopiaPHCDashboard2026?:embed=y&:showVizHome=no'
+            : null;
         return {
           key: index === 0 ? DASHBOARD_GRID_ID : index.toString(),
           label: null,
-          children: isSystemsMonitoringTab ? (
+          children: externalDashboardUrl ? (
             <iframe
-              title={gridComponent.meta.text}
-              src="https://system.dhis.et"
+              title={gridComponent?.meta?.text ?? 'Embedded dashboard'}
+              src={externalDashboardUrl}
               style={{
                 width: '100%',
                 height: '100%',
