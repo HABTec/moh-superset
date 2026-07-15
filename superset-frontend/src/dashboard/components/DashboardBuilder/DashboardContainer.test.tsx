@@ -23,6 +23,7 @@ import mockState from 'spec/fixtures/mockState';
 import { sliceId } from 'spec/fixtures/mockChartQueries';
 import { ChartCustomizationType, NativeFilterType } from '@superset-ui/core';
 import { CHART_TYPE } from '../../util/componentTypes';
+import { LayoutItem } from '../../types';
 import DashboardContainer from './DashboardContainer';
 import * as nativeFiltersActions from '../../actions/nativeFilters';
 import * as chartCustomizationActions from '../../actions/chartCustomizationActions';
@@ -124,9 +125,12 @@ function createTestState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(overrideState = {}) {
+function setup(
+  overrideState = {},
+  props: { topLevelTabs?: LayoutItem } = {},
+) {
   const initialState = createTestState(overrideState);
-  return render(<DashboardContainer />, {
+  return render(<DashboardContainer {...props} />, {
     useRedux: true,
     store: storeWithState(initialState),
   });
@@ -208,6 +212,43 @@ test('preserves chartsInScope when filter non-scope properties change', async ()
 
   expect(filterAfterUpdate.chartsInScope).toEqual([sliceId]);
   expect(filterAfterUpdate.controlValues?.sortAscending).toBe(false);
+});
+
+test('renders the PHC Tableau dashboard when the PHC tab is selected', () => {
+  setup(
+    {
+      dashboardInfo: {
+        ...mockState.dashboardInfo,
+        id: 8,
+      },
+      dashboardLayout: {
+        ...mockState.dashboardLayout,
+        present: {
+          ...mockState.dashboardLayout.present,
+          PHC_TAB: {
+            id: 'PHC_TAB',
+            type: 'TAB',
+            meta: {
+              text: 'PHC',
+              width: 4,
+              height: 10,
+            },
+            parents: ['ROOT_ID', 'GRID_ID', 'ROW_ID'],
+          },
+        },
+      },
+    },
+    {
+      topLevelTabs: {
+        children: ['PHC_TAB'],
+      } as LayoutItem,
+    },
+  );
+
+  expect(screen.getByTitle('PHC')).toHaveAttribute(
+    'src',
+    'https://public.tableau.com/views/PHCDashboard2026/EthiopiaPHCDashboard2026?:embed=y&:showVizHome=no',
+  );
 });
 
 test('handles multiple filters with different scopes', async () => {
