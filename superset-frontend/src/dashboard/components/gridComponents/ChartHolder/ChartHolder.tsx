@@ -52,6 +52,7 @@ import {
   RESPONSIVE_DASHBOARD_BREAKPOINTS,
   RESPONSIVE_DASHBOARD_BODY_CLASS,
   getResponsiveChartHeight,
+  getResponsiveKpiChartHeight,
   getResponsiveChartWidth,
 } from 'src/dashboard/util/responsiveDashboard';
 
@@ -62,6 +63,10 @@ const CHART_INTERACTION_HOLDER_CLASS =
   'dashboard-component-chart-holder--interaction-active';
 const CHART_INTERACTION_LAYOUT_CLASS =
   'dashboard-component-chart-layout--interaction-active';
+const RESPONSIVE_KPI_CARD_CLASS =
+  'dashboard-component-chart-holder--compact-kpi';
+const RESPONSIVE_KPI_SELECTOR =
+  '.superset-legacy-chart-big-number.no-trendline';
 
 export interface ChartHolderProps {
   id: string;
@@ -135,6 +140,7 @@ const ChartHolder = ({
   const [responsiveChartWidth, setResponsiveChartWidth] = useState<
     number | undefined
   >();
+  const [responsiveKpiCard, setResponsiveKpiCard] = useState(false);
   const responsiveDashboardActive =
     responsiveDashboardEnabled ||
     (typeof document !== 'undefined' &&
@@ -281,6 +287,41 @@ const ChartHolder = ({
     };
   }, [measureResponsiveChartWidth, responsiveDashboardActive]);
 
+  const detectResponsiveKpiCard = useCallback(() => {
+    const nextResponsiveKpiCard = Boolean(
+      responsiveLayout &&
+        chartHolderRef.current?.querySelector(RESPONSIVE_KPI_SELECTOR),
+    );
+
+    setResponsiveKpiCard(current =>
+      current === nextResponsiveKpiCard ? current : nextResponsiveKpiCard,
+    );
+  }, [responsiveLayout]);
+
+  useEffect(() => {
+    if (!responsiveLayout) {
+      setResponsiveKpiCard(false);
+      return undefined;
+    }
+
+    detectResponsiveKpiCard();
+
+    const holder = chartHolderRef.current;
+    if (!holder || typeof MutationObserver === 'undefined') {
+      return undefined;
+    }
+
+    const observer = new MutationObserver(detectResponsiveKpiCard);
+    observer.observe(holder, {
+      attributeFilter: ['class'],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  }, [chartId, detectResponsiveKpiCard, responsiveLayout]);
+
   const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
     let height = 0;
@@ -300,7 +341,9 @@ const ChartHolder = ({
       );
       if (responsiveLayout) {
         width = responsiveChartWidth ?? width;
-        height = getResponsiveChartHeight(height);
+        height = responsiveKpiCard
+          ? getResponsiveKpiChartHeight(height)
+          : getResponsiveChartHeight(height);
         heightMultiple = Math.max(
           GRID_MIN_ROW_UNITS,
           Math.ceil((height + CHART_MARGIN) / GRID_BASE_UNIT),
@@ -337,6 +380,7 @@ const ChartHolder = ({
     isFullSize,
     responsiveDashboardActive,
     responsiveChartWidth,
+    responsiveKpiCard,
     responsiveLayout,
   ]);
 
@@ -452,6 +496,7 @@ const ChartHolder = ({
             'dashboard-component-chart-holder',
             // The following class is added to support custom dashboard styling via the CSS editor
             `dashboard-chart-id-${chartId}`,
+            responsiveKpiCard && RESPONSIVE_KPI_CARD_CLASS,
             outlinedComponentId ? 'fade-in' : 'fade-out',
           )}
         >

@@ -44,6 +44,7 @@ import { getPercentFormatter } from '../utils/formatters';
 
 type EChartsOption = ComposeOption<HeatmapSeriesOption>;
 
+const COMPACT_HEATMAP_CHART_WIDTH = 420;
 const DEFAULT_ECHARTS_BOUNDS = [0, 200];
 
 /**
@@ -178,6 +179,7 @@ export default function transformProps(
   const refs: Refs = {};
   const { width, height, formData, queriesData, datasource, theme } =
     chartProps;
+  const compactMobileHeatmapChart = width <= COMPACT_HEATMAP_CHART_WIDTH;
   const {
     bottomMargin,
     xAxis,
@@ -362,6 +364,9 @@ export default function transformProps(
     series,
     tooltip: {
       ...getDefaultTooltip(refs),
+      ...(compactMobileHeatmapChart
+        ? { appendToBody: false, confine: true, hideDelay: 3000 }
+        : {}),
       formatter: (params: CallbackDataParams) => {
         const totals = calculateTotals(
           data,

@@ -81,6 +81,7 @@ import {
   getAxisType,
   getColtypesMapping,
   getHorizontalLegendAvailableWidth,
+  getLegendDataWithTooltip,
   getLegendProps,
   getMinAndMaxFromBounds,
 } from '../utils/series';
@@ -138,6 +139,109 @@ const visibleSymbols = [
   'roundRect',
   'pin',
 ] as const;
+
+const COMPACT_TIMESERIES_CHART_WIDTH = 420;
+const COMPACT_AXIS_LABEL_CATEGORY_LIMIT = 4;
+const CROWDED_BAR_LABEL_THRESHOLD = 10;
+const COMPACT_BAR_LABEL_GRID_GUTTER = 48;
+const COMPACT_BAR_LABEL_WIDTH_PER_CHAR = 7;
+const COMPACT_BAR_LABEL_GAP = 2;
+
+const getMaxSeriesDataLength = (chartSeries: SeriesOption[]) =>
+  chartSeries.reduce(
+    (maxLength, entry) =>
+      Math.max(maxLength, Array.isArray(entry.data) ? entry.data.length : 0),
+    0,
+  );
+
+const getNumericDatumValue = (
+  datum: unknown,
+  valueIndex: number,
+): number | undefined => {
+  const getNumericValue = (value: unknown) => {
+    const numericValue = Array.isArray(value) ? value[valueIndex] : value;
+    return typeof numericValue === 'number' && Number.isFinite(numericValue)
+      ? numericValue
+      : undefined;
+  };
+
+  if (Array.isArray(datum)) {
+    return getNumericValue(datum);
+  }
+
+  if (datum && typeof datum === 'object' && 'value' in datum) {
+    return getNumericValue((datum as { value?: unknown }).value);
+  }
+
+  return getNumericValue(datum);
+};
+
+const getMaxSeriesAbsoluteValue = (
+  chartSeries: SeriesOption[],
+  valueIndex: number,
+) =>
+  chartSeries.reduce((maxValue, entry) => {
+    if (!Array.isArray(entry.data)) {
+      return maxValue;
+    }
+
+    return entry.data.reduce((seriesMaxValue, datum) => {
+      const value = getNumericDatumValue(datum, valueIndex);
+      return value === undefined
+        ? seriesMaxValue
+        : Math.max(seriesMaxValue, Math.abs(value));
+    }, maxValue);
+  }, 0);
+
+const getCompactYAxisPadding = (maxAbsValue: number) => {
+  const digitCount = String(Math.ceil(Math.abs(maxAbsValue))).length;
+  return Math.min(56, Math.max(32, digitCount * 8 + 16));
+};
+
+const getCompactBarValueLabelLength = (value: number) => {
+  const roundedValue = Number.isInteger(value)
+    ? value
+    : Number(value.toFixed(Math.abs(value) >= 100 ? 1 : 2));
+  return String(roundedValue).length;
+};
+
+const getMaxCompactBarValueLabelLength = (
+  chartSeries: SeriesOption[],
+  valueIndex: number,
+) =>
+  chartSeries.reduce((maxLength, entry) => {
+    if (!Array.isArray(entry.data)) {
+      return maxLength;
+    }
+
+    return entry.data.reduce((seriesMaxLength, datum) => {
+      const value = getNumericDatumValue(datum, valueIndex);
+      return value === undefined
+        ? seriesMaxLength
+        : Math.max(seriesMaxLength, getCompactBarValueLabelLength(value));
+    }, maxLength);
+  }, 0);
+
+const shouldRotateCompactBarValueLabels = (
+  chartWidth: number,
+  categoryCount: number,
+  seriesCount: number,
+  maxLabelLength: number,
+) => {
+  const labelCount = categoryCount * Math.max(seriesCount, 1);
+  if (labelCount < CROWDED_BAR_LABEL_THRESHOLD || maxLabelLength === 0) {
+    return false;
+  }
+
+  const availableWidth = Math.max(
+    1,
+    chartWidth - COMPACT_BAR_LABEL_GRID_GUTTER,
+  );
+  const labelSlotWidth = availableWidth / labelCount;
+  const estimatedLabelWidth = maxLabelLength * COMPACT_BAR_LABEL_WIDTH_PER_CHAR;
+
+  return estimatedLabelWidth + COMPACT_BAR_LABEL_GAP > labelSlotWidth;
+};
 
 function getSymbolMarker(symbol: string, color: string) {
   const size = 10;
@@ -337,6 +441,50 @@ export default function transformProps(
       xAxisType,
     },
   );
+  const categoryCount = getMaxSeriesDataLength(rawSeries);
+  const compactMobileTimeseriesTooltip =
+    width <= COMPACT_TIMESERIES_CHART_WIDTH;
+  const compactMobileTimeseriesChart =
+    width <= COMPACT_TIMESERIES_CHART_WIDTH && !isHorizontal;
+  const useAxisTooltip = richTooltip || compactMobileTimeseriesChart;
+  const useFlatCompactXAxisLabels =
+    compactMobileTimeseriesChart &&
+    xAxisType === AxisType.Category &&
+    categoryCount > 0 &&
+    categoryCount <= COMPACT_AXIS_LABEL_CATEGORY_LIMIT;
+  const effectiveXAxisLabelRotation = useFlatCompactXAxisLabels
+    ? 0
+    : xAxisLabelRotation;
+  const effectiveXAxisLabelInterval = useFlatCompactXAxisLabels
+    ? 0
+    : xAxisLabelInterval;
+  const rotateCrowdedBarLabels =
+    compactMobileTimeseriesChart &&
+    seriesType === EchartsTimeseriesSeriesType.Bar &&
+    showValue &&
+    shouldRotateCompactBarValueLabels(
+      width,
+      categoryCount,
+      rawSeries.length,
+      getMaxCompactBarValueLabelLength(rawSeries, 1),
+    );
+  const crowdedBarValueLabel = rotateCrowdedBarLabels
+    ? {
+        rotate: 90,
+        align: 'left' as const,
+        verticalAlign: 'middle' as const,
+        distance: 4,
+        fontSize: 10,
+      }
+    : undefined;
+  const crowdedBarValueLabelLayout = rotateCrowdedBarLabels
+    ? {
+        rotate: 90,
+        align: 'left' as const,
+        verticalAlign: 'middle' as const,
+        dy: -2,
+      }
+    : undefined;
   const showValueIndexes = extractShowValueIndexes(rawSeries, {
     stack,
     onlyTotal,
@@ -494,6 +642,14 @@ export default function transformProps(
               metrics,
               labelMap?.[seriesName]?.[0],
             ) ?? defaultFormatter),
+        valueLabel:
+          seriesType === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabel
+            : undefined,
+        valueLabelLayout:
+          seriesType === EchartsTimeseriesSeriesType.Bar
+            ? crowdedBarValueLabelLayout
+            : undefined,
         showValue,
         onlyTotal,
         totalStackedValues: sortedTotalValues,
@@ -856,13 +1012,37 @@ export default function transformProps(
       padding.bottom = Math.min(padding.bottom, 5);
     }
   }
+  if (compactMobileTimeseriesChart) {
+    const compactYAxisLabelMagnitude = Math.max(
+      getMaxSeriesAbsoluteValue(rawSeries, 1),
+      sortedTotalValues.reduce(
+        (maxValue, value) =>
+          typeof value === 'number'
+            ? Math.max(maxValue, Math.abs(value))
+            : maxValue,
+        0,
+      ),
+      Math.abs(yAxisMin ?? 0),
+      Math.abs(yAxisMax ?? 0),
+    );
+    padding.left = getCompactYAxisPadding(compactYAxisLabelMagnitude);
+    padding.right = Math.min(padding.right, 4);
+    if (!zoomable) {
+      padding.bottom = Math.max(
+        padding.bottom,
+        effectiveXAxisLabelRotation === 0 ? 28 : 56,
+      );
+    }
+  }
 
   // When showMaxLabel is true, ECharts may render a label at the axis
   // boundary that formats identically to the last data-point tick (e.g.
   // "2005" appears twice with Year grain). Wrap the formatter to suppress
   // consecutive duplicate labels.
   const showMaxLabel =
-    xAxisType === AxisType.Time && xAxisLabelRotation === 0 && !!timeGrainSqla;
+    xAxisType === AxisType.Time &&
+    effectiveXAxisLabelRotation === 0 &&
+    !!timeGrainSqla;
   const deduplicatedFormatter = showMaxLabel
     ? (() => {
         let lastLabel: string | undefined;
@@ -896,10 +1076,12 @@ export default function transformProps(
       // At 0° rotation, keep hideOverlap to prevent long labels
       // from overlapping each other, with showMaxLabel to ensure
       // the last data point label stays visible (#37181).
-      hideOverlap: !(xAxisType === AxisType.Time && xAxisLabelRotation !== 0),
+      hideOverlap: !(
+        xAxisType === AxisType.Time && effectiveXAxisLabelRotation !== 0
+      ),
       formatter: deduplicatedFormatter,
-      rotate: xAxisLabelRotation,
-      interval: xAxisLabelInterval,
+      rotate: effectiveXAxisLabelRotation,
+      interval: effectiveXAxisLabelInterval,
       // Force last label on non-rotated time axes to prevent
       // hideOverlap from hiding it. Skipped when rotated to
       // avoid phantom labels at the axis boundary.
@@ -978,14 +1160,15 @@ export default function transformProps(
   // the last label from being clipped at the chart boundary.
   if (
     xAxisType === AxisType.Time &&
-    xAxisLabelRotation !== 0 &&
+    effectiveXAxisLabelRotation !== 0 &&
     !isHorizontal
   ) {
     padding.right = Math.max(
       padding.right || 0,
       TIMESERIES_CONSTANTS.gridOffsetRight +
         Math.ceil(
-          Math.abs(Math.sin((xAxisLabelRotation * Math.PI) / 180)) * 80,
+          Math.abs(Math.sin((effectiveXAxisLabelRotation * Math.PI) / 180)) *
+            80,
         ),
     );
   }
@@ -1006,6 +1189,7 @@ export default function transformProps(
     useUTC: true,
     grid: {
       ...defaultGrid,
+      ...(compactMobileTimeseriesChart ? { containLabel: false } : {}),
       ...padding,
     },
     xAxis,
@@ -1013,19 +1197,22 @@ export default function transformProps(
     tooltip: {
       ...getDefaultTooltip(refs),
       show: !inContextMenu,
-      trigger: richTooltip ? 'axis' : 'item',
+      trigger: useAxisTooltip ? 'axis' : 'item',
+      ...(compactMobileTimeseriesTooltip
+        ? { appendToBody: false, confine: true, hideDelay: 3000 }
+        : {}),
       formatter: (params: any) => {
         const [xIndex, yIndex] = isHorizontal ? [1, 0] : [0, 1];
-        const xValue: number = richTooltip
+        const xValue: number = useAxisTooltip
           ? params[0].value[xIndex]
           : params.value[xIndex];
-        const forecastValue: CallbackDataParams[] = richTooltip
+        const forecastValue: CallbackDataParams[] = useAxisTooltip
           ? params
           : [params];
         const sortedKeys = extractTooltipKeys(
           forecastValue,
           yIndex,
-          richTooltip,
+          useAxisTooltip,
           tooltipSortByMetric,
         );
         const filteredForecastValue = forecastValue.filter(
@@ -1127,12 +1314,13 @@ export default function transformProps(
         zoomable,
         legendState,
         padding,
+        !compactMobileTimeseriesChart,
       ),
       scrollDataIndex: legendIndex || 0,
       data:
         colorByPrimaryAxis && groupBy.length === 0
-          ? colorByPrimaryAxisLegendData
-          : sortedLegendData,
+          ? getLegendDataWithTooltip(colorByPrimaryAxisLegendData)
+          : getLegendDataWithTooltip(sortedLegendData),
       // Disable legend selection and buttons when colorByPrimaryAxis is enabled
       ...(colorByPrimaryAxis && groupBy.length === 0
         ? {
