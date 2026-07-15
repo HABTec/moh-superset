@@ -762,6 +762,8 @@ _moh_roles %}
     var filterDone = false;
     var zoomBlockDone = false;
     var pollCount = 0;
+    var pollTimer = null;
+    var mohResponsiveStarted = false;
     var MAX_POLLS = 40;
     var POLL_MS = 250;
 
@@ -776,6 +778,14 @@ _moh_roles %}
       return window.innerWidth <= TABLET_BP;
     }
 
+    function bodyHasClass(className) {
+      return !!document.body && document.body.classList.contains(className);
+    }
+
+    function bodyContains(element) {
+      return !!document.body && document.body.contains(element);
+    }
+
     function isResponsiveDashboardPath() {
       return /\/dashboard\/(?:3|8)(?:\/|$)/.test(window.location.pathname);
     }
@@ -783,7 +793,7 @@ _moh_roles %}
     function isResponsiveMobileDashboard() {
       return (
         isMobileOrTablet() &&
-        (document.body.classList.contains("moh-responsive-dashboard-mobile") ||
+        (bodyHasClass("moh-responsive-dashboard-mobile") ||
           isResponsiveDashboardPath())
       );
     }
@@ -999,7 +1009,7 @@ _moh_roles %}
     function fitResponsiveSvgCharts() {
       if (
         !isDashboardPage() ||
-        !document.body.classList.contains("moh-responsive-dashboard")
+        !bodyHasClass("moh-responsive-dashboard")
       ) {
         return;
       }
@@ -1039,7 +1049,7 @@ _moh_roles %}
     function fitResponsiveBigNumbers() {
       if (
         !isDashboardPage() ||
-        !document.body.classList.contains("moh-responsive-dashboard")
+        !bodyHasClass("moh-responsive-dashboard")
       ) {
         return;
       }
@@ -1259,7 +1269,7 @@ _moh_roles %}
 
       if (
         mohActiveChartHolder &&
-        document.body.contains(mohActiveChartHolder)
+        bodyContains(mohActiveChartHolder)
       ) {
         return mohActiveChartHolder;
       }
@@ -1562,34 +1572,49 @@ _moh_roles %}
       }, 300);
     }
 
-    clearMohInlineChartStyles();
-    var pollTimer = setInterval(bootstrap, POLL_MS);
-    bootstrap();
-    initChartZoomBlock();
-    initDownloadHelper();
-    onChartsReady();
+    function startResponsiveDashboardHelpers() {
+      if (mohResponsiveStarted) return;
+      if (!document.body) {
+        document.addEventListener(
+          "DOMContentLoaded",
+          startResponsiveDashboardHelpers,
+          { once: true },
+        );
+        return;
+      }
 
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
-    document.addEventListener("visibilitychange", onVisibility);
+      mohResponsiveStarted = true;
+      clearMohInlineChartStyles();
+      pollTimer = setInterval(bootstrap, POLL_MS);
+      bootstrap();
+      initChartZoomBlock();
+      initDownloadHelper();
+      onChartsReady();
 
-    document.addEventListener(
-      "click",
-      function (e) {
-        if (
-          isDashboardPage() &&
-          e.target.closest(".dashboard-component-tabs .ant-tabs-tab")
-        ) {
-          setTimeout(onChartsReady, 700);
-        }
-      },
-      true,
-    );
+      window.addEventListener("resize", onResize);
+      window.addEventListener("orientationchange", onResize);
+      document.addEventListener("visibilitychange", onVisibility);
 
-    if (typeof requestIdleCallback === "function") {
-      requestIdleCallback(initLandscapeOverlay, { timeout: 2000 });
-    } else {
-      setTimeout(initLandscapeOverlay, 500);
+      document.addEventListener(
+        "click",
+        function (e) {
+          if (
+            isDashboardPage() &&
+            e.target.closest(".dashboard-component-tabs .ant-tabs-tab")
+          ) {
+            setTimeout(onChartsReady, 700);
+          }
+        },
+        true,
+      );
+
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(initLandscapeOverlay, { timeout: 2000 });
+      } else {
+        setTimeout(initLandscapeOverlay, 500);
+      }
     }
+
+    startResponsiveDashboardHelpers();
   })();
 </script>
