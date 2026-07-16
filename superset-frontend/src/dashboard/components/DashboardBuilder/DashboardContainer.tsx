@@ -350,7 +350,7 @@ const DashboardContainer: FC<DashboardContainerProps> = ({ topLevelTabs }) => {
         // On dashboard 8, the top-level "Systems monitoring" and "PHC"
         // tabs embed external dashboards instead of rendering their own charts.
         const isSystemsMonitoringTab =
-          dashboardInfo.id === 8 && tabLabel === 'systems monitoring';
+          dashboardInfo.id === 8 && tabLabel === 'digital systems monitoring';
         const isPhcTab = dashboardInfo.id === 8 && tabLabel === 'phc';
         const externalDashboardUrl = isSystemsMonitoringTab
           ? 'https://system.dhis.et'
