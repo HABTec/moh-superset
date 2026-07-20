@@ -163,16 +163,28 @@ class MoHLandingView(IndexView):
                 default=None,
             )
         others = [d for d in dashboards if d is not featured]
+
+        # Only MoHSecurityManager exposes this helper. If the server config
+        # forgot CUSTOM_SECURITY_MANAGER, fall back to always showing the link
+        # instead of AttributeError → 500 on "/".
+        health_intelligence_url = current_app.config.get(
+            "MOH_HEALTH_INTELLIGENCE_URL"
+        )
+        can_access_moh_dashboard = getattr(
+            security_manager, "can_access_moh_dashboard", None
+        )
+        if callable(can_access_moh_dashboard):
+            restricted_dashboard = next(
+                (dashboard for dashboard in rows if dashboard.id == 8),
+                None,
+            )
+            if not can_access_moh_dashboard(restricted_dashboard):
+                health_intelligence_url = None
+
         return self.render_template(
             self.index_template,
             featured=featured,
             others=others,
             is_admin=security_manager.is_admin(),
-            health_intelligence_url=(
-                current_app.config.get("MOH_HEALTH_INTELLIGENCE_URL")
-                if security_manager.can_access_moh_dashboard(
-                    next((dashboard for dashboard in rows if dashboard.id == 8), None)
-                )
-                else None
-            ),
+            health_intelligence_url=health_intelligence_url,
         )

@@ -116,9 +116,9 @@ class MoHSecurityManager(SupersetSecurityManager):
 
     def raise_for_access(self, *args: Any, **kwargs: Any) -> None:
         """Deny level-one dashboards before running Superset's RBAC checks."""
+        # Parent API is keyword-only (dashboard=, chart=, …). Never treat a
+        # positional/other resource as a dashboard.
         dashboard = kwargs.get("dashboard")
-        if dashboard is None and args:
-            dashboard = args[0]
         if dashboard is not None and not self.can_access_moh_dashboard(dashboard):
             raise SupersetSecurityException(
                 self.get_dashboard_access_error_object(dashboard)
