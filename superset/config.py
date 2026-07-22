@@ -983,9 +983,17 @@ THEME_DARK: Optional[Theme] = {
     },
     "algorithm": "dark",
 }
+# Set to None to disable dark mode and force light mode only
+THEME_DARK: Optional[Theme] = None
 
 # Theme behavior and user preference settings
 # To force a single theme on all users, set THEME_DARK = None
+# When both THEME_DEFAULT and THEME_DARK are defined:
+# - Users can manually switch between themes
+# - OS preference detection is automatically enabled
+#
+# Enable UI-based theme administration for admins
+ENABLE_UI_THEME_ADMINISTRATION = False  # Allows admins to set system themes via UI
 # When both THEME_DEFAULT and THEME_DARK are defined:
 # - Users can manually switch between themes
 # - OS preference detection is automatically enabled
