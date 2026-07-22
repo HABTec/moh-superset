@@ -240,21 +240,6 @@ MOH_ORG_UNITS_SCHEMA = os.environ.get("MOH_ORG_UNITS_SCHEMA", "moh")
 MOH_ORG_UNITS_TABLE = os.environ.get("MOH_ORG_UNITS_TABLE", "org_units")
 MOH_ORG_UNITS_ROOT_LEVEL = int(os.environ.get("MOH_ORG_UNITS_ROOT_LEVEL", "2"))
 MOH_ORG_UNITS_MAX_LEVEL = int(os.environ.get("MOH_ORG_UNITS_MAX_LEVEL", "6"))
-MOH_USER_ORG_UNITS_TABLE = os.environ.get(
-    "MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit"
-)
-MOH_USER_ORG_UNITS_SCHEMA = os.environ.get(
-    "MOH_USER_ORG_UNITS_SCHEMA", MOH_ORG_UNITS_SCHEMA
-)
-MOH_LEVEL_ONE_DASHBOARD_IDS = {
-    int(dashboard_id)
-    for dashboard_id in os.environ.get("MOH_LEVEL_ONE_DASHBOARD_IDS", "8").split(",")
-    if dashboard_id.strip()
-}
-
-from superset.moh_security_manager import MoHSecurityManager
-
-CUSTOM_SECURITY_MANAGER = MoHSecurityManager
 
 # -----------------------------------------------------------------------------
 # LANDING PAGE
