@@ -22,16 +22,19 @@ from flask_login import current_user
 _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
     "summary":       ("Top key performance indicators", "summary"),
     "data quality":  ("Report completeness & timeliness", "quality"),
-    "monthly":       ("Monthly reported indicators", "monthly"),
-    "quarterly":     ("Quarterly reported indicators", "quarterly"),
+    # Prefer the combined routine card before the old monthly/quarterly keys.
+    "routine health": ("Monthly & quarterly reported indicators", "routine"),
+    "routine":       ("Monthly & quarterly reported indicators", "routine"),
+    "monthly":       ("Monthly & quarterly reported indicators", "routine"),
+    "quarterly":     ("Monthly & quarterly reported indicators", "routine"),
     # NOTE: "triangulation" matches BEFORE "multi source" — order matters because
     # `_tab_decor` returns on first substring match. Keep triangulation above
     # multi-source so dashboards with both tabs get distinct icons.
     "triangulation": ("Cross-source comparison", "triangulation"),
     "multi-source":  ("Different data sources", "multi-source"),
     "multi source":  ("Different data sources", "multi-source"),
-    "annual":        ("Annual reported indicators", "quarterly"),
-    "yearly":        ("Yearly reported indicators", "quarterly"),
+    "annual":        ("Monthly & quarterly reported indicators", "routine"),
+    "yearly":        ("Monthly & quarterly reported indicators", "routine"),
     "meskot":        ("Explore data quality assurance", "quality"),
 }
 
@@ -40,11 +43,11 @@ _TAB_SUBTITLES: dict[str, tuple[str, str]] = {
 # tab title; value is the replacement title shown in the tile heading AND
 # the "View ..." link. Lets users keep their existing tab names in the
 # dashboard while presenting friendlier wording on the landing.
-# Empty by default — add entries here if you want to rename specific tabs
-# on the landing without touching the dashboard config.
 _TAB_TITLE_OVERRIDES: dict[str, str] = {
     "monitering": "Monitoring",
 }
+
+_ROUTINE_TILE_TITLE = "Routine Health Indicators"
 
 
 def _tab_decor(title: str | None) -> dict[str, str]:
@@ -63,6 +66,37 @@ def _override_title(title: str | None) -> str | None:
     for key, replacement in _TAB_TITLE_OVERRIDES.items():
         result = re.sub(re.escape(key), replacement, result, flags=re.IGNORECASE)
     return result
+
+
+def _collapse_routine_tabs(tabs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge monthly/quarterly/annual tiles into one Routine Health Indicators card.
+
+    After nesting Monthly & Quarterly under a single top-level tab in the
+    dashboard, only that parent appears here. While both are still top-level,
+    collapse duplicates so the landing shows one card.
+    """
+    collapsed: list[dict[str, Any]] = []
+    routine_added = False
+    for tab in tabs:
+        title = (tab.get("title") or "").strip()
+        is_routine = (
+            tab.get("icon") == "routine"
+            or title.lower() == _ROUTINE_TILE_TITLE.lower()
+            or "routine health" in title.lower()
+        )
+        if is_routine:
+            if routine_added:
+                continue
+            tab = {
+                **tab,
+                "title": _ROUTINE_TILE_TITLE,
+                "subtitle": tab.get("subtitle")
+                or "Monthly & quarterly reported indicators",
+                "icon": "routine",
+            }
+            routine_added = True
+        collapsed.append(tab)
+    return collapsed
 
 
 def _extract_tabs(position_json_str: str | None) -> list[dict[str, Any]]:
@@ -101,10 +135,12 @@ def _extract_tabs(position_json_str: str | None) -> list[dict[str, Any]]:
         decor = _tab_decor(raw_title)
         # Display title shown to users — overridable via _TAB_TITLE_OVERRIDES.
         title = _override_title(raw_title) or raw_title
+        if decor.get("icon") == "routine":
+            title = _ROUTINE_TILE_TITLE
         entry: dict[str, Any] = {"id": tab_id, "title": title}
         entry.update(decor)
         out.append(entry)
-    return out
+    return _collapse_routine_tabs(out)
 
 
 class MoHLandingView(IndexView):
@@ -133,6 +169,41 @@ class MoHLandingView(IndexView):
             .order_by(Dashboard.dashboard_title)
             .all()
         )
+
+        # Resolve restricted dashboard ids from config (never hard-code).
+        raw_ids = current_app.config.get("MOH_LEVEL_ONE_DASHBOARD_IDS", ())
+        if isinstance(raw_ids, str):
+            raw_ids = raw_ids.split(",")
+        try:
+            restricted_ids = {
+                int(dashboard_id)
+                for dashboard_id in raw_ids
+                if str(dashboard_id).strip()
+            }
+        except (TypeError, ValueError):
+            restricted_ids = set()
+
+        can_access_moh_dashboard = getattr(
+            security_manager, "can_access_moh_dashboard", None
+        )
+        user_can_access_level_one = getattr(
+            security_manager, "user_can_access_level_one_dashboard", None
+        )
+        if callable(user_can_access_level_one):
+            allow_restricted = bool(user_can_access_level_one())
+        elif callable(can_access_moh_dashboard) and restricted_ids:
+            sample = next(
+                (dashboard for dashboard in rows if dashboard.id in restricted_ids),
+                None,
+            )
+            allow_restricted = bool(can_access_moh_dashboard(sample)) if sample else False
+        else:
+            # CUSTOM_SECURITY_MANAGER not installed — fail closed for the tile.
+            allow_restricted = False
+
+        if not allow_restricted and restricted_ids:
+            rows = [dashboard for dashboard in rows if dashboard.id not in restricted_ids]
+
         dashboards: list[dict[str, Any]] = []
         for d in rows:
             tabs = _extract_tabs(d.position_json)
@@ -164,22 +235,11 @@ class MoHLandingView(IndexView):
             )
         others = [d for d in dashboards if d is not featured]
 
-        # Only MoHSecurityManager exposes this helper. If the server config
-        # forgot CUSTOM_SECURITY_MANAGER, fall back to always showing the link
-        # instead of AttributeError → 500 on "/".
-        health_intelligence_url = current_app.config.get(
-            "MOH_HEALTH_INTELLIGENCE_URL"
+        health_intelligence_url = (
+            current_app.config.get("MOH_HEALTH_INTELLIGENCE_URL")
+            if allow_restricted
+            else None
         )
-        can_access_moh_dashboard = getattr(
-            security_manager, "can_access_moh_dashboard", None
-        )
-        if callable(can_access_moh_dashboard):
-            restricted_dashboard = next(
-                (dashboard for dashboard in rows if dashboard.id == 8),
-                None,
-            )
-            if not can_access_moh_dashboard(restricted_dashboard):
-                health_intelligence_url = None
 
         return self.render_template(
             self.index_template,

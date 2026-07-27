@@ -240,6 +240,24 @@ MOH_ORG_UNITS_SCHEMA = os.environ.get("MOH_ORG_UNITS_SCHEMA", "moh")
 MOH_ORG_UNITS_TABLE = os.environ.get("MOH_ORG_UNITS_TABLE", "org_units")
 MOH_ORG_UNITS_ROOT_LEVEL = int(os.environ.get("MOH_ORG_UNITS_ROOT_LEVEL", "2"))
 MOH_ORG_UNITS_MAX_LEVEL = int(os.environ.get("MOH_ORG_UNITS_MAX_LEVEL", "6"))
+MOH_USER_ORG_UNITS_TABLE = os.environ.get(
+    "MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit"
+)
+MOH_USER_ORG_UNITS_SCHEMA = os.environ.get(
+    "MOH_USER_ORG_UNITS_SCHEMA", MOH_ORG_UNITS_SCHEMA
+)
+# Health Intelligence (and similar) dashboards: only users mapped to this
+# org-unit level may open them. Confirm the dashboard id on each environment.
+MOH_LEVEL_ONE_ORG_UNIT_LEVEL = int(os.environ.get("MOH_LEVEL_ONE_ORG_UNIT_LEVEL", "1"))
+MOH_LEVEL_ONE_DASHBOARD_IDS = {
+    int(dashboard_id)
+    for dashboard_id in os.environ.get("MOH_LEVEL_ONE_DASHBOARD_IDS", "8").split(",")
+    if dashboard_id.strip()
+}
+
+from superset.moh_security_manager import MoHSecurityManager
+
+CUSTOM_SECURITY_MANAGER = MoHSecurityManager
 
 # -----------------------------------------------------------------------------
 # LANDING PAGE
@@ -248,7 +266,11 @@ MOH_FEATURED_DASHBOARD = os.environ.get("MOH_FEATURED_DASHBOARD") or None
 if MOH_FEATURED_DASHBOARD and MOH_FEATURED_DASHBOARD.isdigit():
     MOH_FEATURED_DASHBOARD = int(MOH_FEATURED_DASHBOARD)
 
-MOH_HEALTH_INTELLIGENCE_URL = os.environ.get("MOH_HEALTH_INTELLIGENCE_URL", "")
+# Prefer a relative path so the tile hits THIS server's access checks.
+MOH_HEALTH_INTELLIGENCE_URL = os.environ.get(
+    "MOH_HEALTH_INTELLIGENCE_URL",
+    "/superset/dashboard/8/",
+)
 
 # HIS + PHC iframe pages — required for /monitoring-dashboard/ and /hpc/
 MOH_MONITORING_DASHBOARD_IFRAME_URL = os.environ.get(
