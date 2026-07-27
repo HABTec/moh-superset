@@ -399,13 +399,17 @@
             <circle cx="32" cy="32" r="24"/>
             <path d="M20 33 L29 42 L44 24"/>
           </svg>
-        {% elif t.icon == 'monthly' %}
+        {% elif t.icon == 'routine' or t.icon == 'monthly' %}
           <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <rect x="8" y="12" width="48" height="44" rx="4"/>
             <path d="M8 24 H56"/>
             <path d="M20 6 V18"/>
             <path d="M44 6 V18"/>
-            <circle cx="32" cy="38" r="3" fill="currentColor"/>
+            <circle cx="22" cy="38" r="2.5" fill="currentColor"/>
+            <circle cx="32" cy="38" r="2.5" fill="currentColor"/>
+            <circle cx="42" cy="38" r="2.5" fill="currentColor"/>
+            <circle cx="22" cy="46" r="2.5" fill="currentColor"/>
+            <circle cx="32" cy="46" r="2.5" fill="currentColor"/>
           </svg>
         {% elif t.icon == 'quarterly' %}
           <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
