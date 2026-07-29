@@ -157,6 +157,68 @@ def _require_authenticated() -> None:
         abort(401)
 
 
+def _parse_cbmp_types() -> list[str]:
+    """Optional CBMP type filter from the query string.
+
+    Accepts repeated params and comma-separated values, e.g.
+    ``?cbmp_type=CBMP%20Hospital`` or ``?cbmp_type=A&cbmp_type=B``.
+    Empty / missing → no filtering (return all org units).
+    """
+    values: list[str] = []
+    for raw in request.args.getlist("cbmp_type"):
+        for part in str(raw).split(","):
+            cleaned = part.strip()
+            if cleaned:
+                values.append(cleaned)
+    # Preserve order, drop duplicates
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            unique.append(value)
+    return unique
+
+
+def _cbmp_path_clause(
+    level: int,
+    *,
+    param_prefix: str = "cbmp",
+) -> tuple[str, dict[str, Any]]:
+    """SQL AND-clause keeping units on a path to matching ``cbmp_type`` rows.
+
+    Returns ``("", {})`` when no CBMP filter is selected so callers retrieve
+    the full tree.
+    """
+    cbmp_types = _parse_cbmp_types()
+    if not cbmp_types:
+        return "", {}
+
+    params: dict[str, Any] = {
+        f"{param_prefix}_{idx}": value for idx, value in enumerate(cbmp_types)
+    }
+    placeholders = ", ".join(f":{param_prefix}_{idx}" for idx in range(len(cbmp_types)))
+    level_col = f"level{level}id"
+    table = _qualified_table()
+
+    if level_col in _LEVEL_ID_COLS:
+        # Keep this level's nodes that appear as ancestors (or self via levelNid)
+        # of any org unit whose cbmp_type matches the selection.
+        clause = (
+            f" AND id IN ("
+            f"  SELECT DISTINCT {level_col} FROM {table} "
+            f"  WHERE cbmp_type IN ({placeholders}) "
+            f"    AND {level_col} IS NOT NULL "
+            f"    AND toString({level_col}) != ''"
+            f")"
+        )
+    else:
+        # Unusual levels without a levelNid column — match the row itself.
+        clause = f" AND cbmp_type IN ({placeholders})"
+
+    return clause, params
+
+
 @moh_orgunits_bp.route("/organisationUnits", methods=["GET"])
 def list_units():
     """List all org units at a given level (no children inlined).
@@ -167,12 +229,16 @@ def list_units():
     ------------
     level : int, optional
         Level to return. Defaults to MOH_ORG_UNITS_ROOT_LEVEL (2 = Region).
+    cbmp_type : str, optional, repeatable
+        When set, only return units on a path to org units with this
+        ``cbmp_type``. When omitted, return all units at the level.
     """
     _require_authenticated()
     level = request.args.get("level", type=int) or _root_level()
     if level < 1 or level > _max_level():
         abort(400, f"level must be between 1 and {_max_level()}")
 
+    cbmp_clause, cbmp_params = _cbmp_path_clause(level)
     database = _get_database()
     cols = ", ".join(_LEVEL_ID_COLS)
     # get_sqla_engine() is a @contextmanager (handles SSH tunnels, OAuth2, etc.)
@@ -183,9 +249,10 @@ def list_units():
                     f"SELECT id, name, level, {cols} "
                     f"FROM {_qualified_table()} "
                     f"WHERE level = :lvl "
+                    f"{cbmp_clause} "
                     f"ORDER BY name"
                 ),
-                {"lvl": level},
+                {"lvl": level, **cbmp_params},
             ).all()
     return jsonify({
         "organisationUnits": [_row_to_dhis2(r) for r in rows],
@@ -194,7 +261,11 @@ def list_units():
 
 @moh_orgunits_bp.route("/organisationUnits/<uid>", methods=["GET"])
 def get_unit(uid: str):
-    """Return one org unit + its DIRECT children (lazy-load on expand)."""
+    """Return one org unit + its DIRECT children (lazy-load on expand).
+
+    Optional ``cbmp_type`` query params narrow children to nodes on a path to
+    matching facilities (same semantics as the list endpoint).
+    """
     _require_authenticated()
     database = _get_database()
     cols = ", ".join(_LEVEL_ID_COLS)
@@ -219,15 +290,24 @@ def get_unit(uid: str):
                 # column points back to this parent's id.
                 parent_col = f"level{parent_level}id"
                 if parent_col in _LEVEL_ID_COLS:
+                    child_level = parent_level + 1
+                    cbmp_clause, cbmp_params = _cbmp_path_clause(
+                        child_level, param_prefix="cbmp_child"
+                    )
                     children = conn.execute(
                         text(
                             f"SELECT id, name, level, {cols} "
                             f"FROM {_qualified_table()} "
                             f"WHERE level = :child_lvl "
                             f"  AND {parent_col} = :parent_id "
+                            f"{cbmp_clause} "
                             f"ORDER BY name"
                         ),
-                        {"child_lvl": parent_level + 1, "parent_id": uid},
+                        {
+                            "child_lvl": child_level,
+                            "parent_id": uid,
+                            **cbmp_params,
+                        },
                     ).all()
 
     response = _row_to_dhis2(unit)
