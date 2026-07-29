@@ -28,6 +28,7 @@ export const ALLOW_DEPENDENCIES = [
   'filter_range',
   'filter_select',
   'filter_time',
+  'filter_org_unit_tree',
 ];
 
 interface AvailableFilterOption {

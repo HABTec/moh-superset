@@ -15,12 +15,19 @@
  *     Level 5 (PHCU)        → phcu
  *     Level 6 (Health Post) → health_post
  *
+ * CBMP coupling (no cascade-parent config required):
+ * the tree watches any native filter named/columned like CBMP and calls
+ * organisationUnits?cbmp_type=…. Empty CBMP selection → full tree.
+ *
  * Datasets are untouched — they continue to read filter_values('region') etc.
  */
+import { NativeFilterType } from '@superset-ui/core';
 import { t } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
 import { Tree, type TreeDataNode } from '@superset-ui/core/components';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from 'src/dashboard/types';
 
 import type {
   OrgUnit,
@@ -35,6 +42,48 @@ const LEVEL_TO_DIM: Record<number, string> = {
   5: 'phcu',
   6: 'health_post',
 };
+
+const CBMP_COLUMN_NAMES = new Set(['cbmp_type', 'cbmp']);
+
+function normalizeCol(col: unknown): string {
+  return String(col || '')
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function collectStringValues(raw: unknown): string[] {
+  const values: string[] = [];
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item != null && String(item).trim()) {
+        values.push(String(item).trim());
+      }
+    }
+  } else if (raw != null && String(raw).trim()) {
+    values.push(String(raw).trim());
+  }
+  return values;
+}
+
+function isCbmpFilter(filter: {
+  name?: string;
+  filterType?: string;
+  targets?: Array<{ column?: { name?: string; column_name?: string } }>;
+}): boolean {
+  if (filter.filterType === 'filter_org_unit_tree') {
+    return false;
+  }
+  const name = String(filter.name || '').toLowerCase();
+  if (name.includes('cbmp')) {
+    return true;
+  }
+  return (filter.targets || []).some(target => {
+    const col = normalizeCol(
+      target.column?.name || target.column?.column_name,
+    );
+    return CBMP_COLUMN_NAMES.has(col) || col.includes('cbmp');
+  });
+}
 
 const Wrapper = styled.div`
   display: flex;
@@ -57,6 +106,14 @@ const Toolbar = styled.div`
   gap: 12px;
   padding: 4px 4px 6px;
   font-size: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+`;
+
+const Status = styled.span`
+  margin-left: auto;
+  color: ${({ theme }) => theme.colorTextSecondary};
+  font-size: 11px;
 `;
 
 const ToolbarLink = styled.button`
@@ -136,6 +193,73 @@ function patchChildren(nodes: Node[], key: string, kids: Node[]): Node[] {
   });
 }
 
+/** Read selected CBMP values from cascade parent filters in formData. */
+export function getCbmpTypesFromFormData(formData: {
+  extra_form_data?: { filters?: Array<{ col?: string; val?: unknown }> };
+  extraFormData?: { filters?: Array<{ col?: string; val?: unknown }> };
+}): string[] {
+  const extra = formData.extra_form_data || formData.extraFormData || {};
+  const filters = extra.filters || [];
+  const values: string[] = [];
+  for (const filter of filters) {
+    const col = normalizeCol(filter.col);
+    if (!CBMP_COLUMN_NAMES.has(col) && !col.includes('cbmp')) {
+      continue;
+    }
+    values.push(...collectStringValues(filter.val));
+  }
+  return [...new Set(values)];
+}
+
+/**
+ * Find CBMP selections from dashboard native filters + dataMask.
+ * Used so Org Unit Tree works without configuring cascade parents.
+ */
+export function getCbmpTypesFromDashboard(
+  filters: RootState['nativeFilters']['filters'] | undefined,
+  dataMask: RootState['dataMask'] | undefined,
+): string[] {
+  if (!filters || !dataMask) {
+    return [];
+  }
+  const values: string[] = [];
+  Object.values(filters).forEach(filter => {
+    if (!filter || filter.type !== NativeFilterType.NativeFilter) {
+      return;
+    }
+    if (!isCbmpFilter(filter)) {
+      return;
+    }
+    const mask = dataMask[filter.id];
+    const extraFilters = mask?.extraFormData?.filters || [];
+    if (extraFilters.length) {
+      extraFilters.forEach(item => {
+        values.push(...collectStringValues(item.val));
+      });
+      return;
+    }
+    values.push(...collectStringValues(mask?.filterState?.value));
+  });
+  return [...new Set(values)];
+}
+
+function withCbmpParams(url: string, cbmpTypes: string[]): string {
+  if (!cbmpTypes.length) {
+    return url;
+  }
+  const params = new URLSearchParams();
+  // Preserve any existing query string on `url`.
+  const [base, existing = ''] = url.split('?', 2);
+  if (existing) {
+    new URLSearchParams(existing).forEach((value, key) => {
+      params.append(key, value);
+    });
+  }
+  cbmpTypes.forEach(type => params.append('cbmp_type', type));
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+}
+
 export default function OrgUnitTreeFilter({
   formData,
   filterState,
@@ -145,6 +269,22 @@ export default function OrgUnitTreeFilter({
   const rootLevel = Number(formData.rootLevel || 2);   // 2 = Region (matches MOH_ORG_UNITS_ROOT_LEVEL)
   const maxLevel = Number(formData.maxLevel || 6);
 
+  const nativeFilters = useSelector(
+    (state: RootState) => state.nativeFilters?.filters,
+  );
+  const dataMask = useSelector((state: RootState) => state.dataMask);
+
+  const cbmpTypes = useMemo(() => {
+    // Prefer cascade-injected formData when configured; otherwise auto-detect
+    // the CBMP native filter from dashboard state (no dependency UI needed).
+    const fromCascade = getCbmpTypesFromFormData(formData);
+    if (fromCascade.length) {
+      return fromCascade;
+    }
+    return getCbmpTypesFromDashboard(nativeFilters, dataMask);
+  }, [formData.extra_form_data, formData.extraFormData, nativeFilters, dataMask]);
+  const cbmpKey = useMemo(() => [...cbmpTypes].sort().join('|'), [cbmpTypes]);
+
   const [treeData, setTreeData] = useState<Node[]>([]);
   // Rich objects (with id + level) live only in local state. setDataMask is
   // called immediately on every check change — Superset's native filter
@@ -153,16 +293,19 @@ export default function OrgUnitTreeFilter({
   const [selected, setSelected] = useState<OrgUnitSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousCbmpKey = useRef<string | null>(null);
 
-  // -- initial root fetch ---------------------------------------------------
+  // -- initial / CBMP-driven root fetch ------------------------------------
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
-        const r = await fetch(
+        const url = withCbmpParams(
           `${apiBaseUrl}/organisationUnits?level=${rootLevel}`,
-          { credentials: 'same-origin' },
+          cbmpTypes,
         );
+        const r = await fetch(url, { credentials: 'same-origin' });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         if (cancelled) return;
@@ -172,6 +315,18 @@ export default function OrgUnitTreeFilter({
           ),
         );
         setError(null);
+
+        // When CBMP selection changes, drop org-unit checks that may no
+        // longer exist in the narrowed tree. Skip the first mount so we
+        // don't wipe a restored filterState.
+        if (
+          previousCbmpKey.current !== null &&
+          previousCbmpKey.current !== cbmpKey
+        ) {
+          setSelected([]);
+          setDataMask(buildDataMask([]));
+        }
+        previousCbmpKey.current = cbmpKey;
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'Failed to load org units');
       } finally {
@@ -181,17 +336,18 @@ export default function OrgUnitTreeFilter({
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, rootLevel, maxLevel]);
+  }, [apiBaseUrl, rootLevel, maxLevel, cbmpKey, cbmpTypes, setDataMask]);
 
   // -- lazy load on expand --------------------------------------------------
   const loadChildren = useCallback(
     async (node: Node): Promise<void> => {
       if (node.children && node.children.length > 0) return;
       try {
-        const r = await fetch(
+        const url = withCbmpParams(
           `${apiBaseUrl}/organisationUnits/${node.unit.id}`,
-          { credentials: 'same-origin' },
+          cbmpTypes,
         );
+        const r = await fetch(url, { credentials: 'same-origin' });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         const kids: Node[] = (data.children || []).map((u: OrgUnit) =>
@@ -203,7 +359,7 @@ export default function OrgUnitTreeFilter({
         setError(e.message || 'Failed to load children');
       }
     },
-    [apiBaseUrl, maxLevel],
+    [apiBaseUrl, maxLevel, cbmpTypes],
   );
 
   // -- handlers -------------------------------------------------------------
@@ -261,11 +417,26 @@ export default function OrgUnitTreeFilter({
         >
           {t('Clear')}
         </ToolbarLink>
+        <Status>
+          {cbmpTypes.length
+            ? t('CBMP: %(types)s · %(n)s roots', {
+                types: cbmpTypes.join(', '),
+                n: treeData.length,
+              })
+            : t('All org units · %(n)s roots', { n: treeData.length })}
+        </Status>
       </Toolbar>
       <TreeBox>
         {loading && t('Loading…')}
         {error && <div style={{ color: 'red' }}>{error}</div>}
-        {!loading && !error && (
+        {!loading && !error && treeData.length === 0 && (
+          <div style={{ padding: 8, opacity: 0.7 }}>
+            {cbmpTypes.length
+              ? t('No org units match the selected CBMP type')
+              : t('No org units found')}
+          </div>
+        )}
+        {!loading && !error && treeData.length > 0 && (
           <Tree
             treeData={treeData}
             loadData={loadChildren as any}

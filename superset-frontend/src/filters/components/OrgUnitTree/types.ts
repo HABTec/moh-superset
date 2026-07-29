@@ -18,6 +18,13 @@ export type OrgUnitTreeFormData = {
   apiBaseUrl?: string; // default '/api/v1/moh/dhis2'
   rootLevel?: number;  // default 1
   maxLevel?: number;   // default 6
+  // Injected by FilterValue when cascade parents (e.g. CBMP) are configured.
+  extra_form_data?: {
+    filters?: Array<{ col?: string; op?: string; val?: unknown }>;
+  };
+  extraFormData?: {
+    filters?: Array<{ col?: string; op?: string; val?: unknown }>;
+  };
 };
 
 /** Local state — one checked node (rich info kept only in component state). */
