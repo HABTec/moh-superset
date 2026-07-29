@@ -31,6 +31,7 @@ import {
   ChartDataResponseResult,
   Behavior,
   DataMask,
+  Filters,
   isFeatureEnabled,
   FeatureFlag,
   getChartMetadataRegistry,
@@ -153,6 +154,58 @@ const FilterValue: FC<FilterValueProps> = ({
   const dependencies = useFilterDependencies(id, dataMaskSelected);
   const transitiveParentIds = useTransitiveParentIds(id);
   const shouldRefresh = useShouldFilterRefresh();
+  // Org Unit Tree auto-couples to CBMP without cascade-parent config: pull the
+  // live (pre-Apply) CBMP selection from sibling filters in dataMaskSelected.
+  const allNativeFilters = useSelector<RootState, Filters | undefined>(
+    state => state.nativeFilters?.filters,
+  );
+  const cbmpLiveExtra = useMemo(() => {
+    if (filterType !== 'filter_org_unit_tree' || !allNativeFilters) {
+      return undefined;
+    }
+    const filters: Array<{ col: string; op: string; val: unknown }> = [];
+    Object.values(allNativeFilters).forEach(candidate => {
+      if (
+        !candidate ||
+        candidate.id === id ||
+        !('filterType' in candidate) ||
+        candidate.filterType === 'filter_org_unit_tree'
+      ) {
+        return;
+      }
+      const name = String(candidate.name || '').toLowerCase();
+      const cols = (candidate.targets || []).map(target =>
+        String(target.column?.name || '')
+          .toLowerCase()
+          .replace(/\s+/g, '_'),
+      );
+      const isCbmp =
+        name.includes('cbmp') ||
+        cols.some(col => col === 'cbmp' || col === 'cbmp_type' || col.includes('cbmp'));
+      if (!isCbmp) {
+        return;
+      }
+      const mask = dataMaskSelected?.[candidate.id];
+      const fromExtra = mask?.extraFormData?.filters || [];
+      if (fromExtra.length) {
+        fromExtra.forEach(item => {
+          // Normalize to cbmp_type so OrgUnitTree recognizes the values.
+          filters.push({
+            col: 'cbmp_type',
+            op: String(item.op || 'IN'),
+            val: item.val,
+          });
+        });
+        return;
+      }
+      const value = mask?.filterState?.value;
+      if (value == null || (Array.isArray(value) && value.length === 0)) {
+        return;
+      }
+      filters.push({ col: 'cbmp_type', op: 'IN', val: value });
+    });
+    return filters.length ? { filters } : { filters: [] };
+  }, [filterType, allNativeFilters, dataMaskSelected, id]);
 
   const behaviors = useMemo(
     () => [
@@ -219,6 +272,17 @@ const FilterValue: FC<FilterValueProps> = ({
       granularity_sqla: granularitySqla,
       dashboardId,
     });
+    // For Org Unit Tree, overlay live CBMP sibling selection so the tree
+    // reloads as soon as CBMP changes (no cascade-parent config / Apply needed).
+    if (cbmpLiveExtra) {
+      const existing =
+        (newFormData.extra_form_data as { filters?: unknown[] } | undefined)
+          ?.filters || [];
+      newFormData.extra_form_data = {
+        ...((newFormData.extra_form_data as object) || {}),
+        filters: [...existing, ...(cbmpLiveExtra.filters || [])],
+      };
+    }
     const filterOwnState = filter.dataMask?.ownState || {};
     if (transitiveParentIds.length) {
       // Prevent unnecessary backend requests by validating ancestor filter
@@ -336,6 +400,7 @@ const FilterValue: FC<FilterValueProps> = ({
   }, [
     inViewFirstTime,
     dependencies,
+    cbmpLiveExtra,
     datasetId,
     groupby,
     handleFilterLoadFinish,
