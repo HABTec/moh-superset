@@ -18,6 +18,8 @@
  */
 import { render, screen } from 'spec/helpers/testing-library';
 import { Filter } from '@superset-ui/core';
+import { FilterBarOrientation } from 'src/dashboard/types';
+import { CrossFilterIndicator } from '../../selectors';
 import { FiltersDropdownContent } from '.';
 
 const buildFilter = (id: string, name: string): Filter =>
@@ -32,40 +34,55 @@ const buildFilter = (id: string, name: string): Filter =>
     scope: { rootPath: ['ROOT_ID'], excluded: [] as string[] },
   }) as unknown as Filter;
 
+const buildCrossFilter = (
+  name: string,
+  emitterId: number,
+): CrossFilterIndicator =>
+  ({ name, emitterId }) as unknown as CrossFilterIndicator;
+
 const baseProps = {
   overflowedCrossFilters: [],
   filtersInScope: [buildFilter('filter-1', 'In Scope Filter')],
   renderer: (filter: any) => <div key={filter.id}>{filter.name}</div>,
-  rendererCrossFilter: () => null,
-  showCollapsePanel: true,
-  forceRenderOutOfScope: false,
+  rendererCrossFilter: (
+    crossFilter: CrossFilterIndicator,
+    orientation: FilterBarOrientation.Vertical,
+  ) => (
+    <div key={`${crossFilter.name}${crossFilter.emitterId}`}>
+      {crossFilter.name} ({orientation})
+    </div>
+  ),
 };
 
-test('does not render "Filters out of scope" section when filtersOutOfScope is empty', () => {
-  render(<FiltersDropdownContent {...baseProps} filtersOutOfScope={[]} />);
+test('renders in-scope filters in the dropdown content', () => {
+  render(<FiltersDropdownContent {...baseProps} />);
 
-  expect(screen.queryByText(/Filters out of scope/)).not.toBeInTheDocument();
+  expect(screen.getByText('In Scope Filter')).toBeInTheDocument();
 });
 
-test('renders "Filters out of scope" section when one or more filters are out of scope', () => {
+test('renders overflowed cross filters in the dropdown content', () => {
   render(
     <FiltersDropdownContent
       {...baseProps}
-      filtersOutOfScope={[buildFilter('filter-2', 'Out of Scope Filter')]}
+      overflowedCrossFilters={[
+        buildCrossFilter('Region', 1),
+        buildCrossFilter('Country', 2),
+      ]}
     />,
   );
 
-  expect(screen.getByText(/Filters out of scope/)).toBeInTheDocument();
+  expect(screen.getByText('Region (VERTICAL)')).toBeInTheDocument();
+  expect(screen.getByText('Country (VERTICAL)')).toBeInTheDocument();
 });
 
-test('does not render "Filters out of scope" section when showCollapsePanel is false', () => {
+test('renders both cross filters and in-scope filters together', () => {
   render(
     <FiltersDropdownContent
       {...baseProps}
-      showCollapsePanel={false}
-      filtersOutOfScope={[buildFilter('filter-2', 'Out of Scope Filter')]}
+      overflowedCrossFilters={[buildCrossFilter('Region', 1)]}
     />,
   );
 
-  expect(screen.queryByText(/Filters out of scope/)).not.toBeInTheDocument();
+  expect(screen.getByText('Region (VERTICAL)')).toBeInTheDocument();
+  expect(screen.getByText('In Scope Filter')).toBeInTheDocument();
 });
