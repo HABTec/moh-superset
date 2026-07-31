@@ -213,7 +213,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
 
     const theme = useTheme();
 
-    const dynamicTitle = useDynamicChartTitle(sliceName ?? '');
+    const dynamicTitle = useDynamicChartTitle(slice.slice_id, sliceName ?? '');
 
     const rowLimit = Number(formData.row_limit ?? 0);
 

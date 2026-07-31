@@ -21,27 +21,60 @@ import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
-import type { DataMaskStateWithId } from '@superset-ui/core';
+import type { DataMaskStateWithId, NativeFilterScope } from '@superset-ui/core';
 import { NativeFilterType } from '@superset-ui/core';
+import { CHART_TYPE } from 'src/dashboard/util/componentTypes';
+import { DASHBOARD_ROOT_ID } from 'src/dashboard/util/constants';
 import { useDynamicChartTitle } from './useDynamicChartTitle';
 
 const mockStore = configureStore([]);
 
-const buildFilter = (id: string, name: string) => ({
+const buildFilter = (
+  id: string,
+  name: string,
+  defaultValue?: unknown,
+  scope: NativeFilterScope = { rootPath: [DASHBOARD_ROOT_ID], excluded: [] },
+) => ({
   id,
   name,
   type: NativeFilterType.NativeFilter,
   filterType: 'filter_select',
   targets: [],
-  scope: { rootPath: [], excluded: [] },
+  scope,
   controlValues: {},
   cascadeParentIds: [],
-  defaultDataMask: {},
+  defaultDataMask: { filterState: { value: defaultValue } },
   description: '',
 });
 
-const buildWrapper = (filters: object, dataMask: DataMaskStateWithId) => {
-  const store = mockStore({ nativeFilters: { filters }, dataMask });
+const buildLayout = (
+  chartId: number,
+  parentIds: string[] = [DASHBOARD_ROOT_ID],
+) => ({
+  [DASHBOARD_ROOT_ID]: {
+    id: DASHBOARD_ROOT_ID,
+    type: 'ROOT',
+    meta: {},
+    parents: [],
+  },
+  [`${CHART_TYPE}-${chartId}`]: {
+    id: `${CHART_TYPE}-${chartId}`,
+    type: CHART_TYPE,
+    meta: { chartId },
+    parents: parentIds,
+  },
+});
+
+const buildWrapper = (
+  filters: object,
+  dataMask: DataMaskStateWithId,
+  layout?: object,
+) => {
+  const store = mockStore({
+    nativeFilters: { filters },
+    dataMask,
+    dashboardLayout: { present: layout },
+  });
   return ({ children }: { children: ReactNode }) =>
     createElement(Provider, { store }, children);
 };
@@ -60,14 +93,18 @@ test('returns the base title when there are no matching filters', () => {
       F2: buildFilter('F2', 'Disease'),
     },
     buildDataMask('F1', ['Oromia']),
+    buildLayout(1),
   );
-  const { result } = renderHook(() => useDynamicChartTitle('Malaria cases'), {
-    wrapper,
-  });
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
   expect(result.current).toBe('Malaria cases');
 });
 
-test('appends Indicator, Year, Quarter and Month selections in order', () => {
+test('appends Indicator and Year selections in order', () => {
   const filters = {
     IND: buildFilter('IND', 'Indicator'),
     YR: buildFilter('YR', 'Year'),
@@ -82,11 +119,14 @@ test('appends Indicator, Year, Quarter and Month selections in order', () => {
     ...buildDataMask('MON', ['June']),
     ...buildDataMask('ORG', ['Ethiopia']),
   };
-  const wrapper = buildWrapper(filters, dataMask);
-  const { result } = renderHook(() => useDynamicChartTitle('Malaria cases'), {
-    wrapper,
-  });
-  expect(result.current).toBe('Malaria cases — Plasmodium — 2024 — Q2 — June');
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases — Plasmodium — 2024');
 });
 
 test('skips filters that have no selection', () => {
@@ -98,37 +138,40 @@ test('skips filters that have no selection', () => {
   };
   const dataMask = {
     ...buildDataMask('IND', ['Plasmodium']),
-    ...buildDataMask('QTR', ['2']),
   };
-  const wrapper = buildWrapper(filters, dataMask);
-  const { result } = renderHook(() => useDynamicChartTitle('Malaria cases'), {
-    wrapper,
-  });
-  expect(result.current).toBe('Malaria cases — Plasmodium — Q2');
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases — Plasmodium');
 });
 
 test('matches filter names case-insensitively', () => {
   const filters = {
-    A: buildFilter('A', 'select a Quarter here'),
+    A: buildFilter('A', 'select an Indicator here'),
     B: buildFilter('B', 'YEAR OF BIRTH'),
   };
   const dataMask = {
-    ...buildDataMask('A', ['3']),
+    ...buildDataMask('A', ['Malaria']),
     ...buildDataMask('B', ['1990']),
   };
-  const wrapper = buildWrapper(filters, dataMask);
-  const { result } = renderHook(() => useDynamicChartTitle('Cohort'), {
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(() => useDynamicChartTitle(1, 'Cohort'), {
     wrapper,
   });
-  expect(result.current).toBe('Cohort — 1990 — Q3');
+  expect(result.current).toBe('Cohort — Malaria — 1990');
 });
 
 test('joins multiple selected values with commas', () => {
   const wrapper = buildWrapper(
     { IND: buildFilter('IND', 'Indicator') },
     buildDataMask('IND', ['Malaria', 'Measles']),
+    buildLayout(1),
   );
-  const { result } = renderHook(() => useDynamicChartTitle('Cases'), {
+  const { result } = renderHook(() => useDynamicChartTitle(1, 'Cases'), {
     wrapper,
   });
   expect(result.current).toBe('Cases — Malaria, Measles');
@@ -138,9 +181,120 @@ test('ignores filters with empty selections', () => {
   const wrapper = buildWrapper(
     { IND: buildFilter('IND', 'Indicator') },
     buildDataMask('IND', []),
+    buildLayout(1),
   );
-  const { result } = renderHook(() => useDynamicChartTitle('Cases'), {
+  const { result } = renderHook(() => useDynamicChartTitle(1, 'Cases'), {
     wrapper,
   });
   expect(result.current).toBe('Cases');
+});
+
+test('skips values that only match the filter default', () => {
+  const filters = {
+    IND: buildFilter('IND', 'Indicator', ['Plasmodium']),
+    YR: buildFilter('YR', 'Year'),
+    MON: buildFilter('MON', 'Month', ['June']),
+  };
+  const dataMask = {
+    ...buildDataMask('IND', ['Plasmodium']),
+    ...buildDataMask('MON', ['June']),
+  };
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases');
+});
+
+test('includes a value once it differs from the filter default', () => {
+  const filters = {
+    IND: buildFilter('IND', 'Indicator', ['Plasmodium']),
+    YR: buildFilter('YR', 'Year', ['2024']),
+  };
+  const dataMask = {
+    ...buildDataMask('IND', ['Malaria']),
+    ...buildDataMask('YR', ['2025']),
+  };
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases — Malaria — 2025');
+});
+
+test('skips defaults while still appending actively changed filters', () => {
+  const filters = {
+    IND: buildFilter('IND', 'Indicator', ['Plasmodium']),
+    YR: buildFilter('YR', 'Year', ['2024']),
+    QTR: buildFilter('QTR', 'Quarter'),
+    MON: buildFilter('MON', 'Month', ['June']),
+  };
+  const dataMask = {
+    ...buildDataMask('IND', ['Plasmodium']),
+    ...buildDataMask('YR', ['2025']),
+    ...buildDataMask('MON', ['June']),
+  };
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases — 2025');
+});
+
+test('only appends filters whose scope includes the chart', () => {
+  const tabAScope = { rootPath: ['TAB_A'], excluded: [] };
+  const tabBScope = { rootPath: ['TAB_B'], excluded: [] };
+  const filters = {
+    IND: buildFilter('IND', 'Indicator', undefined, tabAScope),
+    YR: buildFilter('YR', 'Year', undefined, tabBScope),
+  };
+  const dataMask = {
+    ...buildDataMask('IND', ['Plasmodium']),
+    ...buildDataMask('YR', ['2024']),
+  };
+  const layout = {
+    ...buildLayout(1, ['TAB_A', DASHBOARD_ROOT_ID]),
+    ...buildLayout(2, ['TAB_B', DASHBOARD_ROOT_ID]),
+  };
+  const wrapper = buildWrapper(filters, dataMask, layout);
+  const { result: chartOne } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    { wrapper },
+  );
+  const { result: chartTwo } = renderHook(
+    () => useDynamicChartTitle(2, 'Malaria cases'),
+    { wrapper },
+  );
+  expect(chartOne.current).toBe('Malaria cases — Plasmodium');
+  expect(chartTwo.current).toBe('Malaria cases — 2024');
+});
+
+test('ignores filters that explicitly exclude the chart', () => {
+  const filters = {
+    YR: buildFilter('YR', 'Year', undefined, {
+      rootPath: [DASHBOARD_ROOT_ID],
+      excluded: [1],
+    }),
+  };
+  const wrapper = buildWrapper(
+    filters,
+    buildDataMask('YR', ['2024']),
+    buildLayout(1),
+  );
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Malaria cases'),
+    {
+      wrapper,
+    },
+  );
+  expect(result.current).toBe('Malaria cases');
 });
