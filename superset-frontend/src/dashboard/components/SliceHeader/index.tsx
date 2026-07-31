@@ -43,6 +43,7 @@ import FiltersBadge from 'src/dashboard/components/FiltersBadge';
 import CustomizationsBadge from 'src/dashboard/components/CustomizationsBadge';
 import { RootState } from 'src/dashboard/types';
 import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip';
+import { useDynamicChartTitle } from 'src/dashboard/components/SliceHeader/useDynamicChartTitle';
 import { DashboardPageIdContext } from 'src/dashboard/containers/DashboardPage';
 import RowCountLabel from 'src/components/RowCountLabel';
 import { Link } from 'react-router-dom';
@@ -212,6 +213,8 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
 
     const theme = useTheme();
 
+    const dynamicTitle = useDynamicChartTitle(sliceName ?? '');
+
     const rowLimit = Number(formData.row_limit ?? 0);
 
     const isTableChart =
@@ -243,17 +246,17 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
     useEffect(() => {
       const headerElement = headerRef.current;
       if (canExplore) {
-        setHeaderTooltip(getSliceHeaderTooltip(sliceName));
+        setHeaderTooltip(getSliceHeaderTooltip(dynamicTitle));
       } else if (
         headerElement &&
         (headerElement.scrollWidth > headerElement.offsetWidth ||
           headerElement.scrollHeight > headerElement.offsetHeight)
       ) {
-        setHeaderTooltip(sliceName ?? null);
+        setHeaderTooltip(dynamicTitle);
       } else {
         setHeaderTooltip(null);
       }
-    }, [sliceName, width, height, canExplore]);
+    }, [dynamicTitle, width, height, canExplore]);
 
     const exploreUrl = `/explore/?dashboard_page_id=${dashboardPageId}&slice_id=${slice.slice_id}`;
 
@@ -281,10 +284,9 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
             <div>
               <EditableTitle
                 title={
-                  sliceName ||
-                  (editMode
-                    ? '---' // this makes an empty title clickable
-                    : '')
+                  editMode
+                    ? sliceName || '---' // this makes an empty title clickable
+                    : dynamicTitle
                 }
                 canEdit={editMode}
                 onSaveTitle={updateSliceName}
@@ -365,6 +367,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
               {!uiConfig.hideChartControls && (
                 <SliceHeaderControls
                   slice={slice}
+                  dynamicTitle={dynamicTitle}
                   isCached={isCached}
                   isExpanded={isExpanded}
                   cachedDttm={cachedDttm}
