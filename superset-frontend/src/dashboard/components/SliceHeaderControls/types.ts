@@ -28,8 +28,6 @@ export interface SliceHeaderControlsProps {
     datasource: string;
   };
 
-  dynamicTitle?: string;
-
   componentId: string;
   dashboardId: number;
   chartStatus: string;

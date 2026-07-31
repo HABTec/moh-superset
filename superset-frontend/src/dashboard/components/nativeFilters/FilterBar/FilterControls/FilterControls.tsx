@@ -66,6 +66,7 @@ import { useChartIds } from 'src/dashboard/util/charts/useChartIds';
 import { useChartLayoutItems } from 'src/dashboard/util/useChartLayoutItems';
 import { setPendingChartCustomization } from 'src/dashboard/actions/chartCustomizationActions';
 import { getInitialDataMask } from 'src/dataMask/reducer';
+import { FiltersOutOfScopeCollapsible } from '../FiltersOutOfScopeCollapsible';
 import { CustomizationsOutOfScopeCollapsible } from '../CustomizationsOutOfScopeCollapsible';
 import { useFilterControlFactory } from '../useFilterControlFactory';
 import { FiltersDropdownContent } from '../FiltersDropdownContent';
@@ -217,6 +218,7 @@ const FilterControls: FC<FilterControlsProps> = ({
   );
 
   const dashboardHasTabs = useDashboardHasTabs();
+  const showCollapsePanel = dashboardHasTabs && filtersWithValues.length > 0;
   const showCustomizationCollapsePanel =
     dashboardHasTabs && filteredChartCustomizationValues.length > 0;
 
@@ -224,6 +226,11 @@ const FilterControls: FC<FilterControlsProps> = ({
     filters: true,
     chartCustomization: true,
   });
+
+  const showFiltersOutOfScope =
+    showCollapsePanel &&
+    (hideHeader || sectionsOpen.filters) &&
+    filtersOutOfScope.length > 0;
 
   const toggleSection = useCallback((section: keyof typeof sectionsOpen) => {
     setSectionsOpen(prev => ({
@@ -346,6 +353,14 @@ const FilterControls: FC<FilterControlsProps> = ({
           </SectionContainer>
         )}
 
+        {showFiltersOutOfScope && (
+          <FiltersOutOfScopeCollapsible
+            filtersOutOfScope={filtersOutOfScope}
+            renderer={renderer}
+            forceRender={hasRequiredFirst}
+          />
+        )}
+
         {customizationsInScope.length > 0 && (
           <SectionContainer>
             {!hideHeader && (
@@ -406,6 +421,9 @@ const FilterControls: FC<FilterControlsProps> = ({
     [
       filtersInScope,
       renderer,
+      showCollapsePanel,
+      filtersOutOfScope,
+      hasRequiredFirst,
       customizationsInScope,
       customizationsOutOfScope,
       showCustomizationCollapsePanel,
@@ -602,14 +620,18 @@ const FilterControls: FC<FilterControlsProps> = ({
           dropdownContent={
             overflowedFiltersInScope.length ||
             overflowedCrossFilters.length ||
+            (filtersOutOfScope.length && showCollapsePanel) ||
             (customizationsOutOfScope.length && showCustomizationCollapsePanel)
               ? () => (
                   <>
                     <FiltersDropdownContent
                       overflowedCrossFilters={overflowedCrossFilters}
                       filtersInScope={overflowedFiltersInScope}
+                      filtersOutOfScope={filtersOutOfScope}
                       renderer={renderer}
                       rendererCrossFilter={rendererCrossFilter}
+                      showCollapsePanel={showCollapsePanel}
+                      forceRenderOutOfScope={hasRequiredFirst}
                     />
                     {showCustomizationCollapsePanel && (
                       <CustomizationsOutOfScopeCollapsible
@@ -643,6 +665,8 @@ const FilterControls: FC<FilterControlsProps> = ({
       activeOverflowedFiltersInScope,
       overflowedFiltersInScope,
       overflowedCrossFilters,
+      filtersOutOfScope,
+      showCollapsePanel,
       customizationsOutOfScope,
       showCustomizationCollapsePanel,
       customizationRenderer,
@@ -660,7 +684,7 @@ const FilterControls: FC<FilterControlsProps> = ({
     );
 
     return filtersWithValues.map(filter => {
-      // Out-of-scope filters are hidden, so the overflow flag is irrelevant
+      // Out-of-scope filters in vertical mode are in a Collapse panel, not overflowed
       if (filtersOutOfScopeIds.has(filter.id)) {
         return filterBarOrientation === FilterBarOrientation.Horizontal;
       }

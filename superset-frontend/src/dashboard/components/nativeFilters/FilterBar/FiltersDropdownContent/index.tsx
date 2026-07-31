@@ -21,24 +21,31 @@ import { ReactNode } from 'react';
 import { Divider, Filter } from '@superset-ui/core';
 import { css, SupersetTheme } from '@apache-superset/core/theme';
 import { FilterBarOrientation } from 'src/dashboard/types';
+import { FiltersOutOfScopeCollapsible } from '../FiltersOutOfScopeCollapsible';
 import { CrossFilterIndicator } from '../../selectors';
 
 export interface FiltersDropdownContentProps {
   overflowedCrossFilters: CrossFilterIndicator[];
   filtersInScope: (Filter | Divider)[];
+  filtersOutOfScope: (Filter | Divider)[];
   renderer: (filter: Filter | Divider, index: number) => ReactNode;
   rendererCrossFilter: (
     crossFilter: CrossFilterIndicator,
     orientation: FilterBarOrientation.Vertical,
     last: CrossFilterIndicator,
   ) => ReactNode;
+  showCollapsePanel?: boolean;
+  forceRenderOutOfScope?: boolean;
 }
 
 export const FiltersDropdownContent = ({
   overflowedCrossFilters,
   filtersInScope,
+  filtersOutOfScope,
   renderer,
   rendererCrossFilter,
+  showCollapsePanel,
+  forceRenderOutOfScope,
 }: FiltersDropdownContentProps) => (
   <div
     css={(theme: SupersetTheme) => css`
@@ -54,5 +61,12 @@ export const FiltersDropdownContent = ({
       ),
     )}
     {filtersInScope.map(renderer)}
+    {showCollapsePanel && filtersOutOfScope.length > 0 && (
+      <FiltersOutOfScopeCollapsible
+        filtersOutOfScope={filtersOutOfScope}
+        renderer={renderer}
+        forceRender={forceRenderOutOfScope}
+      />
+    )}
   </div>
 );
