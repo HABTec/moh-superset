@@ -109,6 +109,8 @@ export interface SliceHeaderControlsProps {
     datasource: string;
   };
 
+  dynamicTitle?: string;
+
   defaultOpen?: boolean;
   componentId: string;
   dashboardId: number;
@@ -312,7 +314,7 @@ const SliceHeaderControls = (
         }
         downloadAsImage(
           getScreenshotNodeSelector(props.slice.slice_id),
-          props.slice.slice_name,
+          props.dynamicTitle || props.slice.slice_name,
           true,
           theme,
         )(domEvent).then(() => {
