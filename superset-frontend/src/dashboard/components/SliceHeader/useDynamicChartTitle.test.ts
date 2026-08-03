@@ -17,24 +17,39 @@
  * under the License.
  */
 import { renderHook } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
-import type { DataMaskStateWithId, NativeFilterScope } from '@superset-ui/core';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
 import { NativeFilterType } from '@superset-ui/core';
+import type { NativeFilterScope } from '@superset-ui/core';
 import { CHART_TYPE } from 'src/dashboard/util/componentTypes';
 import { DASHBOARD_ROOT_ID } from 'src/dashboard/util/constants';
 import { useDynamicChartTitle } from './useDynamicChartTitle';
 
 const mockStore = configureStore([]);
 
+type MockFilter = {
+  id: string;
+  name: string;
+  type: NativeFilterType;
+  filterType: string;
+  targets: never[];
+  scope: NativeFilterScope;
+  controlValues: Record<string, unknown>;
+  cascadeParentIds: string[];
+  defaultDataMask: { filterState: { value: unknown } };
+  description: string;
+};
+
+type MockDataMask = Record<string, { id: string; filterState: { value: unknown } }>;
+
 const buildFilter = (
   id: string,
   name: string,
   defaultValue?: unknown,
   scope: NativeFilterScope = { rootPath: [DASHBOARD_ROOT_ID], excluded: [] },
-) => ({
+): MockFilter => ({
   id,
   name,
   type: NativeFilterType.NativeFilter,
@@ -66,20 +81,21 @@ const buildLayout = (
 });
 
 const buildWrapper = (
-  filters: object,
-  dataMask: DataMaskStateWithId,
-  layout?: object,
+  filters: Record<string, MockFilter>,
+  dataMask: MockDataMask,
+  layout?: Record<string, unknown>,
 ) => {
   const store = mockStore({
     nativeFilters: { filters },
     dataMask,
     dashboardLayout: { present: layout },
   });
+
   return ({ children }: { children: ReactNode }) =>
     createElement(Provider, { store }, children);
 };
 
-const buildDataMask = (filterId: string, value: unknown) => ({
+const buildDataMask = (filterId: string, value: unknown): MockDataMask => ({
   [filterId]: {
     id: filterId,
     filterState: { value },
@@ -97,10 +113,9 @@ test('returns the base title when there are no matching filters', () => {
   );
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases');
 });
 
@@ -124,10 +139,9 @@ test('appends Indicator, Dataset and Year selections in order', () => {
   const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — Plasmodium — DHS Survey — 2024');
 });
 
@@ -142,14 +156,13 @@ test('prefers an in-scope filter when the first name match is out of scope', () 
     ...buildDataMask('DS_A', ['DHS']),
     ...buildDataMask('DS_B', ['EMR']),
   };
-  const layout = {
-    ...buildLayout(1, ['TAB_B', DASHBOARD_ROOT_ID]),
-  };
+  const layout = buildLayout(1, ['TAB_B', DASHBOARD_ROOT_ID]);
   const wrapper = buildWrapper(filters, dataMask, layout);
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
     { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — EMR');
 });
 
@@ -166,10 +179,9 @@ test('skips filters that have no selection', () => {
   const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — Plasmodium');
 });
 
@@ -186,6 +198,7 @@ test('matches filter names case-insensitively', () => {
   const { result } = renderHook(() => useDynamicChartTitle(1, 'Cohort'), {
     wrapper,
   });
+
   expect(result.current).toBe('Cohort — Malaria — 1990');
 });
 
@@ -198,6 +211,7 @@ test('joins multiple selected values with commas', () => {
   const { result } = renderHook(() => useDynamicChartTitle(1, 'Cases'), {
     wrapper,
   });
+
   expect(result.current).toBe('Cases — Malaria, Measles');
 });
 
@@ -210,6 +224,7 @@ test('ignores filters with empty selections', () => {
   const { result } = renderHook(() => useDynamicChartTitle(1, 'Cases'), {
     wrapper,
   });
+
   expect(result.current).toBe('Cases');
 });
 
@@ -226,10 +241,9 @@ test('includes a filter default value in the title', () => {
   const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — Plasmodium');
 });
 
@@ -245,10 +259,9 @@ test('includes a value once it differs from the filter default', () => {
   const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — Malaria — 2025');
 });
 
@@ -267,10 +280,9 @@ test('includes defaults alongside actively changed filters', () => {
   const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases — Plasmodium — 2025');
 });
 
@@ -298,6 +310,7 @@ test('only appends filters whose scope includes the chart', () => {
     () => useDynamicChartTitle(2, 'Malaria cases'),
     { wrapper },
   );
+
   expect(chartOne.current).toBe('Malaria cases — Plasmodium');
   expect(chartTwo.current).toBe('Malaria cases — 2024');
 });
@@ -316,9 +329,8 @@ test('ignores filters that explicitly exclude the chart', () => {
   );
   const { result } = renderHook(
     () => useDynamicChartTitle(1, 'Malaria cases'),
-    {
-      wrapper,
-    },
+    { wrapper },
   );
+
   expect(result.current).toBe('Malaria cases');
 });

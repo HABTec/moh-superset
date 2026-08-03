@@ -227,10 +227,7 @@ const FilterControls: FC<FilterControlsProps> = ({
     chartCustomization: true,
   });
 
-  const showFiltersOutOfScope =
-    showCollapsePanel &&
-    (hideHeader || sectionsOpen.filters) &&
-    filtersOutOfScope.length > 0;
+  const showFiltersOutOfScope = false;
 
   const toggleSection = useCallback((section: keyof typeof sectionsOpen) => {
     setSectionsOpen(prev => ({

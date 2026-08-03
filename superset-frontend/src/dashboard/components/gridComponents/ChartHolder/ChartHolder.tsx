@@ -131,7 +131,10 @@ const ChartHolder = ({
       z-index: 3000;
       left: 0;
       top: 0;
-      padding: ${theme.sizeUnit * 2}px;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      padding: ${theme.sizeUnit * 4}px;
     }
   `;
   const { chartId } = component.meta;
