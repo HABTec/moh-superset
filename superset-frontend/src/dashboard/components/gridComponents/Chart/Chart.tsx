@@ -547,8 +547,21 @@ const Chart = (props: ChartProps) => {
     [resize],
   );
 
+  const isFullSizeRef = useRef(props.isFullSize);
+
   useEffect(() => {
     if (props.responsiveLayout) {
+      resize.cancel();
+      setHeight(props.height);
+      setWidth(props.width);
+      isFullSizeRef.current = props.isFullSize;
+      return;
+    }
+
+    const isFullSizeToggle = isFullSizeRef.current !== props.isFullSize;
+    isFullSizeRef.current = props.isFullSize;
+
+    if (isFullSizeToggle) {
       resize.cancel();
       setHeight(props.height);
       setWidth(props.width);

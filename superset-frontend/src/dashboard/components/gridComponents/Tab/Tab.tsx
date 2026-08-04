@@ -22,6 +22,7 @@ import {
   memo,
   useEffect,
   useRef,
+  useState,
   type ReactElement,
   type Ref,
 } from 'react';
@@ -45,6 +46,7 @@ import {
   Droppable,
 } from 'src/dashboard/components/dnd/DragDroppable';
 import { TAB_TYPE } from 'src/dashboard/util/componentTypes';
+import { GRID_GUTTER_SIZE } from 'src/dashboard/util/constants';
 import type { LayoutItem, RootState } from 'src/dashboard/types';
 import type {
   DropResult,
@@ -170,6 +172,31 @@ const Tab = (props: TabProps): ReactElement => {
 
   // Track which refresh we've already handled to prevent duplicates
   const handledRefreshRef = useRef<string | null>(null);
+  const tabContentRef = useRef<HTMLDivElement | null>(null);
+  const [tabContentWidth, setTabContentWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const tabContent = tabContentRef.current;
+    if (!tabContent || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const updateTabContentWidth = () => {
+      const nextWidth = tabContent.getBoundingClientRect().width;
+      if (nextWidth <= 0) {
+        return;
+      }
+      setTabContentWidth(current =>
+        current === nextWidth ? current : nextWidth,
+      );
+    };
+    updateTabContentWidth();
+
+    const resizeObserver = new ResizeObserver(updateTabContentWidth);
+    resizeObserver.observe(tabContent);
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
     if (props.renderType === RENDER_TAB_CONTENT && props.isComponentVisible) {
@@ -287,8 +314,13 @@ const Tab = (props: TabProps): ReactElement => {
     } = props;
 
     const shouldDisplayEmptyState = tabComponent.children.length === 0;
+    const tabColumnWidth =
+      tabContentWidth != null && tabContentWidth > 0
+        ? (tabContentWidth + GRID_GUTTER_SIZE) / availableColumnCount -
+          GRID_GUTTER_SIZE
+        : columnWidth;
     return (
-      <div className="dashboard-component-tabs-content">
+      <div className="dashboard-component-tabs-content" ref={tabContentRef}>
         {/* Make top of tab droppable */}
         {editMode && (
           <Droppable
@@ -372,7 +404,7 @@ const Tab = (props: TabProps): ReactElement => {
               onDrop={handleDrop}
               onHover={handleHoverTab}
               availableColumnCount={availableColumnCount}
-              columnWidth={columnWidth}
+              columnWidth={tabColumnWidth}
               onResizeStart={onResizeStart}
               onResize={onResize}
               onResizeStop={onResizeStop}
@@ -415,6 +447,7 @@ const Tab = (props: TabProps): ReactElement => {
     props.onDropOnTab,
     props.setDirectPathToChild,
     props.updateComponents,
+    tabContentWidth,
     handleHoverTab,
     canEdit,
     handleChangeTab,

@@ -65,7 +65,12 @@ import {
   MarkLineComponent,
 } from 'echarts/components';
 import { LabelLayout } from 'echarts/features';
-import { EchartsHandler, EchartsProps, EchartsStylesProps } from '../types';
+import {
+  EchartsHandler,
+  EchartsProps,
+  EchartsStylesProps,
+  EventHandlers,
+} from '../types';
 import { DEFAULT_LOCALE } from '../constants';
 import { mergeEchartsThemeOverrides } from '../utils/themeOverrides';
 
