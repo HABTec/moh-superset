@@ -108,10 +108,15 @@ _TV_PAGE = """<!doctype html>
         const st = doc.createElement('style');
         st.id = 'moh-tv-unlock';
         st.textContent =
-          'html,body{height:auto!important;overflow:visible!important;}' +
+          'html,body{height:auto!important;overflow:visible!important;margin:0!important;}' +
           '#app,.ant-layout,.ant-layout-content,.ant-layout-content>div,' +
           '.dashboard,.dashboard-content,.grid-content,[data-test="grid-content"]' +
-          '{height:auto!important;max-height:none!important;overflow:visible!important;}';
+          '{height:auto!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;}' +
+          '#main-menu, header.top, .navbar, .ant-layout-header, .dashboard-header-container,' +
+          '[data-test="dashboard-header-wrapper"], .dashboard-header-container .header-with-actions,' +
+          '.ant-tabs-nav, .ant-tabs-nav-wrap, .ant-tabs-nav-list {display:none!important;}' +
+          '.dashboard{padding-top:0!important;margin-top:0!important;}' +
+          'body{overflow:hidden!important;}';
         (doc.head || doc.documentElement).appendChild(st);
       }
 
@@ -136,10 +141,7 @@ _TV_PAGE = """<!doctype html>
         frame.style.width = w + 'px';
         frame.style.height = h + 'px';
         const s = Math.min(window.innerWidth / w, window.innerHeight / h);
-        const left = (window.innerWidth - w * s) / 2;
-        const top = (window.innerHeight - h * s) / 2;
-        frame.style.transform =
-          'translate(' + left + 'px,' + top + 'px) scale(' + s + ')';
+        frame.style.transform = 'translate(0px,0px) scale(' + s + ')';
       }
 
       function scheduleFit() {
@@ -172,24 +174,39 @@ _TV_PAGE = """<!doctype html>
 """
 
 
-@moh_assets_bp.route("/tv")
-def tv_slideshow():
-    """Full-screen rotating slideshow of configured dashboard tabs for a wall TV.
+def _tv_page_html(slides_key: str, interval_key: str, default_interval: int = 30) -> str:
+    """Render the TV slideshow page for the given config keys.
 
-    Reads MOH_TV_INTERVAL_SECONDS and MOH_TV_SLIDES from config (env-driven).
     Each slide is ["<dashboard url with ?standalone=2#TAB-...>", "<label>"].
     """
-    interval = int(current_app.config.get("MOH_TV_INTERVAL_SECONDS", 30) or 30)
-    raw = current_app.config.get("MOH_TV_SLIDES") or []
+    interval = int(current_app.config.get(interval_key, default_interval) or default_interval)
+    raw = current_app.config.get(slides_key) or []
     slides = [
         {"url": str(item[0]), "label": str(item[1]) if len(item) > 1 else ""}
         for item in raw
         if item and item[0]
     ]
-    html = _TV_PAGE.replace("__SLIDES__", json.dumps(slides)).replace(
+    return _TV_PAGE.replace("__SLIDES__", json.dumps(slides)).replace(
         "__INTERVAL__", str(interval)
     )
-    return Response(html, mimetype="text/html")
+
+
+@moh_assets_bp.route("/tv")
+def tv_slideshow():
+    """Full-screen rotating slideshow (dashboard 8) for a wall TV."""
+    return Response(
+        _tv_page_html("MOH_TV_SLIDES", "MOH_TV_INTERVAL_SECONDS"),
+        mimetype="text/html",
+    )
+
+
+@moh_assets_bp.route("/tv-perf")
+def tv_slideshow_perf():
+    """Full-screen rotating slideshow (dashboard 3, Summary sub-tabs) for a wall TV."""
+    return Response(
+        _tv_page_html("MOH_TV_SLIDES_PERF", "MOH_TV_INTERVAL_SECONDS_PERF"),
+        mimetype="text/html",
+    )
 
 
 @moh_assets_bp.route("/<filename>")
