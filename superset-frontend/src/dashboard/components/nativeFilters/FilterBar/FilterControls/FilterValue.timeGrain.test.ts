@@ -18,7 +18,11 @@
  */
 
 import { ChartDataResponseResult } from '@superset-ui/core';
-import { applyTimeGrainAllowlist } from './FilterValue';
+import {
+  applyTimeGrainAllowlist,
+  formatMultiSelectTriggerValue,
+  shouldWrapInControl,
+} from './FilterValue';
 
 const baseResults = [
   {
@@ -57,4 +61,29 @@ test('applyTimeGrainAllowlist should return unfiltered results for non-timegrain
 test('applyTimeGrainAllowlist should return unfiltered results when allowlist is empty', () => {
   const filtered = applyTimeGrainAllowlist('filter_timegrain', [], baseResults);
   expect(filtered).toEqual(baseResults);
+});
+
+test('shouldWrapInControl collapses the Org Unit tree (multi-value, non-compact)', () => {
+  expect(shouldWrapInControl('filter_select', true)).toBe(false);
+  expect(shouldWrapInControl('filter_range', true)).toBe(false);
+  expect(shouldWrapInControl('filter_org_unit_tree')).toBe(true);
+});
+
+test('shouldWrapInControl keeps standard plugins as compact even when single', () => {
+  expect(shouldWrapInControl('filter_select', false)).toBe(false);
+  expect(shouldWrapInControl('filter_select', undefined)).toBe(false);
+});
+
+test('formatMultiSelectTriggerValue shows up to two values with a +n remainder', () => {
+  expect(formatMultiSelectTriggerValue(['Amhara', 'Oromia', 'Tigray'])).toBe(
+    'Amhara, Oromia +1',
+  );
+  expect(formatMultiSelectTriggerValue(['Amhara'])).toBe('Amhara');
+  expect(formatMultiSelectTriggerValue('Addis Ababa')).toBe('Addis Ababa');
+});
+
+test('formatMultiSelectTriggerValue returns null for empty selection', () => {
+  expect(formatMultiSelectTriggerValue([])).toBeNull();
+  expect(formatMultiSelectTriggerValue(null)).toBeNull();
+  expect(formatMultiSelectTriggerValue(undefined)).toBeNull();
 });
