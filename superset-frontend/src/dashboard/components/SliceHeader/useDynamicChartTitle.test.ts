@@ -42,7 +42,10 @@ type MockFilter = {
   description: string;
 };
 
-type MockDataMask = Record<string, { id: string; filterState: { value: unknown } }>;
+type MockDataMask = Record<
+  string,
+  { id: string; filterState: { value: unknown } }
+>;
 
 const buildFilter = (
   id: string,
@@ -143,6 +146,30 @@ test('appends Indicator, Dataset and Year selections in order', () => {
   );
 
   expect(result.current).toBe('Malaria cases — Plasmodium — DHS Survey — 2024');
+});
+
+test('appends Data Element selections (space and underscore variants)', () => {
+  const filters = {
+    DE: buildFilter('DE', 'Data Element'),
+    DE2: buildFilter('DE2', 'data_element'),
+    DS: buildFilter('DS', 'Dataset'),
+    ORG: buildFilter('ORG', 'Region'),
+  };
+  const dataMask = {
+    ...buildDataMask('DE', ['Malaria confirmed']),
+    ...buildDataMask('DE2', ['OPD visits']),
+    ...buildDataMask('DS', ['HMIS']),
+    ...buildDataMask('ORG', ['Addis Ababa']),
+  };
+  const wrapper = buildWrapper(filters, dataMask, buildLayout(1));
+  const { result } = renderHook(
+    () => useDynamicChartTitle(1, 'Weekly report'),
+    { wrapper },
+  );
+
+  expect(result.current).toBe(
+    'Weekly report — HMIS — Malaria confirmed — OPD visits',
+  );
 });
 
 test('prefers an in-scope filter when the first name match is out of scope', () => {

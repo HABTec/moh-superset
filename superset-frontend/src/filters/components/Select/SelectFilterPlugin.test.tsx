@@ -181,7 +181,8 @@ describe('SelectFilterPlugin', () => {
 
     const filterSelect = screen.getAllByRole('combobox')[0];
     userEvent.click(filterSelect);
-    userEvent.click(screen.getByTitle('girl'));
+    // Ctrl/Cmd-click toggles an option into the multi selection.
+    userEvent.click(screen.getByTitle('girl'), { ctrlKey: true });
     expect(
       await screen.findByRole('option', { name: /girl/i }),
     ).toBeInTheDocument();
@@ -198,6 +199,33 @@ describe('SelectFilterPlugin', () => {
       filterState: {
         label: 'boy, girl',
         value: ['boy', 'girl'],
+        excludeFilterValues: true,
+      },
+    });
+  });
+
+  test('Plain click in multi-select selects a single option', async () => {
+    getWrapper();
+    const filterSelect = screen.getAllByRole('combobox')[0];
+    userEvent.click(filterSelect);
+    // A plain click replaces the selection with the clicked option.
+    userEvent.click(screen.getByTitle('girl'));
+    expect(
+      await screen.findByRole('option', { name: /girl/i }),
+    ).toBeInTheDocument();
+    expect(setDataMask).toHaveBeenCalledWith({
+      extraFormData: {
+        filters: [
+          {
+            col: 'gender',
+            op: 'IN',
+            val: ['girl'],
+          },
+        ],
+      },
+      filterState: {
+        label: 'girl',
+        value: ['girl'],
         excludeFilterValues: true,
       },
     });
@@ -926,7 +954,8 @@ test('Select both boolean values in multi-select mode', async () => {
   userEvent.click(filterSelect);
 
   const falseOption = await screen.findByRole('option', { name: /false/i });
-  userEvent.click(falseOption);
+  // Ctrl/Cmd-click toggles an option into the multi selection.
+  userEvent.click(falseOption, { ctrlKey: true });
 
   await waitFor(() => {
     expect(setDataMaskMock).toHaveBeenCalledWith(

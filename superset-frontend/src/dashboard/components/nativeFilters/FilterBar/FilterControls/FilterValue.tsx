@@ -47,7 +47,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { isEqual, isEqualWith } from 'lodash';
 import { getChartDataRequest } from 'src/components/Chart/chartAction';
 import { ErrorAlert, ErrorMessageWithStackTrace } from 'src/components';
-import { Loading, Constants, Flex } from '@superset-ui/core/components';
+import {
+  Loading,
+  Constants,
+  Flex,
+  Dropdown,
+  Icons,
+} from '@superset-ui/core/components';
+import { FilterPlugins } from 'src/constants';
 import { waitForAsyncData } from 'src/middleware/asyncEvent';
 import { FilterBarOrientation, RootState } from 'src/dashboard/types';
 import {
@@ -88,6 +95,70 @@ const queriesDataPlaceholder = [{ data: [{}] }];
 type TimeGrainFilterConfig = {
   time_grains?: string[];
 };
+
+const MultiSelectTrigger = styled.button<{
+  orientation: FilterBarOrientation;
+  overflow: boolean;
+}>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: ${HEIGHT}px;
+  gap: ${({ theme }) => theme.sizeUnit * 1.5}px;
+  padding: ${({ theme }) => `0 ${theme.sizeUnit * 1.5}px`};
+  border: 1px solid ${({ theme }) => theme.colorBorder};
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  background: ${({ theme }) => theme.colorBgContainer};
+  color: ${({ theme }) => theme.colorText};
+  font-size: ${({ theme }) => theme.fontSize}px;
+  text-align: left;
+  cursor: pointer;
+  &:hover {
+    border-color: ${({ theme }) => theme.colorPrimary};
+  }
+`;
+
+const MultiSelectTriggerText = styled.span<{ hasValue: boolean }>`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: ${({ theme, hasValue }) =>
+    hasValue ? theme.colorText : theme.colorTextSecondary};
+`;
+
+export const compactControlPlugins: string[] = [
+  FilterPlugins.Select,
+  FilterPlugins.Range,
+  FilterPlugins.Time,
+  FilterPlugins.TimeColumn,
+  FilterPlugins.TimeGrain,
+];
+
+/**
+ * Multi-value filters whose plugin already renders as a compact control (e.g.
+ * the Select dropdown) keep their behavior. Plugins that render a full-size
+ * value area (e.g. the Org Unit tree) are collapsed behind a dropdown trigger.
+ */
+export function shouldWrapInControl(
+  filterType: string,
+  multiSelect?: boolean,
+): boolean {
+  const allowsMultiple =
+    filterType === FilterPlugins.OrgUnitTree || multiSelect === true;
+  return allowsMultiple && !compactControlPlugins.includes(filterType);
+}
+
+export function formatMultiSelectTriggerValue(value: unknown): string | null {
+  const list = Array.isArray(value) ? value : value != null ? [value] : [];
+  if (list.length === 0) {
+    return null;
+  }
+  return `${list
+    .slice(0, 2)
+    .map(String)
+    .join(', ')}${list.length > 2 ? ` +${list.length - 2}` : ''}`;
+}
 
 export const applyTimeGrainAllowlist = (
   filterType: string,
@@ -181,7 +252,9 @@ const FilterValue: FC<FilterValueProps> = ({
       );
       const isCbmp =
         name.includes('cbmp') ||
-        cols.some(col => col === 'cbmp' || col === 'cbmp_type' || col.includes('cbmp'));
+        cols.some(
+          col => col === 'cbmp' || col === 'cbmp_type' || col.includes('cbmp'),
+        );
       if (!isCbmp) {
         return;
       }
@@ -521,38 +594,80 @@ const FilterValue: FC<FilterValueProps> = ({
     );
   }
 
+  const wrapAsControl = shouldWrapInControl(
+    filterType,
+    filter.controlValues?.multiSelect,
+  );
+
+  const formattedTrigger = formatMultiSelectTriggerValue(
+    filter.dataMask?.filterState?.value,
+  );
+  const triggerText = formattedTrigger ?? t('Select…');
+
+  const filterControl = isLoading ? (
+    <Flex align="center">
+      <Loading position="inline" size="s" muted />
+      {hasDepsFilterValue
+        ? t('Awaiting filter selection')
+        : t('Loading filter values')}
+    </Flex>
+  ) : (
+    <SuperChart
+      height={HEIGHT}
+      width={RESPONSIVE_WIDTH}
+      showOverflow={showOverflow}
+      formData={formData}
+      displaySettings={displaySettings}
+      parentRef={parentRef}
+      inputRef={inputRef}
+      // For charts that don't have datasource we need workaround for empty placeholder
+      queriesData={hasDataSource ? state : queriesDataPlaceholder}
+      chartType={filterType}
+      behaviors={behaviors}
+      filterState={filterState}
+      ownState={filter.dataMask?.ownState}
+      enableNoResults={metadata?.enableNoResults}
+      isRefreshing={isRefreshing}
+      hooks={hooks}
+    />
+  );
+
   return (
     <StyledDiv
       data-test="form-item-value"
       orientation={orientation}
       overflow={overflow}
     >
-      {isLoading ? (
-        <Flex align="center">
-          <Loading position="inline" size="s" muted />
-          {hasDepsFilterValue
-            ? t('Awaiting filter selection')
-            : t('Loading filter values')}
-        </Flex>
+      {wrapAsControl ? (
+        <Dropdown
+          popupRender={() => (
+            <div style={{ width: 340, maxHeight: 480, overflow: 'auto' }}>
+              {filterControl}
+            </div>
+          )}
+          trigger={['click']}
+          placement="bottomLeft"
+          onOpenChange={open => {
+            if (open) {
+              setFocusedFilter();
+            } else {
+              unsetFocusedFilter();
+            }
+          }}
+        >
+          <MultiSelectTrigger
+            orientation={orientation}
+            overflow={overflow}
+            data-test="multiselect-trigger"
+          >
+            <MultiSelectTriggerText hasValue={formattedTrigger != null}>
+              {triggerText}
+            </MultiSelectTriggerText>
+            <Icons.DownOutlined iconSize="s" />
+          </MultiSelectTrigger>
+        </Dropdown>
       ) : (
-        <SuperChart
-          height={HEIGHT}
-          width={RESPONSIVE_WIDTH}
-          showOverflow={showOverflow}
-          formData={formData}
-          displaySettings={displaySettings}
-          parentRef={parentRef}
-          inputRef={inputRef}
-          // For charts that don't have datasource we need workaround for empty placeholder
-          queriesData={hasDataSource ? state : queriesDataPlaceholder}
-          chartType={filterType}
-          behaviors={behaviors}
-          filterState={filterState}
-          ownState={filter.dataMask?.ownState}
-          enableNoResults={metadata?.enableNoResults}
-          isRefreshing={isRefreshing}
-          hooks={hooks}
-        />
+        filterControl
       )}
     </StyledDiv>
   );

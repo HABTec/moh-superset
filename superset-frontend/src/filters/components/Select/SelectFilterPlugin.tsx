@@ -158,6 +158,24 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
   const [initialColtypeMap] = useState(coltypeMap);
   const [search, setSearch] = useState('');
   const prevDataRef = useRef(data);
+  // Listbox-style multi-select: a plain click selects a single option while a
+  // Ctrl/Cmd-click toggles an option into the current (multi) selection. We
+  // track the pointer modifier on the last click because antd does not expose
+  // the keyboard state from the Select's onChange event.
+  const lastPointerModifierRef = useRef(false);
+  const filterStateValueRef = useRef(filterState.value);
+
+  useEffect(() => {
+    filterStateValueRef.current = filterState.value;
+  }, [filterState.value]);
+
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      lastPointerModifierRef.current = event.ctrlKey || event.metaKey;
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, []);
   const [dataMask, dispatchDataMask] = useImmerReducer(reducer, {
     extraFormData: {},
     filterState,
@@ -290,11 +308,34 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
 
       if (values.length === 0) {
         updateDataMask(null);
-      } else {
-        updateDataMask(values);
+        return;
       }
+
+      if (!multiSelect) {
+        updateDataMask(values);
+        return;
+      }
+
+      const prev = ensureIsArray(filterStateValueRef.current).filter(
+        v => v != null,
+      );
+      const added = values.filter(v => v != null && !prev.includes(v));
+      const removed = prev.filter(v => v != null && !values.includes(v));
+
+      if (added.length > 0 && removed.length === 0) {
+        // A new option was clicked. Plain click selects it alone; Ctrl/Cmd-click
+        // adds it to the current multiple selection.
+        if (lastPointerModifierRef.current) {
+          updateDataMask(values);
+        } else {
+          updateDataMask(added);
+        }
+        return;
+      }
+
+      updateDataMask(values);
     },
-    [updateDataMask, formData.nativeFilterId, clearAllTrigger],
+    [updateDataMask, multiSelect],
   );
 
   const placeholderText =

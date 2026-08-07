@@ -23,7 +23,13 @@ import { RootState } from 'src/dashboard/types';
 import { CHART_TYPE } from 'src/dashboard/util/componentTypes';
 import { getChartIdsInFilterScope } from 'src/dashboard/util/getChartIdsInFilterScope';
 
-const TITLE_FILTER_KEYWORDS = ['indicator', 'dataset', 'year'];
+const TITLE_FILTER_KEYWORDS = [
+  'indicator',
+  'dataset',
+  'data element',
+  'data_element',
+  'year',
+];
 const TITLE_JOIN_SEPARATOR = ' — ';
 
 const formatFilterValue = (value: unknown): string | null => {
