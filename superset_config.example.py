@@ -219,6 +219,7 @@ MCP_TOOL_SEARCH_CONFIG = {"enabled": False}
 from superset.hpc import hpc_bp as _hpc_bp  # noqa: E402
 from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
 from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
+from superset.moh_assets import moh_guide_bp as _moh_guide_bp  # noqa: E402
 from superset.moh_monitoring_dashboard import (  # noqa: E402
     monitoring_dashboard_bp as _monitoring_dashboard_bp,
 )
@@ -228,6 +229,7 @@ BLUEPRINTS = [
     _ai_chat_bp,
     _moh_orgunits_bp,
     _moh_assets_bp,
+    _moh_guide_bp,
     _hpc_bp,
     _monitoring_dashboard_bp,
 ]

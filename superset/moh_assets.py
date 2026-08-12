@@ -22,7 +22,18 @@ from __future__ import annotations
 import json
 import os
 
-from flask import Blueprint, Response, abort, current_app, send_from_directory
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+)
+from flask_login import current_user
 
 moh_assets_bp = Blueprint(
     "moh_assets",
@@ -42,6 +53,29 @@ _ALLOWED_FILES: set[str] = {
     "arrow.png",
     "blank-style.json",
 }
+
+# Screenshots embedded in the user guide (superset/templates/superset/guide_images/).
+_ALLOWED_FILES.update(
+    f"guide_images/{name}"
+    for name in (
+        "01-login-page.png",
+        "02-landing-page.png",
+        "03-summary-dashboard.png",
+        "04-data-quality-dashboard.png",
+        "05-filters-panel.png",
+        "06-monthly-dashboard.png",
+        "07-line-chart-tooltip.png",
+        "08-multi-source-dashboard.png",
+        "09-triangulation-chart.png",
+        "10-health-intelligence-dashboard.png",
+        "11-ai-assistant-chat.png",
+        "12-ai-assistant-anomaly.png",
+        "13-ai-assistant-feedback-alerts.png",
+    )
+)
+
+# Branded static pages (the user guide) served at a clean public URL.
+moh_guide_bp = Blueprint("moh_guide", __name__)
 
 
 _TV_PAGE = """<!doctype html>
@@ -209,9 +243,31 @@ def tv_slideshow_perf():
     )
 
 
-@moh_assets_bp.route("/<filename>")
+@moh_assets_bp.route("/<path:filename>")
 def serve_asset(filename: str):
-    """Serve a whitelisted brand asset from the webpack-safe location."""
+    """Serve a whitelisted brand asset from the webpack-safe location.
+
+    Uses a path converter so nested files (e.g. guide_images/01-login-page.png)
+    resolve; the allowlist still rejects anything not explicitly listed.
+    """
     if filename not in _ALLOWED_FILES:
         abort(404)
     return send_from_directory(_BRAND_ASSET_DIR, filename)
+
+
+@moh_guide_bp.route("/guide/")
+def user_guide():
+    """Serve the MoH dashboard Help & User Guide (landing-page tile target)."""
+    if not getattr(current_user, "is_authenticated", False):
+        return redirect(f"/login/?next={request.path}")
+
+    resp = make_response(render_template("superset/user_guide.html"))
+    # The guide uses inline <style> and only same-origin assets.
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "script-src 'self'"
+    )
+    resp.headers.pop("X-Frame-Options", None)
+    return resp

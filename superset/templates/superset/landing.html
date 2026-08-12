@@ -345,6 +345,7 @@
     {% endif %}
    
     {% if current_user and current_user.is_authenticated %}
+      <a href="/guide/">User Guide</a>
       <a href="/superset/welcome/">{{ current_user.first_name or current_user.username }}</a>
       <a class="logout" href="/logout/">Sign out</a>
     {% else %}
@@ -375,6 +376,23 @@
       </div>
       <div class="view-link">
         <span>open assistant</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
+      </div>
+    </a>
+{% endmacro %}
+
+{% macro user_guide_tile() %}
+    <a class="tile" href="/guide/" title="Open Help & User Guide">
+      <h3>User Guide</h3>
+      <p class="subtitle">How to read, filter &amp; use the dashboard</p>
+      <div class="tile-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 10 H50 a4 4 0 0 1 4 4 V50 a4 4 0 0 1 -4 4 H16 a4 4 0 0 1 -4 -4 V14 a4 4 0 0 1 4 -4 Z"/>
+          <path d="M20 20 H44 M20 30 H44 M20 40 H36"/>
+        </svg>
+      </div>
+      <div class="view-link">
+        <span>open guide</span>
         <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
@@ -463,6 +481,7 @@
     </a>
 {% endif %}
   {{ ai_assistant_tile() }}
+  {{ user_guide_tile() }}
   </div>
 {% elif featured %}
   <div class="tile-grid">
@@ -472,10 +491,12 @@
       <div class="view-link"><span>Open</span><span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span></div>
     </a>
     {{ ai_assistant_tile() }}
+    {{ user_guide_tile() }}
   </div>
 {% else %}
   <div class="tile-grid">
     {{ ai_assistant_tile() }}
+    {{ user_guide_tile() }}
   </div>
   <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
 {% endif %}
