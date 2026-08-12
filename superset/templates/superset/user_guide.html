@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOH Performance Monitoring Dashboard - User Guide</title>
+<style>
+/* ==========================================================================
+   MOH Performance Monitoring Dashboard — Help Guide Stylesheet
+   Colors picked to match the dashboard: royal blue accent, navy headings,
+   teal secondary, light-blue card backgrounds, white base.
+   ========================================================================== */
+
+:root {
+  --moh-blue: #2563eb;        /* primary accent (links, buttons, headings highlight) */
+  --moh-navy: #1e293b;        /* headings / body text */
+  --moh-navy-light: #334155;
+  --moh-teal: #14b8c4;        /* secondary accent (baseline series) */
+  --moh-bg-card: #eef4fd;     /* light blue card background, like landing page */
+  --moh-bg-page: #ffffff;
+  --moh-border: #dbe3f0;
+  --moh-green: #16a34a;
+  --moh-amber: #d97706;
+  --moh-grey: #64748b;
+  --radius: 10px;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--moh-navy);
+  background: var(--moh-bg-page);
+  line-height: 1.6;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* ---- Portal top bar ---- */
+.guide-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 12px 0;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--moh-border);
+  backdrop-filter: blur(4px);
+}
+.guide-topbar .logo {
+  height: 36px;
+  width: auto;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}
+.guide-topbar .back-link {
+  color: var(--moh-blue);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 6px 14px;
+  border: 1px solid var(--moh-border);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.guide-topbar .back-link:hover { background: var(--moh-bg-card); }
+
+/* ---- Header ---- */
+.guide-header {
+  text-align: center;
+  padding: 40px 16px 24px;
+  border-bottom: 3px solid var(--moh-blue);
+  margin-bottom: 28px;
+}
+.guide-header h1 { margin-bottom: 0; font-size: 1.9rem; color: var(--moh-navy); }
+.guide-header h2 { margin-top: 4px; font-weight: 500; color: var(--moh-blue); font-size: 1.2rem; }
+.subtitle { color: var(--moh-grey); font-size: 0.98rem; max-width: 520px; margin: 12px auto 0; }
+
+/* ---- Headings ---- */
+h2 {
+  color: var(--moh-navy);
+  border-left: 5px solid var(--moh-blue);
+  padding-left: 12px;
+  margin-top: 44px;
+}
+h3 { color: var(--moh-navy-light); margin-top: 28px; }
+
+/* ---- Table of contents grid ---- */
+.toc-grid {
+  background: var(--moh-bg-card);
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  padding: 20px 28px;
+}
+.toc-grid ul, .toc-grid li { list-style: none; }
+.toc-grid a { text-decoration: none; color: var(--moh-blue); font-weight: 500; }
+.toc-grid a:hover { text-decoration: underline; }
+
+/* ---- Callout boxes ---- */
+.info-box, .tip-box, .warning-box {
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 18px 0;
+  border: 1px solid transparent;
+  font-size: 0.96rem;
+}
+.info-box    { background: #eef4fd; border-color: #cfe0fb; }
+.tip-box     { background: #ecfdf5; border-color: #bbf0d4; }
+.warning-box { background: #fffbeb; border-color: #fde8b8; }
+.info-box strong, .tip-box strong, .warning-box strong { display: block; margin-bottom: 4px; }
+
+/* ---- Step blocks ---- */
+.step {
+  background: #fafbfe;
+  border: 1px dashed var(--moh-border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  margin: 16px 0;
+}
+.step p { margin: 6px 0; }
+
+/* ---- Tables ---- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.94rem;
+}
+.card-table table, table {
+  background: var(--moh-bg-page);
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+th {
+  background: var(--moh-bg-card);
+  color: var(--moh-navy);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--moh-blue);
+}
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--moh-border);
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+
+/* ---- Images ---- */
+img {
+  max-width: 100%;
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(30, 41, 59, 0.08);
+  margin: 14px 0;
+  display: block;
+}
+
+/* ---- Footer ---- */
+.guide-footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--moh-border);
+  color: var(--moh-grey);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* ---- Responsive: smaller screens ---- */
+@media (max-width: 640px) {
+  body { padding: 0 14px 48px; }
+  .guide-header h1 { font-size: 1.5rem; }
+  .guide-header h2 { font-size: 1.05rem; }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-bottom: none;
+    padding: 4px 14px;
+  }
+  tr {
+    margin-bottom: 12px;
+    border: 1px solid var(--moh-border);
+    border-radius: var(--radius);
+    padding: 8px 0;
+  }
+  td:before {
+    content: attr(data-label);
+    display: block;
+    font-weight: 600;
+    color: var(--moh-blue);
+    font-size: 0.8rem;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="guide-topbar">
+  <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+  <a class="back-link" href="/">&larr; Back to Portal</a>
+</div>
+<div class="guide-header">
+<h1 id="moh-performance-monitoring-dashboard">📊 MOH Performance Monitoring Dashboard</h1>
+<h2 id="help-user-guide">Help &amp; User Guide</h2>
+<p class="subtitle">Everything you need to read, filter, and interpret the dashboard — no technical background required.</p>
+</div>
+<hr />
+<h2 id="quick-navigation">🧭 Quick Navigation</h2>
+<div class="toc-grid">
+<ul>
+<li><a href="#welcome--what-is-this-dashboard">👋 Welcome</a></li>
+<li><a href="#️-finding-your-way-around">🗺️ Finding Your Way Around</a></li>
+<li><a href="#️-filters-explained">🎛️ Filters, Explained</a></li>
+<li><a href="#-reading-cards-charts--colors">📈 Reading Cards, Charts &amp; Colors</a></li>
+<li><a href="#1️⃣-summary">1️⃣ Summary</a></li>
+<li><a href="#2️⃣-data-quality">2️⃣ Data Quality</a></li>
+<li><a href="#3️⃣-monthly--quarterly">3️⃣ Monthly &amp; Quarterly</a></li>
+<li><a href="#4️⃣-multi-source">4️⃣ Multi-Source</a></li>
+<li><a href="#5️⃣-triangulation">5️⃣ Triangulation</a></li>
+<li><a href="#6️⃣-health-intelligence">6️⃣ Health Intelligence</a></li>
+<li><a href="#7️⃣-ai-assistant">7️⃣ AI Assistant</a></li>
+<li><a href="#-where-the-data-comes-from">📚 Where the Data Comes From</a></li>
+<li><a href="#-tips-for-getting-the-most-out-of-the-dashboard">💡 Tips for Getting the Most Out of the Dashboard</a></li>
+</ul>
+</div>
+<hr />
+<h2 id="welcome-what-is-this-dashboard">👋 Welcome &amp; What Is This Dashboard?</h2>
+<p>The <strong>MOH Performance Monitoring Dashboard</strong> brings together health data from across the country into one place, so you can track how services are performing — from the national level down to an individual facility.</p>
+<div class="info-box">
+<p><strong>ℹ️ Who this is for</strong><br>
+Health experts, program managers, and decision-makers who need a fast, visual way to check performance against targets — without needing to write queries or understand the underlying database.</p>
+</div>
+<p><strong>At a glance, the dashboard gives you:</strong></p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📁 Sections</td>
+<td>8 main modules (Summary, Data Quality, Monthly, Quarterly, Multi Source, Triangulation, Health Intelligence, AI Assistant)</td>
+</tr>
+<tr>
+<td>📊 Indicators</td>
+<td>94 monthly + 19 quarterly indicators, selected by stakeholders from DHIS2</td>
+</tr>
+<tr>
+<td>🔗 Data sources</td>
+<td>7 integrated systems (DHIS2, eCHIS, EDHS, MFR, GSM, WUENIC, IGME)</td>
+</tr>
+<tr>
+<td>🎚️ Filters</td>
+<td>22 filter options across time, geography, and program area</td>
+</tr>
+</tbody>
+</table>
+<p>It runs on <strong>Apache Superset</strong>, an open-source analytics tool — you don't need to know this to use the dashboard, but if you see the name "Superset" in a browser tab or URL, that's why.</p>
+<hr />
+<h2 id="finding-your-way-around">🗺️ Finding Your Way Around</h2>
+<h3 id="logging-in">Logging In</h3>
+<div class="step">
+<p><strong>Step 1.</strong> Open Chrome or Firefox and go to your organization's dashboard URL.</p>
+<p><strong>Step 2.</strong> Enter the <strong>Username</strong> and <strong>Password</strong> you received by email.</p>
+<p><strong>Step 3.</strong> Click <strong>Sign In</strong>.</p>
+</div>
+<p><img alt="Login page" src="/moh-static/guide_images/01-login-page.png" /></p>
+<h3 id="the-landing-page">The Landing Page</h3>
+<p>Once you're logged in, you'll land on the main portal page. Every module is one click away from here.</p>
+<p><img alt="Landing page with all 8 modules" src="/moh-static/guide_images/02-landing-page.png" /></p>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>What it's for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Summary</strong></td>
+<td>A fast, top-level look at key indicators</td>
+</tr>
+<tr>
+<td><strong>Data Quality</strong></td>
+<td>Whether facilities are reporting complete data, on time</td>
+</tr>
+<tr>
+<td><strong>Monthly</strong></td>
+<td>Indicators reported every month</td>
+</tr>
+<tr>
+<td><strong>Quarterly</strong></td>
+<td>Indicators reported every quarter</td>
+</tr>
+<tr>
+<td><strong>Multi Source</strong></td>
+<td>Comparing the same indicator across different source systems</td>
+</tr>
+<tr>
+<td><strong>Triangulation</strong></td>
+<td>Cross-checking one indicator across data sources for consistency</td>
+</tr>
+<tr>
+<td><strong>Health Intelligence</strong></td>
+<td>Cross-sector "dashboard of dashboards" for strategic review</td>
+</tr>
+<tr>
+<td><strong>AI Assistant</strong></td>
+<td>Ask questions about the data in plain language</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="tip-box">
+<p><strong>💡 Tip</strong><br>
+Click any card's <em>View [Module]</em> button (or the arrow icon) to open it. Once inside a module, a tab bar near the top lets you jump between modules without going back to the landing page.</p>
+</div>
+<hr />
+<h2 id="filters-explained">🎛️ Filters, Explained</h2>
+<p>Most modules share the same basic filtering pattern, usually along the left side of the page.</p>
+<p><img alt="Filters and controls panel" src="/moh-static/guide_images/05-filters-panel.png" /></p>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Narrows the data by...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Period</strong></td>
+<td>Year, Quarter, or Month</td>
+</tr>
+<tr>
+<td><strong>Dataset</strong></td>
+<td>Which reporting dataset the indicators come from</td>
+</tr>
+<tr>
+<td><strong>Program group / Sub-program</strong></td>
+<td>Thematic area, e.g. Maternal Child and Adolescent Health (MCAH), HIV, Nutrition</td>
+</tr>
+<tr>
+<td><strong>Org Unit</strong></td>
+<td>Geography — Region, Zone, or Woreda</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="step">
+<p><strong>How to filter:</strong></p>
+<ol>
+<li>Open the filter panel (usually on the left).</li>
+<li>Choose your Period, Dataset, Program area, and/or Org Unit.</li>
+<li>Click <strong>Apply filters</strong>.</li>
+<li>Charts and cards update automatically to reflect your selection.</li>
+</ol>
+</div>
+<div class="warning-box">
+<p><strong>⚠️ Note</strong><br>
+Some filters depend on each other — for example, the Org Unit list may only show Zones after you've picked a Region. If a dropdown looks empty, check that a broader filter above it is already selected.</p>
+</div>
+<hr />
+<h2 id="reading-cards-charts-colors">📈 Reading Cards, Charts &amp; Colors</h2>
+<p>The dashboard reuses a consistent visual language across every module:</p>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>What it shows</th>
+<th>How to read it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KPI / value cards</strong></td>
+<td>A single number for Baseline, Performance, or Target</td>
+<td>Compare Performance directly against Target to see if you're on track</td>
+</tr>
+<tr>
+<td><strong>Bar charts</strong></td>
+<td>Performance across time periods or regions</td>
+<td>Taller bar = higher value; compare bar heights side by side</td>
+</tr>
+<tr>
+<td><strong>Line charts</strong></td>
+<td>Trend of an indicator over time</td>
+<td>Hover over any point to see the exact value for that month, quarter, or region</td>
+</tr>
+<tr>
+<td><strong>Heatmaps</strong></td>
+<td>Performance intensity across many rows at once (e.g., regions × months)</td>
+<td>Darker/more saturated color = stronger performance (or the opposite, depending on the indicator) — check the legend</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Color convention used throughout:</strong></p>
+<ul>
+<li>🔵 <strong>Light blue / teal</strong> — Baseline</li>
+<li>🟦 <strong>Dark navy</strong> — Performance (current/actual)</li>
+<li>➖ <strong>Green line</strong> — Target</li>
+</ul>
+<div class="tip-box">
+<p><strong>💡 Tip</strong><br>
+Hover your mouse over any bar, line point, or heatmap cell — nearly every chart in the dashboard shows an exact value on hover, so you rarely need to guess from the visual alone.</p>
+</div>
+<hr />
+<h2 id="1-summary">1️⃣ Summary</h2>
+<p><strong>What it's for:</strong> a fast, top-level overview of key indicators for decision-makers — 25 KPIs across 9 thematic areas.</p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, locate the <strong>Summary</strong> card.</p>
+<p><strong>Step 2.</strong> Click <strong>View Summary</strong>.</p>
+</div>
+<p><img alt="Summary dashboard" src="/moh-static/guide_images/03-summary-dashboard.png" /></p>
+<p><strong>What you'll see:</strong> bar and line charts showing performance trend against baseline and target for indicators such as ANC 4, Penta 3, and Full Immunization Coverage. Use the thematic tabs (EPI, Child Health, Maternal Health, Family Planning, DPC, Nutrition, Medical Service, HIV) near the top to switch between areas.</p>
+<hr />
+<h2 id="2-data-quality">2️⃣ Data Quality</h2>
+<p><strong>What it's for:</strong> checking whether the data being reported is complete and submitted on time — before you trust the numbers in other modules.</p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, locate the <strong>Data Quality</strong> card.</p>
+<p><strong>Step 2.</strong> Click <strong>View Data Quality</strong>.</p>
+</div>
+<p><img alt="Data Quality dashboard" src="/moh-static/guide_images/04-data-quality-dashboard.png" /></p>
+<p>This module has three sub-tabs — <strong>Monthly</strong>, <strong>Quarterly</strong>, and <strong>Meskot app</strong> — and focuses on two measures:</p>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Measure</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Completeness</strong></td>
+<td>Share of expected reports that were actually submitted</td>
+</tr>
+<tr>
+<td><strong>Timeliness</strong></td>
+<td>Share of reports submitted within the required deadline</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Filtering:</strong> use the left navigation to filter by Period (Month/Quarter/Year), Dataset, and Org Unit (Region/Zone/Woreda). Charts update automatically once you apply your selection.</p>
+<hr />
+<h2 id="3-monthly-quarterly">3️⃣ Monthly &amp; Quarterly</h2>
+<p><strong>What it's for:</strong> viewing indicators that are reported every month (e.g., Outpatient visits, ANC 4, Contraceptive acceptors, Malaria cases) or every quarter.</p>
+<p><img alt="Monthly dashboard" src="/moh-static/guide_images/06-monthly-dashboard.png" /></p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, click <strong>View Monthly</strong> (or <strong>View Quarterly</strong>).</p>
+</div>
+<p><strong>Filtering options on the left include:</strong></p>
+<ul>
+<li><strong>Program group</strong> — e.g., Maternal Child and Adolescent Health (MCAH), HIV, Nutrition</li>
+<li><strong>Sub-program</strong> — e.g., MCAH – Maternal Health, Immunization Services, Reproductive Family Planning</li>
+<li><strong>Period</strong> — Month, Quarter, or Year</li>
+<li><strong>Org Unit</strong> — Region, Zone, or Woreda</li>
+</ul>
+<h3 id="analyzing-trends">Analyzing Trends</h3>
+<p>Both the Monthly and Quarterly dashboards display:</p>
+<ul>
+<li><strong>Cards</strong> for Baseline, Performance, and Target</li>
+<li><strong>Line charts</strong> for performance over time</li>
+<li><strong>Bar graphs</strong> for performance across regions</li>
+<li>A <strong>heatmap</strong> showing performance via color saturation</li>
+</ul>
+<p><img alt="Hovering over a line chart to see the exact value" src="/moh-static/guide_images/07-line-chart-tooltip.png" /></p>
+<div class="tip-box">
+<p><strong>💡 Tip</strong><br>
+Mouse over any point on a line chart to see the exact value for that month, quarter, or region.</p>
+</div>
+<hr />
+<h2 id="4-multi-source">4️⃣ Multi-Source</h2>
+<p><strong>What it's for:</strong> expanding analysis beyond DHIS2 by bringing in other data sources — surveys (EDHS), international estimates (WUENIC, IGME), and systems (eCHIS, MFR, GSM) — for more complete performance monitoring and validation.</p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, locate the <strong>Multi Source</strong> card.</p>
+<p><strong>Step 2.</strong> Click <strong>View Multi Source</strong>.</p>
+</div>
+<p><img alt="Multi-Source dashboard" src="/moh-static/guide_images/08-multi-source-dashboard.png" /></p>
+<p>The tabs at the top take you to a page for each data source: <strong>WUENIC, IGME, EDHS, MFR,</strong> and <strong>Other Dashboards</strong>. Select the indicator you want (e.g., BCG, Penta 3, Measles) — the chart shows how it has trended over time across multiple sources, so you can assess long-term patterns and data reliability.</p>
+<h3 id="external-dashboards-accessible-from-this-platform">External Dashboards Accessible from This Platform</h3>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Dashboard</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>HISPMD</strong></td>
+<td>Health Information Systems Performance Monitoring Dashboard — integrates DHIS2 and other systems to monitor health system performance in near real time</td>
+</tr>
+<tr>
+<td><strong>Health Equity (HEAT)</strong></td>
+<td>Health Equity Assessment Toolkit — uses DHIS2 data to assess equity and inequality across regions and population groups</td>
+</tr>
+<tr>
+<td><strong>Woreda Transformation</strong></td>
+<td>Tracks woreda transformation performance across national health agendas</td>
+</tr>
+<tr>
+<td><strong>AHEAD</strong></td>
+<td>Immunization Dashboard — triangulates multiple sources to monitor immunization coverage, performance, and equity gaps</td>
+</tr>
+<tr>
+<td><strong>Fanos</strong></td>
+<td>Digital dashboard for public health supply chains — inventory, orders, stock levels, and distribution</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Click <strong>Go to dashboard</strong> on any card to open that platform.</p>
+<hr />
+<h2 id="5-triangulation">5️⃣ Triangulation</h2>
+<p><strong>What it's for:</strong> comparing performance across multiple data sources — DHIS2 vs. EDHS, and DHIS2 vs. eCHIS — to validate data consistency, spot divergences, and detect patterns that may signal reporting issues or genuine changes in service delivery.</p>
+<p><img alt="Triangulation chart" src="/moh-static/guide_images/09-triangulation-chart.png" /></p>
+<div class="step">
+<p><strong>Step 1.</strong> Review the chart — each bar or line represents the <em>same</em> indicator, but from a <em>different</em> data source.</p>
+<p><strong>Step 2.</strong> Apply additional filters (e.g., Year) and click <strong>Apply Filters</strong> to update the view.</p>
+</div>
+<hr />
+<h2 id="6-health-intelligence">6️⃣ Health Intelligence</h2>
+<p><strong>What it's for:</strong> a "dashboard of dashboards" — cross-sector data (logistics, HR, PHEM, financing, and more) brought into one unified view for high-level strategic review.</p>
+<p><img alt="Health Intelligence dashboard" src="/moh-static/guide_images/10-health-intelligence-dashboard.png" /></p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, locate <strong>Health Intelligence</strong>.</p>
+<p><strong>Step 2.</strong> Click <strong>View Health Intelligence</strong>.</p>
+</div>
+<p><strong>Navigate across program areas:</strong> Health Equity, Health Workforce, Health Financing, Supply and Logistics, Blood Donation, PHEM, Infrastructure, PHC, and Digital Systems.</p>
+<p>Apply the <strong>Period</strong> and <strong>Org Unit</strong> filters for a more detailed, interactive analysis.</p>
+<hr />
+<h2 id="7-ai-assistant">7️⃣ AI Assistant</h2>
+<p><strong>What it's for:</strong> exploring health data using plain-language questions instead of manually navigating dashboards — the AI Assistant returns charts, tables, summaries, and insights instantly.</p>
+<div class="step">
+<p><strong>Step 1.</strong> From the landing page, locate <strong>AI Assistant</strong>.</p>
+<p><strong>Step 2.</strong> Click <strong>Open Assistant</strong>.</p>
+</div>
+<p><img alt="AI Assistant chat" src="/moh-static/guide_images/11-ai-assistant-chat.png" /></p>
+<h3 id="top-navigation">Top Navigation</h3>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chat</strong></td>
+<td>Ask questions about health indicators and get charts, tables, and summaries</td>
+</tr>
+<tr>
+<td><strong>Anomaly</strong></td>
+<td>Detect unusual trends or unexpected changes in indicators</td>
+</tr>
+<tr>
+<td><strong>Report Generator</strong></td>
+<td>Automatically generate narrative reports from selected indicators and periods</td>
+</tr>
+<tr>
+<td><strong>Help</strong></td>
+<td>Guidance on using the AI Assistant</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="asking-questions">Asking Questions</h3>
+<p>Type your question in plain language at the bottom of the page. The Assistant accepts <strong>text or voice</strong>, understands natural language in <strong>English and Amharic</strong>, and automatically identifies the indicator, period, and geographic level you mean.</p>
+<p><strong>Example questions:</strong></p>
+<ul>
+<li><em>Show full immunization coverage by region.</em></li>
+<li><em>Compare Penta 3 coverage across regions.</em></li>
+<li><em>Which region has the highest ANC first visit coverage?</em></li>
+<li><em>Show maternal health indicators at national level.</em></li>
+</ul>
+<p><strong>Chat History</strong> (left panel) lets you start a <strong>New Chat</strong>, reopen a previous analysis, or continue an earlier conversation.</p>
+<p><strong>Interactive results</strong> may include bar, line, pie, or donut charts, data tables, and narrative explanations — switch chart types as needed. You can also <strong>Download</strong> a chart or <strong>View raw data table</strong> to inspect the exact values behind it.</p>
+<h3 id="anomaly-detection">Anomaly Detection</h3>
+<p>Helps you spot unusual patterns, unexpected changes, or possible data-quality issues in indicators over time.</p>
+<p><img alt="Anomaly detection" src="/moh-static/guide_images/12-ai-assistant-anomaly.png" /></p>
+<div class="step">
+<p><strong>Step 1. Select an Indicator</strong> — use the Indicator panel on the left to search for and choose the indicator to analyze.</p>
+<p><strong>Step 2. Choose an Organizational Unit</strong> — pick the geographic/administrative level (Federal, Region, Zone, Woreda, or Health Facility) from the Org Unit Hierarchy panel.</p>
+<p><strong>Step 3. Run the Analysis</strong> — click <strong>Run</strong> to start anomaly detection for your selection.</p>
+<p><strong>Step 4. Review the Results</strong> — the <strong>Across Time Anomalies</strong> tab flags unusual increases, decreases, or deviations from historical trends in the current fiscal period. The <strong>Unexpected Datasets</strong> tab flags datasets that look inconsistent with expected reporting patterns.</p>
+<p><strong>Step 5. Interpret Feedback Alerts</strong> — the Feedback Alerts panel summarizes anomalies by priority (<strong>High</strong>, <strong>Medium</strong>, <strong>New</strong>) for quick triage.</p>
+</div>
+<p><img alt="Feedback alerts panel" src="/moh-static/guide_images/13-ai-assistant-feedback-alerts.png" /></p>
+<h3 id="report-generation">Report Generation</h3>
+<p>The <strong>Report Generator</strong> creates structured analytical reports automatically — from your own analysis or a provided template. You can select reporting periods and indicators, produce narrative summaries backed by charts and tables, and export the result for sharing.</p>
+<div class="info-box">
+<p><strong>ℹ️ AI Assistant at a glance</strong><br>
+Natural-language querying · Interactive charts (Bar, Line, Pie, Donut) · Raw data table access · Automatic and template-based report generation · Downloadable charts and reports · Conversation history · Anomaly detection</p>
+</div>
+<hr />
+<h2 id="where-the-data-comes-from">📚 Where the Data Comes From</h2>
+<p>The dashboard integrates <strong>7 data sources</strong> into one analytics platform:</p>
+<div class="card-table">
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DHIS2</strong></td>
+<td>Primary source — the national HMIS platform for routine health data reporting from all facilities</td>
+</tr>
+<tr>
+<td><strong>eCHIS</strong></td>
+<td>Electronic Community Health Information System — community-level data from health extension workers</td>
+</tr>
+<tr>
+<td><strong>EDHS</strong></td>
+<td>Ethiopia Demographic and Health Survey — nationally representative household surveys covering fertility, maternal and child health, nutrition, immunization, HIV, and mortality</td>
+</tr>
+<tr>
+<td><strong>MFR</strong></td>
+<td>Master Facility Registry — standardized facility information, including type, services, human resources, and DHIS2 integration status</td>
+</tr>
+<tr>
+<td><strong>GSM</strong></td>
+<td>Gesaportal Modeling for Malaria — combines DHIS2 malaria surveillance and climate data to predict risk and guide interventions</td>
+</tr>
+<tr>
+<td><strong>WUENIC</strong></td>
+<td>WHO/UNICEF Estimates of National Immunization Coverage — standardized annual estimates from administrative data, surveys, and expert review</td>
+</tr>
+<tr>
+<td><strong>IGME</strong></td>
+<td>UN Inter-agency Group for Child Mortality Estimation — harmonized under-five, infant, and neonatal mortality estimates</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="warning-box">
+<p><strong>⚠️ Not specified in the source manual</strong><br>
+The manual does not state how frequently each source refreshes, or an exact "as of" data cut-off date shown on-screen. If this matters for your reporting, confirm it with the dashboard administrator before citing figures externally.</p>
+</div>
+<hr />
+<h2 id="tips-for-getting-the-most-out-of-the-dashboard">💡 Tips for Getting the Most Out of the Dashboard</h2>
+<ul>
+<li><strong>Start with Data Quality</strong> before trusting numbers elsewhere — check Completeness and Timeliness for your area first.</li>
+<li><strong>Hover, don't guess</strong> — nearly every chart shows an exact value on hover.</li>
+<li><strong>Use Triangulation or Multi-Source</strong> when a number looks surprising, to see whether other sources agree.</li>
+<li><strong>Ask the AI Assistant</strong> when you want an answer fast and don't want to hunt through tabs and filters manually.</li>
+<li><strong>Re-apply filters</strong> after switching modules — filter selections don't always carry over automatically between modules.</li>
+</ul>
+<hr />
+<div class="guide-footer">
+<p>Questions not answered here? Contact your Superset administrator or the MOH Analytics Portal support team.</p>
+</div>
+</body>
+</html>

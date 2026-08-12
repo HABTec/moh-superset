@@ -32,6 +32,9 @@ The same customizations work in two runtimes:
 | `superset/moh_ai_chat.py` | **NEW** | Flask blueprint for the AI Assistant page (`/ai-chat/`). Supports Gemini, Claude, OpenAI via `MOH_AI_PROVIDER` env var |
 | `superset/templates/superset/ai_chat.html` | **NEW** | AI chat UI — auto-embeds Superset URLs from the bot reply as inline iframes |
 | `superset/templates/head_custom_extra.html` | **NEW** | Global responsive CSS for mobile dashboards — breakpoints at 901px, 767px, 640px, 380px. Handles grid collapse, touch targets (44x44px), chart sizing |
+| `superset/templates/superset/user_guide.html` | **NEW** | The dashboard Help & User Guide page, served at `/guide/` and linked from a landing-page tile |
+| `superset/templates/superset/guide_images/` | **NEW** | 13 screenshot PNGs used by the user guide, served under `/moh-static/guide_images/` |
+| `superset/moh_assets.py` | **MODIFIED** | Adds the `moh_guide_bp` blueprint (serves `/guide/`) and allowlists the guide images |
 | `docker/requirements-local.txt` | **NEW** | AI provider SDKs installed on every container start (`google-genai`, `anthropic`, `openai`) |
 | `docker-compose.override.yml` | **MODIFIED** *(gitignored)* | Adds `superset-mcp` service running the bundled MCP server on port 5008 |
 | `docs/AI_CHAT_INTEGRATION.md` | **NEW** | Line-by-line integration guide for the AI Assistant |
@@ -66,6 +69,8 @@ appbuilder.indexview = MoHLandingView
 **Config shims** (`superset_config.py` at root, `docker/pythonpath_dev/superset_config_docker.py`) — Both end with `from superset.moh_branding import *` so the customization module is the only place to edit branding.
 
 **`superset/moh_ai_chat.py`** + **`ai_chat.html`** — Self-contained Flask blueprint registered via `BLUEPRINTS = [ai_chat_bp]` in `moh_branding.py` (no edits to `init_views()`). Handler reads `MOH_AI_PROVIDER` and dispatches to `_ask_gemini`, `_ask_claude`, or `_ask_openai`; each opens an MCP session against `superset-mcp:5008` and runs the agent loop. Replies that contain a Superset explore/dashboard URL are auto-embedded inline as iframes (`?standalone=3`). Full details in [`docs/AI_CHAT_INTEGRATION.md`](docs/AI_CHAT_INTEGRATION.md).
+
+**`user_guide.html`** + **`moh_guide_bp`** (in `superset/moh_assets.py`) — Renders the dashboard Help & User Guide at `/guide/` (login required). The 13 embedded screenshots live in `superset/templates/superset/guide_images/` and are served through the existing `/moh-static/<path:filename>` allowlist route (names prefixed `guide_images/`). The landing page has a **User Guide** tile linking to `/guide/` (plus a top-nav link for signed-in users). To edit the guide, update `superset/templates/superset/user_guide.html` directly.
 
 ---
 
