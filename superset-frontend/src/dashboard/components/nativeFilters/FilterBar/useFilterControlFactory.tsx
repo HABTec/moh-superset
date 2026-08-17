@@ -75,6 +75,7 @@ export const useFilterControlFactory = (
           inView={false}
           orientation={filterBarOrientation}
           overflow={overflow}
+          showOverflow
           clearAllTrigger={clearAllTriggers?.[filter.id]}
           onClearAllComplete={() => onClearAllComplete?.(filter.id)}
         />

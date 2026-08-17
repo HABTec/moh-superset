@@ -223,31 +223,15 @@ _moh_roles %}
   }
 
   body.moh-responsive-dashboard [data-test="filter-bar"].open {
-    max-height: calc(100vh - 80px) !important;
-    overflow: hidden !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   body.moh-responsive-dashboard [data-test="filter-bar"].open > .open {
     height: auto !important;
-    max-height: inherit !important;
-    overflow: hidden !important;
-  }
-
-  body.moh-responsive-dashboard
-    [data-test="filter-bar"].open
-    > .open
-    > div:nth-child(2) {
-    flex: 0 1 auto !important;
-    min-height: 0 !important;
-    overflow-y: auto !important;
-  }
-
-  body.moh-responsive-dashboard
-    [data-test="filter-bar"].open
-    > .open
-    > div:nth-child(2)
-    > div {
-    padding-bottom: 16px !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   /* During image export, unclip chart so canvas pixels copy correctly */

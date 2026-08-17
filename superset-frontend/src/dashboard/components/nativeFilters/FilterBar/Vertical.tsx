@@ -62,6 +62,12 @@ const BarWrapper = styled.div<{ height: number | string; width: number }>`
   position: relative;
   width: ${({ theme }) => theme.sizeUnit * 8}px;
 
+  &.open {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   & .ant-tabs-top > .ant-tabs-nav {
     margin: 0;
   }
@@ -105,6 +111,13 @@ const Bar = styled.div<{ height: number | string; width: number }>`
     min-height: 0;
     overflow: hidden;
     display: none;
+
+    &.open {
+      display: flex;
+      height: auto;
+      max-height: none;
+      overflow: visible;
+    }
 
     @media (max-width: 575px) {
       width: 100%;
@@ -256,8 +269,6 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
     () => ({
       flex: '0 1 auto',
       minHeight: 0,
-      overflow: 'auto',
-      overscrollBehavior: 'contain',
     }),
     [],
   );
