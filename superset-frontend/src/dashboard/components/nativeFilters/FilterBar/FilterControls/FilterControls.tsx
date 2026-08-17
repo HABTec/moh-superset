@@ -305,6 +305,7 @@ const FilterControls: FC<FilterControlsProps> = ({
           }
           orientation={FilterBarOrientation.Vertical}
           overflow={false}
+          showOverflow
         />
       );
     },
@@ -557,6 +558,7 @@ const FilterControls: FC<FilterControlsProps> = ({
               }
               orientation={FilterBarOrientation.Horizontal}
               overflow={false}
+              showOverflow
             />
           </div>
         ),
