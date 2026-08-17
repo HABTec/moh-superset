@@ -891,10 +891,166 @@ These are only needed when running via `docker compose` and have no effect on na
 
 ---
 
-## 7. Troubleshooting
+## 7. SQL Alerts & Reports (email screenshots)
+
+Superset **Alerts/Reports** can email a scheduled **PNG screenshot** (or PDF) of a
+dashboard. The screenshot is taken by a headless browser driven by **Selenium +
+Chrome**. This section documents the working server setup and how to fix it when
+it breaks.
+
+### 7.1 How it works
+
+1. **Beat** (`superset-beat.service`) fires the `reports.scheduler` task every minute.
+2. The scheduler enqueues a `reports.execute` task per due report.
+3. **Worker** (`superset-worker.service`) runs `reports.execute`, which:
+   - Runs the alert's SQL query (for **Alert** type) — result determines trigger.
+   - Renders the dashboard in **headless Chrome** and captures a screenshot.
+   - Sends the email with the PNG/PDF attached.
+4. State is tracked in the `report_execution_log` table; a report goes **On Grace**
+   after a run so it doesn't fire repeatedly, then **Success**/**Error**.
+
+### 7.2 Server prerequisites
+
+```bash
+# Chrome (headless screenshot browser)
+wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt install -y ./google-chrome-stable_current_amd64.deb
+google-chrome --version   # e.g. Google Chrome 12x.x.x
+
+# chromedriver is downloaded AUTOMATICALLY by Selenium Manager on first use into:
+#   ~/.cache/selenium/chromedriver/linux64/<version>/chromedriver
+# Do NOT install geckodriver / Firefox for screenshots — it is broken here
+# (geckodriver 0.33 is incompatible with Firefox 153 and crashes).
+```
+
+Verify Selenium can reach Chrome before using the UI:
+
+```bash
+cd /home/zelalem/moh-superset
+SUPERSET_CONFIG_PATH=$PWD/superset_config.py .venv/bin/python -c "
+from selenium import webdriver
+d = webdriver.Chrome()
+d.get('http://localhost:8088/health')
+print('chrome ok:', d.title or d.current_url)
+d.quit()
+"
+```
+
+### 7.3 Config (`superset_config.py`)
+
+```python
+WEBDRIVER_BASEURL = os.environ.get("WEBDRIVER_BASEURL", "http://localhost:8088/")
+
+# Give slow MoH dashboards more time before screenshot capture fails.
+SCREENSHOT_LOCATE_WAIT = 60
+SCREENSHOT_LOAD_WAIT = 180
+
+# ⚠️ ALWAYS force Chrome. If WEBDRIVER_TYPE is left unset it falls back to
+# Superset's default "firefox", which crashes with "Process unexpectedly closed
+# with status 255" (geckodriver bug). Hardcoding Chrome also ignores any stale
+# WEBDRIVER_TYPE=firefox env override left in a systemd unit.
+WEBDRIVER_TYPE = "chrome"
+WEBDRIVER_OPTION_ARGS = [
+    "--headless=new",
+    "--no-sandbox",
+    "--disable-gpu",
+    "--disable-dev-shm-usage",
+    "--disable-setuid-sandbox",
+]
+# Optional Playwright path — keep enabled only if you installed Playwright
+# Chromium AND verified it works. The Selenium fallback below it still uses
+# Chrome because WEBDRIVER_TYPE is hardcoded above.
+if os.environ.get("MOH_USE_PLAYWRIGHT", "false").lower() == "true":
+    FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
+```
+
+For dashboards that pull from a remote Postgres role with a low connection
+limit, keep the SQLAlchemy pool tiny or requests hang and screenshots time out:
+
+```python
+SQLALCHEMY_POOL_SIZE = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "1"))
+SQLALCHEMY_MAX_OVERFLOW = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "0"))
+SQLALCHEMY_POOL_TIMEOUT = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "30"))
+SQLALCHEMY_ENGINE_OPTIONS = {
+    "pool_size": SQLALCHEMY_POOL_SIZE,
+    "max_overflow": SQLALCHEMY_MAX_OVERFLOW,
+    "pool_timeout": SQLALCHEMY_POOL_TIMEOUT,
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+    "connect_args": {"connect_timeout": 10},
+}
+```
+
+### 7.4 systemd services & clean worker env
+
+Three services must be running (`systemctl status superset superset-worker superset-beat`):
+`superset.service` (web), `superset-worker.service` (celery worker `-c 1 -P solo`),
+`superset-beat.service`. **The worker's environment must NOT contain
+`WEBDRIVER_TYPE=firefox` or `MOH_USE_PLAYWRIGHT=true`** — remove them from any
+`override.conf`. (Playwright/Firefox vars on the *beat* unit are harmless but
+useless — the beat never takes screenshots.)
+
+Restart all three after any config change:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart superset.service superset-worker.service superset-beat.service
+```
+
+### 7.5 Creating the alert in the UI
+
+1. **Manage → Alerts & Reports → + Report** (bottom right).
+2. Choose **Alert** (SQL-driven) or **Report** (screenshot-only).
+3. Pick the **dashboard** (and optional chart), add **recipients**.
+4. Set the schedule: `* * * * *` = every minute; use
+   [crontab.guru](https://crontab.guru) for other schedules.
+5. Output **PNG** (or PDF) so the email attaches a screenshot.
+6. After the first run the report goes **On Grace**; a successful run flips it to
+   **Success**. To reset a stuck/inactive report, uncheck **Active**, then on
+   **edit** check it again and save — this clears `last_state`.
+
+### 7.6 Verifying a run
+
+```bash
+# Live worker log — look for "Screenshot capture took Xs", "Report sent to
+# email", "completed in Xs"
+sudo journalctl -u superset-worker -f
+
+# Last runs for report id 8 (state column)
+cd /home/zelalem/moh-superset
+SUPERSET_CONFIG_PATH=$PWD/superset_config.py .venv/bin/python -c "
+from superset import app; a=app.create_app()
+from superset.reports.models import ReportExecutionLog
+from superset.extensions import db
+with a.app_context():
+    for l in db.session.query(ReportExecutionLog).filter_by(report_schedule_id=8)\
+            .order_by(ReportExecutionLog.id.desc()).limit(5):
+        print(l.id, l.state, l.start_dttm, (l.error_message or '')[:80])
+"
+```
+
+A healthy run shows a `Success` row (≈ 20–40 s) and a screenshot file in
+`~/.superset/sqllab/` (or `SUPERSET_HOME`), plus the email arrives with the PNG.
+
+### 7.7 Known failure modes (see also §8)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Failed taking a screenshot ... unexpectedly closed with status 255` | geckodriver/Firefox was used (that message exists **only** in the geckodriver binary) | Confirm `WEBDRIVER_TYPE = "chrome"` in `superset_config.py` (§7.3) and that the worker env has no firefox vars (§7.4); restart services; `pkill -f geckodriver` if any linger |
+| Screenshot `Read timed out` / empty error after ~120–200 s | Dashboard (esp. 86-chart #3 over remote ClickHouse/Postgres) exceeds `SCREENSHOT_LOAD_WAIT=180` | Raise `SCREENSHOT_LOAD_WAIT`, or report a lighter dashboard/chart; check DB connection limit below |
+| `FATAL: too many connections for role "moh_ss_user"` | Remote Postgres role `rolconnlimit` exhausted → page never loads → screenshot timeout | DB admin raises the limit and kills idle sessions (§8); keep `SQLALCHEMY_ENGINE_OPTIONS` pool tiny (§7.3) |
+
+---
+
+## 8. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| Alert/report: `Failed taking a screenshot Message: Process (pid=...) unexpectedly closed with status 255` | A **geckodriver/Firefox** launch crashed (that exact message exists only in the geckodriver binary). `WEBDRIVER_TYPE` fell back to Superset's default `firefox`, or a stale `WEBDRIVER_TYPE=firefox` env override reached the worker | In `superset_config.py` hardcode `WEBDRIVER_TYPE = "chrome"` (§7.3); make sure the worker systemd unit has no `WEBDRIVER_TYPE`/`MOH_USE_PLAYWRIGHT` env vars (§7.4); `sudo systemctl restart superset-worker superset-beat`; `pkill -f geckodriver` if any remain |
+| Alert/report: screenshot error after ~120–200 s (`Read timed out` / empty message) | Dashboard takes longer than `SCREENSHOT_LOAD_WAIT` to load — often because the remote Postgres role connection limit is exhausted so chart queries hang | Raise `SCREENSHOT_LOAD_WAIT`, report a lighter dashboard, and clear idle DB connections: `ALTER ROLE moh_ss_user CONNECTION LIMIT 100;` + terminate idle sessions (see below) |
+| `FATAL: too many connections for role "moh_ss_user"` in worker/query logs | Remote Postgres role `rolconnlimit` exhausted by leftover pooled connections | As DB admin: `ALTER ROLE moh_ss_user CONNECTION LIMIT 100; ALTER ROLE moh_ss_user SET idle_session_timeout='10min'; SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='moh_ss_user' AND state='idle' AND pid <> pg_backend_pid();` Keep `SQLALCHEMY_ENGINE_OPTIONS` pool at `pool_size=1, max_overflow=0` (§7.3) |
+| Alert/Report stuck in "Working" forever, every run logs "Report Schedule is still working, refusing to re-compute" | A prior run left the schedule in `working` state (e.g. killed mid-execution) | Edit the report in the UI, uncheck **Active**, save, then re-check **Active** and save to reset `last_state` |
+| Alert/Report never fires | `grace_period` still suppressing after an error, or schedule inactive | Check `last_state`/`grace_period` in the UI; set `grace_period=0` if you want immediate retries |
 | Dashboard **not responsive on mobile** — charts don't stack vertically, sidebar too wide, text overflows | CSS in `head_custom_extra.html` not being applied, or browser cache | Hard-refresh (`Ctrl+Shift+R`), verify `head_custom_extra.html` exists in the template folder, check Chrome DevTools (F12 → Styles) that media queries are loaded |
 | Mobile dashboard loads but **charts still show at fixed width** | Hardcoded React component widths override CSS — or the `!important` flags in media queries are not working | File an issue with the exact viewport width; check DevTools Inspector for inline `style="width: XXXpx"` overrides. May require React component changes in `superset-frontend/` |
 | **Touch targets too small** on mobile buttons | Default button height is 36px, should be 44px per Apple HIG | Already fixed in `head_custom_extra.html` media query `@media (max-width: 640px)` — clear browser cache and restart. If still too small, check that the override file is loading (Chrome DevTools → Sources → search "head_custom_extra") |

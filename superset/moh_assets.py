@@ -267,7 +267,26 @@ def user_guide():
         "default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
-        "script-src 'self'"
+        "script-src 'self' 'unsafe-inline'"
+    )
+    resp.headers.pop("X-Frame-Options", None)
+    return resp
+
+
+@moh_guide_bp.route("/feedback/")
+def feedback():
+    """Serve the MoH feedback page (Google Form embedded in an iframe)."""
+    if not getattr(current_user, "is_authenticated", False):
+        return redirect(f"/login/?next={request.path}")
+
+    resp = make_response(render_template("superset/feedback.html"))
+    # The page embeds a Google Form in an iframe, so frame-src must allow it.
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "script-src 'self' 'unsafe-inline'; "
+        "frame-src https://docs.google.com"
     )
     resp.headers.pop("X-Frame-Options", None)
     return resp

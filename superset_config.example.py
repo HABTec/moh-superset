@@ -408,16 +408,20 @@ ALERT_REPORTS_NOTIFICATION_DRY_RUN = (
 )
 WEBDRIVER_BASEURL = os.environ.get("WEBDRIVER_BASEURL", "http://localhost:8088/")
 
+# Give slow MoH dashboards more time before screenshot capture fails.
+SCREENSHOT_LOCATE_WAIT = 60
+SCREENSHOT_LOAD_WAIT = 180
+
 if os.environ.get("MOH_USE_PLAYWRIGHT", "false").lower() == "true":
     FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
 else:
     WEBDRIVER_TYPE = os.environ.get("WEBDRIVER_TYPE", "chrome")
     WEBDRIVER_OPTION_ARGS = [
-        "--headless",
+        "--headless=new",
         "--no-sandbox",
-        "--disable-dev-shm-usage",
         "--disable-gpu",
-        "--window-size=1920,1080",
+        "--disable-dev-shm-usage",
+        "--disable-setuid-sandbox",
     ]
 
 # -----------------------------------------------------------------------------
