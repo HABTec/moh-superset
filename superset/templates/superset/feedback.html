@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback - MOH Performance Monitoring Dashboard</title>
+<style>
+:root {
+  --moh-blue: #2563eb;
+  --moh-navy: #1e293b;
+  --moh-bg-card: #eef4fd;
+  --moh-border: #dbe3f0;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--moh-navy);
+  background: #fff;
+  line-height: 1.6;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* ---- Portal top bar ---- */
+.feedback-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 12px 0;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--moh-border);
+  backdrop-filter: blur(4px);
+}
+.feedback-topbar .logo {
+  height: 36px;
+  width: auto;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}
+.feedback-topbar .back-link {
+  color: var(--moh-blue);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 6px 14px;
+  border: 1px solid var(--moh-border);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.feedback-topbar .back-link:hover { background: var(--moh-bg-card); }
+
+/* ---- Header ---- */
+.feedback-header {
+  text-align: center;
+  padding: 40px 16px 24px;
+  border-bottom: 3px solid var(--moh-blue);
+  margin-bottom: 28px;
+}
+.feedback-header h1 { margin-bottom: 0; font-size: 1.9rem; color: var(--moh-navy); }
+.feedback-header h2 { margin-top: 4px; font-weight: 500; color: var(--moh-blue); font-size: 1.2rem; }
+
+.feedback-embed {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--moh-border);
+  border-radius: 10px;
+  background: #fff;
+}
+.feedback-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+</style>
+</head>
+<body>
+<div class="feedback-topbar">
+  <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+  <a class="back-link" href="/">&larr; Back to Portal</a>
+</div>
+
+<div class="feedback-header">
+  <h1>Share Your Feedback</h1>
+  <h2>MOH Performance Monitoring Dashboard</h2>
+</div>
+
+<div class="feedback-embed">
+  <iframe
+    src="https://docs.google.com/forms/d/e/1FAIpQLSd-kqtRhWad3T8jDrIpMi2pEudDFx9mMczXTxQDLadB7cl9fg/viewform?embedded=true"
+    width="100%"
+    height="900"
+    style="border: 0;"
+    frameborder="0"
+    title="Feedback form">
+  </iframe>
+</div>
+</body>
+</html>

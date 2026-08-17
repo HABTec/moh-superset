@@ -96,9 +96,63 @@ h3 { color: var(--moh-navy-light); margin-top: 28px; }
   border-radius: var(--radius);
   padding: 20px 28px;
 }
+.toc-grid.toc-hidden {
+  display: none;
+}
 .toc-grid ul, .toc-grid li { list-style: none; }
 .toc-grid a { text-decoration: none; color: var(--moh-blue); font-weight: 500; }
 .toc-grid a:hover { text-decoration: underline; }
+
+/* ---- Collapsible guide sections ---- */
+.details-section {
+  margin: 22px 0;
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.03);
+}
+.details-section[open] {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+.details-section summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 18px;
+  background: #f8fbff;
+  border-bottom: 1px solid var(--moh-border);
+  font-weight: 700;
+  color: var(--moh-navy);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.details-section summary::-webkit-details-marker {
+  display: none;
+}
+.details-section summary::after {
+  content: "▾";
+  font-size: 1.1rem;
+  color: var(--moh-blue);
+  transition: transform 0.2s ease;
+}
+.details-section:not([open]) summary::after {
+  content: "▸";
+}
+.details-section summary h2,
+.details-section summary h3 {
+  margin: 0;
+  padding: 0;
+  border-left: none;
+  display: inline-block;
+}
+.details-section > :not(summary) {
+  padding: 0 18px 10px;
+}
+.details-section > :not(summary) > :first-child {
+  margin-top: 18px;
+}
 
 /* ---- Callout boxes ---- */
 .info-box, .tip-box, .warning-box {
@@ -210,21 +264,21 @@ img {
 </div>
 <hr />
 <h2 id="quick-navigation">🧭 Quick Navigation</h2>
-<div class="toc-grid">
+<div class="toc-grid toc-hidden" id="guide-toc">
 <ul>
-<li><a href="#welcome--what-is-this-dashboard">👋 Welcome</a></li>
-<li><a href="#️-finding-your-way-around">🗺️ Finding Your Way Around</a></li>
-<li><a href="#️-filters-explained">🎛️ Filters, Explained</a></li>
-<li><a href="#-reading-cards-charts--colors">📈 Reading Cards, Charts &amp; Colors</a></li>
-<li><a href="#1️⃣-summary">1️⃣ Summary</a></li>
-<li><a href="#2️⃣-data-quality">2️⃣ Data Quality</a></li>
-<li><a href="#3️⃣-monthly--quarterly">3️⃣ Monthly &amp; Quarterly</a></li>
-<li><a href="#4️⃣-multi-source">4️⃣ Multi-Source</a></li>
-<li><a href="#5️⃣-triangulation">5️⃣ Triangulation</a></li>
-<li><a href="#6️⃣-health-intelligence">6️⃣ Health Intelligence</a></li>
-<li><a href="#7️⃣-ai-assistant">7️⃣ AI Assistant</a></li>
-<li><a href="#-where-the-data-comes-from">📚 Where the Data Comes From</a></li>
-<li><a href="#-tips-for-getting-the-most-out-of-the-dashboard">💡 Tips for Getting the Most Out of the Dashboard</a></li>
+<li><a href="#welcome-what-is-this-dashboard">👋 Welcome</a></li>
+<li><a href="#finding-your-way-around">🗺️ Finding Your Way Around</a></li>
+<li><a href="#filters-explained">🎛️ Filters, Explained</a></li>
+<li><a href="#reading-cards-charts-colors">📈 Reading Cards, Charts &amp; Colors</a></li>
+<li><a href="#1-summary">1️⃣ Summary</a></li>
+<li><a href="#2-data-quality">2️⃣ Data Quality</a></li>
+<li><a href="#3-monthly-quarterly">3️⃣ Monthly &amp; Quarterly</a></li>
+<li><a href="#4-multi-source">4️⃣ Multi-Source</a></li>
+<li><a href="#5-triangulation">5️⃣ Triangulation</a></li>
+<li><a href="#6-health-intelligence">6️⃣ Health Intelligence</a></li>
+<li><a href="#7-ai-assistant">7️⃣ AI Assistant</a></li>
+<li><a href="#where-the-data-comes-from">📚 Where the Data Comes From</a></li>
+<li><a href="#tips-for-getting-the-most-out-of-the-dashboard">💡 Tips for Getting the Most Out of the Dashboard</a></li>
 </ul>
 </div>
 <hr />
@@ -665,5 +719,55 @@ The manual does not state how frequently each source refreshes, or an exact "as 
 <div class="guide-footer">
 <p>Questions not answered here? Contact your Superset administrator or the MOH Analytics Portal support team.</p>
 </div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const toc = document.getElementById('guide-toc');
+    const headings = [...document.querySelectorAll('h2[id]')].filter(
+      heading => heading.id !== 'quick-navigation' && heading.id !== 'help-user-guide'
+    );
+
+    const revealToc = () => {
+      if (toc) {
+        toc.classList.remove('toc-hidden');
+      }
+    };
+
+    headings.forEach((heading, index) => {
+      const nextHeading = headings[index + 1] || null;
+      const contentNodes = [];
+      let node = heading.nextElementSibling;
+
+      while (node && node !== nextHeading) {
+        contentNodes.push(node);
+        node = node.nextElementSibling;
+      }
+
+      if (!contentNodes.length) {
+        return;
+      }
+
+      const details = document.createElement('details');
+      details.className = 'details-section';
+      details.id = heading.id;
+      details.open = false;
+
+      const summary = document.createElement('summary');
+      summary.innerHTML = heading.innerHTML;
+      summary.addEventListener('click', revealToc);
+      details.appendChild(summary);
+
+      contentNodes.forEach(item => details.appendChild(item));
+      heading.replaceWith(details);
+    });
+
+    document.querySelectorAll('details').forEach(details => {
+      details.addEventListener('toggle', () => {
+        if (details.open) {
+          revealToc();
+        }
+      });
+    });
+  });
+</script>
 </body>
 </html>
