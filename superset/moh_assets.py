@@ -104,16 +104,46 @@ _TV_PAGE = """<!doctype html>
     justify-content: center; color: #ccc;
     font: 400 18px/1.5 system-ui, sans-serif; text-align: center; padding: 24px;
   }
+  #hint {
+    position: fixed; right: 16px; bottom: 12px; z-index: 10;
+    font: 500 14px/1.2 system-ui, sans-serif; color: #fff;
+    background: rgba(0,0,0,.45); padding: 6px 12px; border-radius: 8px;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
   <iframe id="tv" referrerpolicy="same-origin"></iframe>
   <div id="label"></div>
+  <div id="hint">Tap the screen (or press any key) for fullscreen</div>
   <script>
     const SLIDES = __SLIDES__;
     const INTERVAL_MS = __INTERVAL__ * 1000;
     const frame = document.getElementById('tv');
     const label = document.getElementById('label');
+    const hint = document.getElementById('hint');
+
+    // Hide the browser chrome: request fullscreen on load, and again on the
+    // first tap/key — browsers require a user gesture before allowing it.
+    function goFullscreen() {
+      const el = document.documentElement;
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen
+        || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (fn && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        try { fn.call(el); } catch (e) { /* needs gesture; hint stays */ }
+      }
+    }
+    function syncHint() {
+      hint.style.display =
+        (document.fullscreenElement || document.webkitFullscreenElement)
+          ? 'none' : 'block';
+    }
+    goFullscreen();
+    document.addEventListener('fullscreenchange', syncHint);
+    document.addEventListener('webkitfullscreenchange', syncHint);
+    document.addEventListener('click', goFullscreen);
+    document.addEventListener('touchstart', goFullscreen);
+    document.addEventListener('keydown', goFullscreen);
 
     if (!SLIDES.length) {
       document.body.innerHTML =
@@ -150,7 +180,13 @@ _TV_PAGE = """<!doctype html>
           '[data-test="dashboard-header-wrapper"], .dashboard-header-container .header-with-actions,' +
           '.ant-tabs-nav, .ant-tabs-nav-wrap, .ant-tabs-nav-list {display:none!important;}' +
           '.dashboard{padding-top:0!important;margin-top:0!important;}' +
-          'body{overflow:hidden!important;}';
+          'body{overflow:hidden!important;}' +
+          // Superset caps the content column at viewport-minus-filter-bar even
+          // when the bar is hidden — lift every internal width cap so charts
+          // span the full frame, otherwise side bands show on wide TVs.
+          '.dashboard,.dashboard-content,[data-test="dashboard-content"],' +
+          '[class*="dashboard-builder"],.grid-content,[data-test="grid-content"],' +
+          '.dashboard-grid{max-width:none!important;width:auto!important;}';
         (doc.head || doc.documentElement).appendChild(st);
       }
 
@@ -165,17 +201,39 @@ _TV_PAGE = """<!doctype html>
         return (doc.body && doc.body.scrollHeight) || window.innerHeight;
       }
 
+      // Fill the whole screen — no letterbox bars. Solve the scale that maps
+      // content height onto screen height, then set the frame width to
+      // innerWidth / scale so the scaled width lands exactly on the screen
+      // width. Content reflows when the width changes, so re-measure until
+      // stable before committing the transform.
       function fit() {
         let doc;
         try { doc = frame.contentDocument; } catch (e) { return; }   // cross-origin
         if (!doc || !doc.body) return;
         unlockScroll(doc);
-        const w = designWidth();
-        const h = contentHeight(doc);
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        let s = vh / contentHeight(doc);
+        for (let k = 0; k < 4; k++) {
+          const w = Math.max(320, Math.round(vw / s));
+          if (Math.abs((parseFloat(frame.style.width) || 0) - w) < 2) break;
+          frame.style.width = w + 'px';
+          s = vh / contentHeight(doc);
+        }
+        s = Math.min(Math.max(s, 0.25), 5);
+
+        // Overshoot ~0.3% and centre-crop the remainder so rounding never
+        // leaves a hairline gap on any edge.
+        s *= 1.003;
+        const w = Math.max(320, Math.round(vw / s));
+        const h = Math.round(contentHeight(doc));
         frame.style.width = w + 'px';
         frame.style.height = h + 'px';
-        const s = Math.min(window.innerWidth / w, window.innerHeight / h);
-        frame.style.transform = 'translate(0px,0px) scale(' + s + ')';
+        const left = (vw - w * s) / 2;
+        const top = (vh - h * s) / 2;
+        frame.style.transform =
+          'translate(' + left + 'px,' + top + 'px) scale(' + s + ')';
       }
 
       function scheduleFit() {
@@ -191,6 +249,9 @@ _TV_PAGE = """<!doctype html>
         // differs, by varying a throwaway param.
         const u = new URL(s.url, window.location.origin);
         u.searchParams.set('_tv', String(Date.now()));
+        // Always start with the native filter bar collapsed — do not depend on
+        // the deployment's FILTERBAR_CLOSED_BY_DEFAULT feature flag.
+        u.searchParams.set('expand_filters', 'false');
         frame.src = u.toString();
         label.textContent = s.label || '';
       }
@@ -208,18 +269,22 @@ _TV_PAGE = """<!doctype html>
 """
 
 
+def _normalize_slides(raw: list) -> list[dict]:
+    """Convert [["<url>", "<label>"], ...] entries to slide dicts."""
+    return [
+        {"url": str(item[0]), "label": str(item[1]) if len(item) > 1 else ""}
+        for item in raw
+        if item and item[0]
+    ]
+
+
 def _tv_page_html(slides_key: str, interval_key: str, default_interval: int = 30) -> str:
     """Render the TV slideshow page for the given config keys.
 
     Each slide is ["<dashboard url with ?standalone=2#TAB-...>", "<label>"].
     """
     interval = int(current_app.config.get(interval_key, default_interval) or default_interval)
-    raw = current_app.config.get(slides_key) or []
-    slides = [
-        {"url": str(item[0]), "label": str(item[1]) if len(item) > 1 else ""}
-        for item in raw
-        if item and item[0]
-    ]
+    slides = _normalize_slides(current_app.config.get(slides_key) or [])
     return _TV_PAGE.replace("__SLIDES__", json.dumps(slides)).replace(
         "__INTERVAL__", str(interval)
     )
@@ -241,6 +306,25 @@ def tv_slideshow_perf():
         _tv_page_html("MOH_TV_SLIDES_PERF", "MOH_TV_INTERVAL_SECONDS_PERF"),
         mimetype="text/html",
     )
+
+
+@moh_assets_bp.route("/tv/group/<slug>")
+def tv_group_slideshow(slug: str):
+    """Themed TV slideshow: one dashboard-8 tab group per wall TV.
+
+    Groups are defined in the MOH_TV_GROUPS config dict, keyed by slug.
+    """
+    groups = current_app.config.get("MOH_TV_GROUPS") or {}
+    raw = groups.get(slug)
+    if not raw:
+        abort(404)
+    interval = int(
+        current_app.config.get("MOH_TV_INTERVAL_SECONDS", 30) or 30
+    )
+    html = _TV_PAGE.replace("__SLIDES__", json.dumps(_normalize_slides(raw))).replace(
+        "__INTERVAL__", str(interval)
+    )
+    return Response(html, mimetype="text/html")
 
 
 @moh_assets_bp.route("/<path:filename>")
