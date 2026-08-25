@@ -110,63 +110,100 @@ _TV_PAGE = """<!doctype html>
     background: rgba(0,0,0,.45); padding: 6px 12px; border-radius: 8px;
     pointer-events: none;
   }
+  #fsbtn {
+    position: fixed; right: 16px; top: 12px; z-index: 20;
+    font: 600 14px/1 system-ui, sans-serif; color: #fff;
+    background: rgba(0,0,0,.45); border: 0; cursor: pointer;
+    padding: 8px 14px; border-radius: 8px; opacity: .55;
+  }
+  #fsbtn:hover { opacity: 1; }
 </style>
 </head>
 <body>
   <iframe id="tv" referrerpolicy="same-origin"></iframe>
   <div id="label"></div>
   <div id="hint">Tap the screen (or press any key) for fullscreen</div>
+  <button id="fsbtn" type="button">⛶ Fullscreen</button>
   <script>
-    const SLIDES = __SLIDES__;
-    const INTERVAL_MS = __INTERVAL__ * 1000;
+    const CFG = __CONFIG__;
     const frame = document.getElementById('tv');
     const label = document.getElementById('label');
     const hint = document.getElementById('hint');
+    const fsbtn = document.getElementById('fsbtn');
 
-    // Hide the browser chrome: request fullscreen on load, and again on the
-    // first tap/key — browsers require a user gesture before allowing it.
+    // Hide the browser chrome. Browsers require a user gesture before
+    // allowing fullscreen, so we (1) try silently on load, (2) offer a
+    // button that floats ABOVE the iframe, and (3) forward taps/keys that
+    // land inside the iframe document back to this page.
     function goFullscreen() {
       const el = document.documentElement;
       const fn = el.requestFullscreen || el.webkitRequestFullscreen
         || el.mozRequestFullScreen || el.msRequestFullscreen;
       if (fn && !document.fullscreenElement && !document.webkitFullscreenElement) {
-        try { fn.call(el); } catch (e) { /* needs gesture; hint stays */ }
+        try { fn.call(el); } catch (e) { /* needs gesture */ }
+      }
+    }
+    function toggleFullscreen() {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+      } else {
+        goFullscreen();
       }
     }
     function syncHint() {
-      hint.style.display =
-        (document.fullscreenElement || document.webkitFullscreenElement)
-          ? 'none' : 'block';
+      const full =
+        !!(document.fullscreenElement || document.webkitFullscreenElement);
+      hint.style.display = full ? 'none' : 'block';
+      fsbtn.style.display = full ? 'none' : 'block';
     }
     goFullscreen();
     document.addEventListener('fullscreenchange', syncHint);
     document.addEventListener('webkitfullscreenchange', syncHint);
-    document.addEventListener('click', goFullscreen);
-    document.addEventListener('touchstart', goFullscreen);
+    fsbtn.addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); });
     document.addEventListener('keydown', goFullscreen);
 
-    if (!SLIDES.length) {
+    // Taps inside the iframe never reach this document (the dashboard fills
+    // it completely), so listen there too — same-origin makes that possible.
+    function wireIframeGestures() {
+      let doc = null;
+      try { doc = frame.contentDocument; } catch (e) { return; }
+      if (!doc || doc.__mohTvWired) return;
+      doc.__mohTvWired = true;
+      doc.addEventListener('click', goFullscreen);
+      doc.addEventListener('touchstart', goFullscreen);
+      doc.addEventListener('keydown', goFullscreen);
+    }
+
+    if (!CFG.url || !CFG.slides.length) {
       document.body.innerHTML =
         '<div id="empty">No TV slides configured.<br>'
-        + 'Set MOH_TV_SLIDES in superset_config.py.</div>';
+        + 'Set MOH_TV_SLIDES / MOH_TV_GROUPS in superset_config.py.</div>';
     } else {
       let i = -1;
       let fitTimers = [];
+      let token = 0;        // guards against overlapping slide switches
+      let pending = -1;     // slide to activate after the iframe loads
 
-      // Render the dashboard at the TV's pixel width, tall enough that nothing
-      // is clipped, then scale it down so the whole tab fits the screen.
-      function designWidth() { return window.innerWidth; }
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
 
       function resetFrame() {
         frame.style.transform = 'none';
-        frame.style.width = designWidth() + 'px';
-        // Start at the window height (NOT a huge value — that would make the
-        // measured content height wrong and shrink everything to a sliver).
+        frame.style.width = window.innerWidth + 'px';
         frame.style.height = window.innerHeight + 'px';
       }
 
-      // Make the dashboard flow to its natural height inside the iframe instead
-      // of scrolling in a fixed-height container, so we can measure + show it all.
+      function safeDoc() {
+        try { return frame.contentDocument; } catch (e) { return null; }
+      }
+
+      function bust(u) {
+        return u + (u.indexOf('?') > -1 ? '&' : '?')
+          + 'expand_filters=false&_tv=' + Date.now();
+      }
+
+      // One stylesheet, injected once: unlock natural height, lift Superset's
+      // internal width caps (viewport-minus-filter-bar), hide chrome and all
+      // dashboard tab bars.
       function unlockScroll(doc) {
         if (doc.getElementById('moh-tv-unlock')) return;
         const st = doc.createElement('style');
@@ -176,24 +213,20 @@ _TV_PAGE = """<!doctype html>
           '#app,.ant-layout,.ant-layout-content,.ant-layout-content>div,' +
           '.dashboard,.dashboard-content,.grid-content,[data-test="grid-content"]' +
           '{height:auto!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;}' +
-          '#main-menu, header.top, .navbar, .ant-layout-header, .dashboard-header-container,' +
-          '[data-test="dashboard-header-wrapper"], .dashboard-header-container .header-with-actions,' +
-          '.ant-tabs-nav, .ant-tabs-nav-wrap, .ant-tabs-nav-list {display:none!important;}' +
           '.dashboard{padding-top:0!important;margin-top:0!important;}' +
           'body{overflow:hidden!important;}' +
-          // Superset caps the content column at viewport-minus-filter-bar even
-          // when the bar is hidden — lift every internal width cap so charts
-          // span the full frame, otherwise side bands show on wide TVs.
+          '#main-menu, header.top, .navbar, .ant-layout-header, .dashboard-header-container,' +
+          '[data-test="dashboard-header-wrapper"], .dashboard-header-container .header-with-actions' +
+          '{display:none!important;}' +
           '.dashboard,.dashboard-content,[data-test="dashboard-content"],' +
           '[class*="dashboard-builder"],.grid-content,[data-test="grid-content"],' +
-          '.dashboard-grid{max-width:none!important;width:auto!important;}';
+          '.dashboard-grid{max-width:none!important;width:auto!important;}' +
+          '.ant-tabs-nav,[data-test="dashboard-component-tabs"] .ant-tabs-nav' +
+          '{display:none!important;}';
         (doc.head || doc.documentElement).appendChild(st);
       }
 
       function contentHeight(doc) {
-        // Prefer the dashboard grid's own content height. Do NOT max() with
-        // body.scrollHeight — the body can be inflated to the iframe's height
-        // and would throw the scale off (shrinking everything to a sliver).
         const grid = doc.querySelector('[data-test="grid-content"]')
           || doc.querySelector('.grid-content')
           || doc.querySelector('.dashboard-grid');
@@ -201,16 +234,23 @@ _TV_PAGE = """<!doctype html>
         return (doc.body && doc.body.scrollHeight) || window.innerHeight;
       }
 
+      // Inline styles survive antd re-renders that would outrun the injected
+      // stylesheet; runs again on every fit pass.
+      function hideTabBars(doc) {
+        doc.querySelectorAll(
+          '.ant-tabs-nav, [data-test="dashboard-component-tabs"] .ant-tabs-nav'
+        ).forEach(el => { el.style.display = 'none'; });
+      }
+
       // Fill the whole screen — no letterbox bars. Solve the scale that maps
-      // content height onto screen height, then set the frame width to
-      // innerWidth / scale so the scaled width lands exactly on the screen
-      // width. Content reflows when the width changes, so re-measure until
-      // stable before committing the transform.
+      // content height onto screen height, then size the frame width to
+      // innerWidth / scale so the scaled width lands exactly on screen width.
       function fit() {
-        let doc;
-        try { doc = frame.contentDocument; } catch (e) { return; }   // cross-origin
+        const doc = safeDoc();
         if (!doc || !doc.body) return;
         unlockScroll(doc);
+        hideTabBars(doc);
+        wireIframeGestures();
         const vw = window.innerWidth;
         const vh = window.innerHeight;
 
@@ -223,45 +263,94 @@ _TV_PAGE = """<!doctype html>
         }
         s = Math.min(Math.max(s, 0.25), 5);
 
-        // Overshoot ~0.3% and centre-crop the remainder so rounding never
-        // leaves a hairline gap on any edge.
+        // Overshoot ~0.3% and centre-crop so rounding never leaves a gap.
         s *= 1.003;
         const w = Math.max(320, Math.round(vw / s));
         const h = Math.round(contentHeight(doc));
         frame.style.width = w + 'px';
         frame.style.height = h + 'px';
-        const left = (vw - w * s) / 2;
-        const top = (vh - h * s) / 2;
         frame.style.transform =
-          'translate(' + left + 'px,' + top + 'px) scale(' + s + ')';
+          'translate(' + ((vw - w * s) / 2) + 'px,' + ((vh - h * s) / 2)
+          + 'px) scale(' + s + ')';
       }
 
       function scheduleFit() {
         fitTimers.forEach(clearTimeout);
-        // Charts render asynchronously — re-fit a few times as content settles.
-        fitTimers = [2000, 4000, 7000, 11000].map(t => setTimeout(fit, t));
+        fitTimers = [800, 2000, 4000, 7000].map(t => setTimeout(fit, t));
       }
 
-      function show(n) {
-        const s = SLIDES[n];
+      const isVisible = el =>
+        !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+
+      function findTab(doc, title) {
+        let fallback = null;
+        for (const t of doc.querySelectorAll('.ant-tabs-tab')) {
+          const btn = t.querySelector('.ant-tabs-tab-btn');
+          if (((btn || t).textContent || '').trim() === title) {
+            if (isVisible(t)) return t;
+            fallback = fallback || t;
+          }
+        }
+        return fallback;
+      }
+
+      async function clickPath(path, my) {
+        for (const title of path) {
+          if (my !== token) return false;
+          let el = null;
+          // The SPA hydrates asynchronously after load — retry briefly.
+          for (let a = 0; a < 10 && !(el = findTab(safeDoc(), title)); a++) {
+            await sleep(400);
+            if (my !== token) return false;
+          }
+          if (!el) throw new Error('tab not found: ' + title);
+          el.click();
+          await sleep(450);
+          if (my !== token) return false;
+        }
+        await sleep(1000);   // let charts mount before measuring
+        return true;
+      }
+
+      async function run(n) {
+        const my = ++token;
+        label.textContent = CFG.slides[n].label || '';
         resetFrame();
-        // Force a full reload (and tab switch) even when only the #TAB hash
-        // differs, by varying a throwaway param.
-        const u = new URL(s.url, window.location.origin);
-        u.searchParams.set('_tv', String(Date.now()));
-        // Always start with the native filter bar collapsed — do not depend on
-        // the deployment's FILTERBAR_CLOSED_BY_DEFAULT feature flag.
-        u.searchParams.set('expand_filters', 'false');
-        frame.src = u.toString();
-        label.textContent = s.label || '';
+
+        const doc = safeDoc();
+        const ready = doc &&
+          doc.querySelector('[data-test="grid-content"],.grid-content,.dashboard-grid');
+        if (!ready) { pending = n; frame.src = bust(CFG.url); return; }
+
+        try {
+          if (await clickPath(CFG.slides[n].path, my) && my === token) {
+            scheduleFit();
+          }
+        } catch (e) {
+          if (my !== token) return;
+          pending = n;                    // dashboard drifted — hard resync
+          frame.src = bust(CFG.url);
+        }
       }
 
-      function next() { i = (i + 1) % SLIDES.length; show(i); }
-
-      frame.addEventListener('load', scheduleFit);
+      frame.addEventListener('load', () => {
+        scheduleFit();
+        if (pending >= 0) {
+          const n = pending;
+          pending = -1;
+          setTimeout(() => run(n), 1200);   // give the SPA time to hydrate
+        }
+      });
       window.addEventListener('resize', fit);
+
+      function next() { i = (i + 1) % CFG.slides.length; run(i); }
       next();
-      if (SLIDES.length > 1) setInterval(next, INTERVAL_MS);
+      setInterval(next, CFG.intervalMs);
+      // Safety net: even without per-slide reloads, freshen everything now
+      // and then (0 disables).
+      if (CFG.reloadMinutes > 0) {
+        setInterval(() => location.reload(), CFG.reloadMinutes * 60000);
+      }
     }
   </script>
 </body>
@@ -269,43 +358,63 @@ _TV_PAGE = """<!doctype html>
 """
 
 
-def _normalize_slides(raw: list) -> list[dict]:
-    """Convert [["<url>", "<label>"], ...] entries to slide dicts."""
-    return [
-        {"url": str(item[0]), "label": str(item[1]) if len(item) > 1 else ""}
-        for item in raw
-        if item and item[0]
-    ]
+def _tv_page_payload(
+    slides_cfg: dict, interval_seconds: int, reload_minutes: int
+) -> dict:
+    """Build the JSON payload consumed by the TV page script.
 
-
-def _tv_page_html(slides_key: str, interval_key: str, default_interval: int = 30) -> str:
-    """Render the TV slideshow page for the given config keys.
-
-    Each slide is ["<dashboard url with ?standalone=2#TAB-...>", "<label>"].
+    slides_cfg shape:
+        {"dashboard": "/superset/dashboard/8/?standalone=2",
+         "slides": [{"path": ["Services Delivery", "NCD"], "label": "NCD"}, ...]}
+    Slides reference TABS BY TITLE PATH instead of URL, so switching happens
+    by clicking tabs inside one live iframe — no page reload per slide.
     """
-    interval = int(current_app.config.get(interval_key, default_interval) or default_interval)
-    slides = _normalize_slides(current_app.config.get(slides_key) or [])
-    return _TV_PAGE.replace("__SLIDES__", json.dumps(slides)).replace(
-        "__INTERVAL__", str(interval)
+    return {
+        "url": str(slides_cfg.get("dashboard", "") or ""),
+        "slides": [
+            {"path": [str(p) for p in s.get("path", [])],
+             "label": str(s.get("label", "") or "")}
+            for s in slides_cfg.get("slides", [])
+            if s.get("path")
+        ],
+        "intervalMs": int(interval_seconds) * 1000,
+        "reloadMinutes": int(reload_minutes),
+    }
+
+
+def _render_tv_page(payload: dict) -> str:
+    js = json.dumps(payload).replace("</", "<\\/")
+    return _TV_PAGE.replace("__CONFIG__", js)
+
+
+def _tv_response(
+    cfg_key: str,
+    interval_key: str,
+    default_interval: int = 30,
+    cfg_override: dict | None = None,
+) -> Response:
+    cfg = current_app.config.get(cfg_key) if cfg_override is None else cfg_override
+    cfg = cfg or {}
+    interval = int(
+        current_app.config.get(interval_key, default_interval) or default_interval
+    )
+    reload_minutes = int(current_app.config.get("MOH_TV_RELOAD_MINUTES", 120) or 120)
+    return Response(
+        _render_tv_page(_tv_page_payload(cfg, interval, reload_minutes)),
+        mimetype="text/html",
     )
 
 
 @moh_assets_bp.route("/tv")
 def tv_slideshow():
     """Full-screen rotating slideshow (dashboard 8) for a wall TV."""
-    return Response(
-        _tv_page_html("MOH_TV_SLIDES", "MOH_TV_INTERVAL_SECONDS"),
-        mimetype="text/html",
-    )
+    return _tv_response("MOH_TV_SLIDES", "MOH_TV_INTERVAL_SECONDS")
 
 
 @moh_assets_bp.route("/tv-perf")
 def tv_slideshow_perf():
     """Full-screen rotating slideshow (dashboard 3, Summary sub-tabs) for a wall TV."""
-    return Response(
-        _tv_page_html("MOH_TV_SLIDES_PERF", "MOH_TV_INTERVAL_SECONDS_PERF"),
-        mimetype="text/html",
-    )
+    return _tv_response("MOH_TV_SLIDES_PERF", "MOH_TV_INTERVAL_SECONDS_PERF")
 
 
 @moh_assets_bp.route("/tv/group/<slug>")
@@ -315,16 +424,11 @@ def tv_group_slideshow(slug: str):
     Groups are defined in the MOH_TV_GROUPS config dict, keyed by slug.
     """
     groups = current_app.config.get("MOH_TV_GROUPS") or {}
-    raw = groups.get(slug)
-    if not raw:
+    if slug not in groups:
         abort(404)
-    interval = int(
-        current_app.config.get("MOH_TV_INTERVAL_SECONDS", 30) or 30
+    return _tv_response(
+        "MOH_TV_GROUPS", "MOH_TV_INTERVAL_SECONDS", cfg_override=groups[slug]
     )
-    html = _TV_PAGE.replace("__SLIDES__", json.dumps(_normalize_slides(raw))).replace(
-        "__INTERVAL__", str(interval)
-    )
-    return Response(html, mimetype="text/html")
 
 
 @moh_assets_bp.route("/<path:filename>")
