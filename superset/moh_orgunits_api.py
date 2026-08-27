@@ -34,6 +34,7 @@ no edits to upstream Superset init code.
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from typing import Any
 
 from flask import Blueprint, abort, current_app, jsonify, request
@@ -41,6 +42,15 @@ from flask_login import current_user
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _disposing(engine):
+    """Dispose ``engine`` on exit -- get_sqla_engine() never does."""
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 moh_orgunits_bp = Blueprint(
     "moh_orgunits_dhis2",
@@ -80,6 +90,40 @@ def _qualified_table() -> str:
     """`"schema"."table"` for ClickHouse — quoted to be safe with reserved words."""
     schema = _schema()
     return f'"{schema}"."{_table()}"' if schema else f'"{_table()}"'
+
+
+def _cache_ttl() -> int:
+    """Seconds to cache org-unit responses. 0 disables caching."""
+    try:
+        return int(current_app.config.get("MOH_ORG_UNITS_CACHE_TTL", 3600))
+    except (TypeError, ValueError):
+        return 3600
+
+
+def _cache_get(key: str):
+    """Read a cached payload, or None on miss/any cache problem."""
+    if _cache_ttl() <= 0:
+        return None
+    try:
+        from superset.extensions import cache_manager
+
+        return cache_manager.cache.get(key)
+    except Exception:  # pylint: disable=broad-except
+        logger.debug("org-unit cache read failed", exc_info=True)
+        return None
+
+
+def _cache_set(key: str, payload) -> None:
+    """Best-effort cache write; never fail the request over the cache."""
+    ttl = _cache_ttl()
+    if ttl <= 0:
+        return
+    try:
+        from superset.extensions import cache_manager
+
+        cache_manager.cache.set(key, payload, timeout=ttl)
+    except Exception:  # pylint: disable=broad-except
+        logger.debug("org-unit cache write failed", exc_info=True)
 
 
 def _get_database():
@@ -239,24 +283,35 @@ def list_units():
         abort(400, f"level must be between 1 and {_max_level()}")
 
     cbmp_clause, cbmp_params = _cbmp_path_clause(level)
+    cache_key = f"moh_ou:list:{level}:{','.join(_parse_cbmp_types())}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     database = _get_database()
     cols = ", ".join(_LEVEL_ID_COLS)
     # get_sqla_engine() is a @contextmanager (handles SSH tunnels, OAuth2, etc.)
+    # It builds a NEW engine per call and never disposes it, so dispose it here
+    # or its ClickHouse sockets accumulate in CLOSE-WAIT.
     with database.get_sqla_engine() as engine:
-        with engine.connect() as conn:
-            rows = conn.execute(
-                text(
-                    f"SELECT id, name, level, {cols} "
-                    f"FROM {_qualified_table()} "
-                    f"WHERE level = :lvl "
-                    f"{cbmp_clause} "
-                    f"ORDER BY name"
-                ),
-                {"lvl": level, **cbmp_params},
-            ).all()
-    return jsonify({
-        "organisationUnits": [_row_to_dhis2(r) for r in rows],
-    })
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    text(
+                        f"SELECT id, name, level, {cols} "
+                        f"FROM {_qualified_table()} "
+                        f"WHERE level = :lvl "
+                        f"{cbmp_clause} "
+                        f"ORDER BY name"
+                    ),
+                    {"lvl": level, **cbmp_params},
+                ).all()
+        finally:
+            engine.dispose()
+
+    payload = {"organisationUnits": [_row_to_dhis2(r) for r in rows]}
+    _cache_set(cache_key, payload)
+    return jsonify(payload)
 
 
 @moh_orgunits_bp.route("/organisationUnits/<uid>", methods=["GET"])
@@ -267,10 +322,16 @@ def get_unit(uid: str):
     matching facilities (same semantics as the list endpoint).
     """
     _require_authenticated()
+    cache_key = f"moh_ou:unit:{uid}:{','.join(_parse_cbmp_types())}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     database = _get_database()
     cols = ", ".join(_LEVEL_ID_COLS)
 
-    with database.get_sqla_engine() as engine:
+    # Dispose the per-call engine; see the note in list_units().
+    with database.get_sqla_engine() as engine, _disposing(engine):
         with engine.connect() as conn:
             unit = conn.execute(
                 text(
@@ -312,6 +373,7 @@ def get_unit(uid: str):
 
     response = _row_to_dhis2(unit)
     response["children"] = [_row_to_dhis2(r) for r in children]
+    _cache_set(cache_key, response)
     return jsonify(response)
 
 

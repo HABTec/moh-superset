@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from flask import current_app
+from flask import current_app, g
 from sqlalchemy import text
 
 from superset import db
@@ -108,22 +108,29 @@ class MoHSecurityManager(SupersetSecurityManager):
 
         try:
             with database.get_sqla_engine() as engine:
-                with engine.connect() as connection:
-                    result = connection.execute(
-                        query,
-                        {
-                            "username": username,
-                            "required_level": required_level,
-                        },
-                    )
-                    allowed = result.first() is not None
-                    logger.info(
-                        "MoH level check user=%r level=%s allowed=%s",
-                        username,
-                        required_level,
-                        allowed,
-                    )
-                    return allowed
+                try:
+                    with engine.connect() as connection:
+                        result = connection.execute(
+                            query,
+                            {
+                                "username": username,
+                                "required_level": required_level,
+                            },
+                        )
+                        allowed = result.first() is not None
+                        logger.debug(
+                            "MoH level check user=%r level=%s allowed=%s",
+                            username,
+                            required_level,
+                            allowed,
+                        )
+                        return allowed
+                finally:
+                    # get_sqla_engine() builds a NEW engine per call and never
+                    # disposes it, so its sockets to ClickHouse are abandoned and
+                    # accumulate in CLOSE-WAIT. Dispose it here; nothing else
+                    # shares this engine.
+                    engine.dispose()
         except Exception:  # pylint: disable=broad-except
             logger.exception("Unable to verify MoH org-unit level for %r", username)
             return False
@@ -152,14 +159,64 @@ class MoHSecurityManager(SupersetSecurityManager):
                 return None
         return None
 
+    def _level_one_cache_ttl(self) -> int:
+        """Seconds to cache a user's level-one verdict. 0 disables caching."""
+        try:
+            return int(current_app.config.get("MOH_LEVEL_ONE_CACHE_TTL", 300))
+        except (TypeError, ValueError):
+            return 300
+
+    def _cached_level_one_check(self, username: str) -> bool:
+        """Level-one verdict for ``username``, cached.
+
+        raise_for_access() fires many times per chart/dashboard request, and the
+        underlying lookup is a cross-database join. Two layers keep it off the
+        hot path: a per-request memo collapses the repeats within one request,
+        and a short-TTL shared cache collapses them across requests.
+        """
+        memo = getattr(g, "_moh_level_one_memo", None)
+        if memo is None:
+            memo = {}
+            try:
+                g._moh_level_one_memo = memo  # pylint: disable=protected-access
+            except RuntimeError:  # outside a request/app context
+                memo = None
+        if memo is not None and username in memo:
+            return memo[username]
+
+        ttl = self._level_one_cache_ttl()
+        cache_key = f"moh_level_one:{username}:{self._level_one_org_unit_level()}"
+        cache = None
+        if ttl > 0:
+            try:
+                from superset.extensions import cache_manager
+
+                cache = cache_manager.cache
+                cached = cache.get(cache_key)
+            except Exception:  # pylint: disable=broad-except
+                cache, cached = None, None
+            if cached is not None:
+                allowed = bool(cached)
+                if memo is not None:
+                    memo[username] = allowed
+                return allowed
+
+        allowed = self._user_has_level_one_org_unit(username)
+        if memo is not None:
+            memo[username] = allowed
+        if cache is not None:
+            try:
+                cache.set(cache_key, allowed, timeout=ttl)
+            except Exception:  # pylint: disable=broad-except
+                logger.debug("Could not cache MoH level-one verdict", exc_info=True)
+        return allowed
+
     def user_can_access_level_one_dashboard(self) -> bool:
         """Return whether the current user may open MoH level-one dashboards."""
         if self.is_admin():
             return True
         username = get_current_user()
-        return isinstance(username, str) and self._user_has_level_one_org_unit(
-            username
-        )
+        return isinstance(username, str) and self._cached_level_one_check(username)
 
     def can_access_moh_dashboard(self, dashboard: Any) -> bool:
         """Return whether the active user may access MoH-restricted dashboards."""
