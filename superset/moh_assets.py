@@ -104,32 +104,35 @@ _TV_PAGE = """<!doctype html>
     justify-content: center; color: #ccc;
     font: 400 18px/1.5 system-ui, sans-serif; text-align: center; padding: 24px;
   }
-  #hint {
-    position: fixed; right: 16px; bottom: 12px; z-index: 10;
-    font: 500 14px/1.2 system-ui, sans-serif; color: #fff;
-    background: rgba(0,0,0,.45); padding: 6px 12px; border-radius: 8px;
-    pointer-events: none;
+  #controls {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 20; display: flex; gap: 10px;
   }
-  #fsbtn {
-    position: fixed; right: 16px; top: 12px; z-index: 20;
-    font: 600 14px/1 system-ui, sans-serif; color: #fff;
-    background: rgba(0,0,0,.45); border: 0; cursor: pointer;
-    padding: 8px 14px; border-radius: 8px; opacity: .55;
+  #controls button {
+    font: 600 15px/1 system-ui, sans-serif; color: #fff;
+    background: rgba(0,0,0,.5); border: 0; cursor: pointer;
+    padding: 9px 18px; border-radius: 8px; opacity: .38;
+    transition: opacity .25s;
   }
-  #fsbtn:hover { opacity: 1; }
+  #controls button:hover { opacity: 1; }
 </style>
 </head>
 <body>
   <iframe id="tv" referrerpolicy="same-origin"></iframe>
   <div id="label"></div>
-  <div id="hint">Tap the screen (or press any key) for fullscreen</div>
-  <button id="fsbtn" type="button">⛶ Fullscreen</button>
+  <div id="controls">
+    <button id="prevBtn" type="button">◀ Prev</button>
+    <button id="fsBtn"   type="button">⛶ Fullscreen</button>
+    <button id="nextBtn" type="button">Next ▶</button>
+  </div>
   <script>
     const CFG = __CONFIG__;
     const frame = document.getElementById('tv');
     const label = document.getElementById('label');
-    const hint = document.getElementById('hint');
-    const fsbtn = document.getElementById('fsbtn');
+    const controls = document.getElementById('controls');
+    const prevBtn = document.getElementById('prevBtn');
+    const fsBtn = document.getElementById('fsBtn');
+    const nextBtn = document.getElementById('nextBtn');
 
     // Hide the browser chrome. Browsers require a user gesture before
     // allowing fullscreen, so we (1) try silently on load, (2) offer a
@@ -150,29 +153,43 @@ _TV_PAGE = """<!doctype html>
         goFullscreen();
       }
     }
-    function syncHint() {
+    function syncControls() {
       const full =
         !!(document.fullscreenElement || document.webkitFullscreenElement);
-      hint.style.display = full ? 'none' : 'block';
-      fsbtn.style.display = full ? 'none' : 'block';
+      fsBtn.textContent = full ? '⛶ Exit' : '⛶ Fullscreen';
     }
     goFullscreen();
-    document.addEventListener('fullscreenchange', syncHint);
-    document.addEventListener('webkitfullscreenchange', syncHint);
-    fsbtn.addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); });
-    document.addEventListener('keydown', goFullscreen);
+    document.addEventListener('fullscreenchange', syncControls);
+    document.addEventListener('webkitfullscreenchange', syncControls);
 
     // Taps inside the iframe never reach this document (the dashboard fills
     // it completely), so listen there too — same-origin makes that possible.
-    function wireIframeGestures() {
-      let doc = null;
-      try { doc = frame.contentDocument; } catch (e) { return; }
-      if (!doc || doc.__mohTvWired) return;
-      doc.__mohTvWired = true;
-      doc.addEventListener('click', goFullscreen);
-      doc.addEventListener('touchstart', goFullscreen);
-      doc.addEventListener('keydown', goFullscreen);
-    }
+      // Attach to the iframe document's grid element: whenever it resizes
+      // (charts load late, data arrives), re-fit immediately instead of
+      // waiting for the next scheduled pass.
+      let resizeObs = null;
+      let resizeObsTarget = null;
+      function wireResizeObserver(doc) {
+        const target =
+          doc.querySelector('[data-test="grid-content"]')
+          || doc.querySelector('.grid-content')
+          || doc.querySelector('.dashboard-grid');
+        if (!target || target === resizeObsTarget) return;
+        if (resizeObs) resizeObs.disconnect();
+        resizeObsTarget = target;
+        resizeObs = new ResizeObserver(() => fit());
+        resizeObs.observe(target);
+      }
+
+      function wireIframeGestures() {
+        let doc = null;
+        try { doc = frame.contentDocument; } catch (e) { return; }
+        if (!doc || doc.__mohTvWired) return;
+        doc.__mohTvWired = true;
+        doc.addEventListener('click', goFullscreen);
+        doc.addEventListener('touchstart', goFullscreen);
+        doc.addEventListener('keydown', goFullscreen);
+      }
 
     if (!CFG.url || !CFG.slides.length) {
       document.body.innerHTML =
@@ -251,6 +268,7 @@ _TV_PAGE = """<!doctype html>
         unlockScroll(doc);
         hideTabBars(doc);
         wireIframeGestures();
+        wireResizeObserver(doc);
         const vw = window.innerWidth;
         const vh = window.innerHeight;
 
@@ -263,8 +281,9 @@ _TV_PAGE = """<!doctype html>
         }
         s = Math.min(Math.max(s, 0.25), 5);
 
-        // Overshoot ~0.3% and centre-crop so rounding never leaves a gap.
-        s *= 1.003;
+        // Overshoot ~0.5% and centre-crop so rounding or late chart renders
+        // never leave a hairline gap on any edge.
+        s *= 1.005;
         const w = Math.max(320, Math.round(vw / s));
         const h = Math.round(contentHeight(doc));
         frame.style.width = w + 'px';
@@ -276,7 +295,9 @@ _TV_PAGE = """<!doctype html>
 
       function scheduleFit() {
         fitTimers.forEach(clearTimeout);
-        fitTimers = [800, 2000, 4000, 7000].map(t => setTimeout(fit, t));
+        // Only a short bootstrap — after the ResizeObserver is wired it
+        // catches every subsequent size change instantly and indefinitely.
+        fitTimers = [800, 2000, 5000].map(t => setTimeout(fit, t));
       }
 
       const isVisible = el =>
@@ -343,9 +364,31 @@ _TV_PAGE = """<!doctype html>
       });
       window.addEventListener('resize', fit);
 
-      function next() { i = (i + 1) % CFG.slides.length; run(i); }
+      // Manual skip (◀/▶) also restarts the timer so the new slide still
+      // gets its full interval before advancing again.
+      let slideTimer = null;
+      function startTimer() {
+        stopTimer();
+        if (CFG.slides.length > 1) slideTimer = setInterval(next, CFG.intervalMs);
+      }
+      function stopTimer() { if (slideTimer) { clearInterval(slideTimer); slideTimer = null; } }
+      function next() { i = (i + 1) % CFG.slides.length; run(i); startTimer(); }
+      function prev() { i = (i - 1 + CFG.slides.length) % CFG.slides.length; run(i); startTimer(); }
+
+      document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowRight') next();
+        else if (e.key === 'ArrowLeft') prev();
+        else goFullscreen();
+      });
+      controls.addEventListener('click', e => {
+        e.stopPropagation();
+        if (e.target === nextBtn) next();
+        else if (e.target === prevBtn) prev();
+        else if (e.target === fsBtn) toggleFullscreen();
+      });
+
       next();
-      setInterval(next, CFG.intervalMs);
+      startTimer();
       // Safety net: even without per-slide reloads, freshen everything now
       // and then (0 disables).
       if (CFG.reloadMinutes > 0) {
