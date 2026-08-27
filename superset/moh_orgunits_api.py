@@ -242,10 +242,9 @@ def _cbmp_path_clause(
         f"{param_prefix}_{idx}": value for idx, value in enumerate(cbmp_types)
     }
     placeholders = ", ".join(f":{param_prefix}_{idx}" for idx in range(len(cbmp_types)))
-    level_col = f"level{level}id"
     table = _qualified_table()
 
-    if level_col in _LEVEL_ID_COLS:
+    if (level_col := f"level{level}id") in _LEVEL_ID_COLS:
         # Keep this level's nodes that appear as ancestors (or self via levelNid)
         # of any org unit whose cbmp_type matches the selection.
         clause = (
