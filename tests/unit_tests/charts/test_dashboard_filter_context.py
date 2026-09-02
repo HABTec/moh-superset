@@ -77,13 +77,14 @@ def _make_filter(
     default_to_first_item: bool = False,
     target_column: str | None = "region",
     flt_type: str = "NATIVE_FILTER",
+    filter_type: str = "filter_select",
 ) -> dict[str, Any]:
     """Helper to build a native filter config dict for testing."""
     flt: dict[str, Any] = {
         "id": flt_id,
         "name": name,
         "type": flt_type,
-        "filterType": "filter_select",
+        "filterType": filter_type,
         "targets": [{"datasetId": 1, "column": {"name": target_column}}]
         if target_column
         else [],
@@ -180,6 +181,17 @@ def test_extract_static_default_applied() -> None:
     assert status == DashboardFilterStatus.APPLIED
     assert extra_form_data is not None
     assert extra_form_data["filters"][0]["val"] == ["US", "UK"]
+
+
+def test_extract_org_unit_tree_default_not_applied() -> None:
+    """The Org Unit tree filter never contributes its configured default."""
+    flt = _make_filter(
+        default_value=["Oromia Region", "Amhara Region"],
+        filter_type="filter_org_unit_tree",
+    )
+    extra_form_data, status = _extract_filter_extra_form_data(flt)
+    assert status == DashboardFilterStatus.NOT_APPLIED
+    assert extra_form_data is None
 
 
 def test_extract_default_to_first_item_not_applied() -> None:

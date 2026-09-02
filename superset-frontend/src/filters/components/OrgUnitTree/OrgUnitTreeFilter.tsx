@@ -26,6 +26,7 @@ import { t } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
 import { Tree, type TreeDataNode } from '@superset-ui/core/components';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Key as ReactKey } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from 'src/dashboard/types';
 
@@ -78,9 +79,7 @@ function isCbmpFilter(filter: {
     return true;
   }
   return (filter.targets || []).some(target => {
-    const col = normalizeCol(
-      target.column?.name || target.column?.column_name,
-    );
+    const col = normalizeCol(target.column?.name || target.column?.column_name);
     return CBMP_COLUMN_NAMES.has(col) || col.includes('cbmp');
   });
 }
@@ -123,8 +122,14 @@ const ToolbarLink = styled.button`
   color: ${({ theme }) => theme.colorPrimary};
   cursor: pointer;
   font-size: inherit;
-  &:hover { text-decoration: underline; }
-  &:disabled { color: ${({ theme }) => theme.colorTextDisabled}; cursor: default; text-decoration: none; }
+  &:hover {
+    text-decoration: underline;
+  }
+  &:disabled {
+    color: ${({ theme }) => theme.colorTextDisabled};
+    cursor: default;
+    text-decoration: none;
+  }
 `;
 
 type Node = TreeDataNode & {
@@ -266,7 +271,7 @@ export default function OrgUnitTreeFilter({
   setDataMask,
 }: OrgUnitTreeFilterProps) {
   const apiBaseUrl = formData.apiBaseUrl || '/api/v1/moh/dhis2';
-  const rootLevel = Number(formData.rootLevel || 2);   // 2 = Region (matches MOH_ORG_UNITS_ROOT_LEVEL)
+  const rootLevel = Number(formData.rootLevel || 2); // 2 = Region (matches MOH_ORG_UNITS_ROOT_LEVEL)
   const maxLevel = Number(formData.maxLevel || 6);
 
   const nativeFilters = useSelector(
@@ -282,7 +287,12 @@ export default function OrgUnitTreeFilter({
       return fromCascade;
     }
     return getCbmpTypesFromDashboard(nativeFilters, dataMask);
-  }, [formData.extra_form_data, formData.extraFormData, nativeFilters, dataMask]);
+  }, [
+    formData.extra_form_data,
+    formData.extraFormData,
+    nativeFilters,
+    dataMask,
+  ]);
   const cbmpKey = useMemo(() => [...cbmpTypes].sort().join('|'), [cbmpTypes]);
 
   const [treeData, setTreeData] = useState<Node[]>([]);
@@ -293,10 +303,25 @@ export default function OrgUnitTreeFilter({
   const [selected, setSelected] = useState<OrgUnitSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Track expanded nodes explicitly so a lazy-load (which patches new node
+  // object references) doesn't cause antd Tree to auto-collapse the node.
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const previousCbmpKey = useRef<string | null>(null);
 
   // -- initial / CBMP-driven root fetch ------------------------------------
   useEffect(() => {
+    // Skip re-fetching the root when the data source is unchanged and the
+    // roots are already loaded. The effect can otherwise re-run on incidental
+    // identity changes (e.g. setDataMask), which would replace `treeData` with
+    // brand-new collapsed nodes and wipe the user's expanded state.
+    if (
+      previousCbmpKey.current !== null &&
+      previousCbmpKey.current === cbmpKey &&
+      treeData.length > 0
+    ) {
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -336,7 +361,15 @@ export default function OrgUnitTreeFilter({
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, rootLevel, maxLevel, cbmpKey, cbmpTypes, setDataMask]);
+  }, [
+    apiBaseUrl,
+    rootLevel,
+    maxLevel,
+    cbmpKey,
+    cbmpTypes,
+    treeData.length,
+    setDataMask,
+  ]);
 
   // -- lazy load on expand --------------------------------------------------
   const loadChildren = useCallback(
@@ -378,6 +411,10 @@ export default function OrgUnitTreeFilter({
   };
 
   const checkedKeys = useMemo(() => selected.map(s => s.id), [selected]);
+
+  const handleExpand = useCallback((keys: ReactKey[]) => {
+    setExpandedKeys(keys.map(String));
+  }, []);
 
   const allRootsChecked =
     treeData.length > 0 &&
@@ -440,6 +477,10 @@ export default function OrgUnitTreeFilter({
           <Tree
             treeData={treeData}
             loadData={loadChildren as any}
+            // Controlled expansion so a lazy-load (which patches new node
+            // object references) doesn't auto-collapse an expanded node.
+            expandedKeys={expandedKeys}
+            onExpand={handleExpand}
             // Checkbox-based multi-select; checkStrictly so parent/child are
             // independent (checking a region does NOT auto-check its zones).
             checkable
