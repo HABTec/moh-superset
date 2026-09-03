@@ -41,6 +41,7 @@ import {
   HydrateExplore,
 } from 'src/explore/actions/hydrateExplore';
 import { SaveFilterChangesType } from 'src/dashboard/components/nativeFilters/FiltersConfigModal/types';
+import { FilterPlugins } from 'src/constants';
 import {
   migrateChartCustomizationArray,
   isLegacyChartCustomizationFormat,
@@ -109,9 +110,18 @@ function fillNativeFilters(
 ) {
   filterConfig.forEach((filter: Filter) => {
     const dataMask = initialDataMask || {};
+    // The Org Unit tree should never pre-load with a configured default value
+    // (e.g. a selection of all regions). Superset otherwise seeds the default
+    // into the applied data mask, filtering the charts and pre-checking the
+    // tree before the user interacts. Skip the default so it always starts
+    // with no selection.
+    const defaultDataMask =
+      filter.filterType === FilterPlugins.OrgUnitTree
+        ? {}
+        : filter.defaultDataMask;
     mergedDataMask[filter.id] = {
       ...getInitialDataMask(filter.id), // take initial data
-      ...filter.defaultDataMask, // if something new came from BE - take it
+      ...defaultDataMask, // if something new came from BE - take it
       ...dataMask[filter.id],
     };
     if (
@@ -124,7 +134,7 @@ function fillNativeFilters(
     ) {
       mergedDataMask[filter.id] = {
         ...mergedDataMask[filter.id],
-        ...filter.defaultDataMask,
+        ...defaultDataMask,
       };
     }
   });
@@ -162,9 +172,14 @@ function updateDataMaskForFilterChanges(
       (filter.controlValues?.enableEmptyFilter ||
         filter.controlValues?.defaultToFirstItem);
 
+    const defaultDataMask =
+      filter.filterType === FilterPlugins.OrgUnitTree
+        ? {}
+        : filter.defaultDataMask;
+
     mergedDataMask[filter.id] = {
       ...getInitialDataMask(filter.id),
-      ...filter.defaultDataMask,
+      ...defaultDataMask,
       ...filter,
       // Preserve extraFormData and filterState if conditions match
       ...(shouldPreserveState && {

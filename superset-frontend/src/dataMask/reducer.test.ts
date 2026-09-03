@@ -183,3 +183,60 @@ test('HYDRATE_DASHBOARD handles chart_customization_config that is entirely null
   );
   expect(customizationKeys).toHaveLength(0);
 });
+
+test('HYDRATE_DASHBOARD does not seed a default value for the Org Unit tree filter', () => {
+  const orgUnitId = 'NATIVE_FILTER-org';
+  const selectId = 'NATIVE_FILTER-select';
+  const action = hydrateAction([], [
+    {
+      id: orgUnitId,
+      name: 'Org Unit',
+      type: NativeFilterType.NativeFilter,
+      filterType: 'filter_org_unit_tree',
+      scope: { rootPath: [], excluded: [] },
+      chartsInScope: [],
+      tabsInScope: [],
+      controlValues: {},
+      cascadeParentIds: [],
+      description: '',
+      targets: [],
+      defaultDataMask: {
+        filterState: { value: ['Oromia Region', 'Amhara Region'] },
+        extraFormData: {
+          filters: [{ col: 'region', op: 'IN', val: ['Oromia Region'] }],
+        },
+      },
+    },
+    {
+      id: selectId,
+      name: 'Program',
+      type: NativeFilterType.NativeFilter,
+      filterType: 'filter_select',
+      scope: { rootPath: [], excluded: [] },
+      chartsInScope: [],
+      tabsInScope: [],
+      controlValues: {},
+      cascadeParentIds: [],
+      description: '',
+      targets: [],
+      defaultDataMask: {
+        filterState: { value: ['Penta 1'] },
+        extraFormData: {
+          filters: [{ col: 'section', op: 'IN', val: ['Penta 1'] }],
+        },
+      },
+    },
+  ] as FilterConfiguration);
+
+  const result = reducer({}, action);
+
+  // Org unit tree: configured default must be ignored -> starts empty
+  expect(result[orgUnitId].filterState?.value).toBeUndefined();
+  expect(result[orgUnitId].extraFormData?.filters).toBeUndefined();
+
+  // Regular select filter: default is still applied as before
+  expect(result[selectId].filterState?.value).toEqual(['Penta 1']);
+  expect(result[selectId].extraFormData?.filters).toEqual([
+    { col: 'section', op: 'IN', val: ['Penta 1'] },
+  ]);
+});

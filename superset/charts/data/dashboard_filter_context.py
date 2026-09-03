@@ -174,9 +174,10 @@ def _extract_filter_extra_form_data(
     Extract extra_form_data from a native filter's defaultDataMask.
 
     Mirrors frontend dashboard behavior except for defaultToFirstItem
-    filters: filters with a static default contribute their
-    extraFormData to the query. Filters without a default or with
-    defaultToFirstItem set to True are simply not applied.
+    filters and the Org Unit tree filter: these do not contribute a
+    static default to the query. Filters with a static default otherwise
+    contribute their extraFormData to the query. Filters without a default
+    or with defaultToFirstItem set to True are simply not applied.
 
     Returns (extra_form_data, status).
     """
@@ -192,6 +193,12 @@ def _extract_filter_extra_form_data(
             None,
             DashboardFilterStatus.NOT_APPLIED_USES_DEFAULT_TO_FIRST_ITEM_PREQUERY,
         )
+
+    # The Org Unit tree filter must never pre-load with a configured default
+    # value (e.g. a selection of all regions). Its default is user-driven and
+    # should not filter the charts until the user actually makes a selection.
+    if filter_config.get("filterType") == "filter_org_unit_tree":
+        return None, DashboardFilterStatus.NOT_APPLIED
 
     if has_static_default and extra_form_data:
         return extra_form_data, DashboardFilterStatus.APPLIED
