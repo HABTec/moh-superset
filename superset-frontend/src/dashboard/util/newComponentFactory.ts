@@ -56,7 +56,7 @@ const typeToDefaultMetaData: Record<string, LayoutItemMeta | null> = {
     headerSize: MEDIUM_HEADER,
     background: BACKGROUND_TRANSPARENT,
   },
-  [MARKDOWN_TYPE]: { width: GRID_DEFAULT_CHART_WIDTH, height: 50 },
+  [MARKDOWN_TYPE]: { width: GRID_COLUMN_COUNT, height: 8 },
   [ROW_TYPE]: { background: BACKGROUND_TRANSPARENT },
   [TABS_TYPE]: null,
   [TAB_TYPE]: {

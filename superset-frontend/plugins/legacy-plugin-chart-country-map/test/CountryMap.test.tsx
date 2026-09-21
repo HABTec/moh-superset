@@ -101,6 +101,11 @@ describe('CountryMap (legacy d3)', () => {
 
     const region = document.querySelector('path.region');
     expect(region).not.toBeNull();
+
+    const svg = document.querySelector('.superset-legacy-chart-country-map svg');
+    expect(svg).toHaveAttribute('viewBox', '0 0 500 300');
+    expect(svg).toHaveAttribute('width', '100%');
+    expect(svg).toHaveAttribute('height', '100%');
   });
 
   test('shows tooltip on mouseenter/mousemove/mouseout', async () => {

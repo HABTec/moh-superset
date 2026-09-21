@@ -594,7 +594,7 @@ const GroupByFilterCard: FC<GroupByFilterCardProps> = ({
                   .toLowerCase()
                   .includes(input.toLowerCase())
               }
-              getPopupContainer={triggerNode => triggerNode.parentNode}
+              getPopupContainer={() => document.body}
               oneLine={isHorizontalLayout}
               className="select-container"
               loading={loading}

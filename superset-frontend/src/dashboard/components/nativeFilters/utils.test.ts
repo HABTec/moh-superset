@@ -90,6 +90,7 @@ test('getFormData should include persisted time_grains for time grain filters', 
   const formData = getFormData({
     dashboardId: 10,
     id: 'NATIVE_FILTER-1',
+    name: 'Month',
     filterType: 'filter_timegrain',
     type: 'NATIVE_FILTER' as any,
     controlValues: {},
@@ -99,4 +100,5 @@ test('getFormData should include persisted time_grains for time grain filters', 
   });
 
   expect((formData as any).time_grains).toEqual(['PT1H', 'P1D', 'P1W']);
+  expect((formData as any).native_filter_name).toEqual('Month');
 });

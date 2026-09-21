@@ -59,6 +59,7 @@ import { FilterBarOrientation, RootState } from 'src/dashboard/types';
 import {
   DropdownContainer,
   type DropdownRef as DropdownContainerRef,
+  Select,
   Typography,
 } from '@superset-ui/core/components';
 import { Icons } from '@superset-ui/core/components/Icons';
@@ -77,6 +78,15 @@ import { useFilterOutlined } from '../useFilterOutlined';
 import { useChartsVerboseMaps } from '../utils';
 import FilterControl from './FilterControl';
 import FilterDivider from './FilterDivider';
+import {
+  getPeriodFilterKindFromFilter,
+  inferPeriodGrain,
+  isPeriodFilterVisible,
+  partitionFiltersInScope,
+  getFilterVisualOrder,
+  type PeriodGrain,
+  shouldShowPeriodGrainControl,
+} from '../filterBarLayout';
 
 function addDataMaskToCustomization(
   customization: ChartCustomization,
@@ -123,7 +133,9 @@ const SectionHeader = styled.div`
 
 const { Title } = Typography;
 
-const SectionContent = styled.div`
+const SectionContent = styled.div<{ $collapsed?: boolean }>`
+  display: ${({ $collapsed }) => ($collapsed ? 'none' : 'flex')};
+  flex-direction: column;
   padding: ${({ theme }) => theme.sizeUnit * 2}px 0;
 `;
 
@@ -137,6 +149,43 @@ const StyledIcon = styled(Icons.UpOutlined)<{ isOpen: boolean }>`
   transform: ${({ isOpen }) => (isOpen ? 'rotate(0deg)' : 'rotate(180deg)')};
   transition: transform 0.2s ease;
   color: ${({ theme }) => theme.colorTextSecondary};
+`;
+
+const SubsectionTitle = styled.div`
+  ${({ theme }) => css`
+    font-size: ${theme.fontSizeSM}px;
+    font-weight: ${theme.fontWeightStrong};
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: ${theme.colorTextSecondary};
+    padding: ${theme.sizeUnit}px 0 ${theme.sizeUnit * 2}px;
+  `}
+`;
+
+const PeriodGrainWrap = styled.div`
+  ${({ theme }) => css`
+    display: flex;
+    flex-direction: column;
+    gap: ${theme.sizeUnit}px;
+    margin-bottom: ${theme.sizeUnit * 3}px;
+  `}
+`;
+
+const PeriodGrainLabel = styled.div`
+  ${({ theme }) => css`
+    font-size: ${theme.fontSizeSM}px;
+    color: ${theme.colorText};
+  `}
+`;
+
+const GrainVisibility = styled.div<{ $isHidden: boolean; $order: number }>`
+  ${({ $isHidden, $order }) => css`
+    order: ${$order};
+    ${$isHidden &&
+    css`
+      display: none;
+    `}
+  `}
 `;
 
 const ChartCustomizationContent = styled.div`
@@ -199,10 +248,56 @@ const FilterControls: FC<FilterControlsProps> = ({
     [filtersWithValues.length],
   );
 
-  const filterIds = new Set(filtersWithValues.map(item => item.id));
-
   const [filtersInScope, filtersOutOfScope] =
     useSelectFiltersInScope(filtersWithValues);
+
+  const { periodFilters, orgUnitFilters, localFilters } = useMemo(
+    () => partitionFiltersInScope(filtersInScope),
+    [filtersInScope],
+  );
+
+  const inScopeIdSet = useMemo(
+    () => new Set(filtersInScope.map(filter => filter.id)),
+    [filtersInScope],
+  );
+
+  const inferredPeriodGrain = useMemo(
+    () => inferPeriodGrain(periodFilters, dataMaskSelected),
+    [periodFilters, dataMaskSelected],
+  );
+
+  const periodFilterScopeKey = periodFilters.map(filter => filter.id).join(',');
+  const [periodGrainOverride, setPeriodGrainOverride] =
+    useState<PeriodGrain | null>(null);
+
+  useEffect(() => {
+    setPeriodGrainOverride(null);
+  }, [periodFilterScopeKey]);
+
+  const periodGrain = periodGrainOverride ?? inferredPeriodGrain;
+  const showPeriodGrain = shouldShowPeriodGrainControl(periodFilters);
+
+  const handlePeriodGrainChange = useCallback(
+    (next: PeriodGrain) => {
+      setPeriodGrainOverride(next);
+      periodFilters.forEach(filter => {
+        const kind = getPeriodFilterKindFromFilter(filter);
+        if (
+          (kind === 'quarter' && next !== 'quarterly') ||
+          (kind === 'month' && next !== 'monthly')
+        ) {
+          onFilterSelectionChange(
+            filter,
+            getInitialDataMask(filter.id) as DataMask,
+          );
+        }
+      });
+    },
+    [onFilterSelectionChange, periodFilters],
+  );
+
+  const hasGlobalFilters =
+    periodFilters.length > 0 || orgUnitFilters.length > 0;
 
   const filteredChartCustomizationValues = useMemo(
     () => chartCustomizationValues.filter(item => !item.removed),
@@ -264,15 +359,18 @@ const FilterControls: FC<FilterControlsProps> = ({
   );
 
   const renderer = useCallback(
-    ({ id }: Filter | Divider, index: number | undefined) => {
+    ({ id }: Filter | Divider) => {
       const filterIndex = filtersWithValues.findIndex(f => f.id === id);
-      const key = index ?? id;
+      const portalNode = portalNodes[filterIndex];
+      if (!portalNode) {
+        return null;
+      }
       return (
         // Empty text node is to ensure there's always an element preceding
         // the OutPortal, otherwise react-reverse-portal crashes
-        <Fragment key={key}>
+        <Fragment key={id}>
           {'' /* eslint-disable-line react/jsx-curly-brace-presence */}
-          <OutPortal node={portalNodes[filterIndex]} inView />
+          <OutPortal node={portalNode} inView />
         </Fragment>
       );
     },
@@ -315,9 +413,9 @@ const FilterControls: FC<FilterControlsProps> = ({
   const renderVerticalContent = useCallback(
     () => (
       <>
-        {filtersInScope.length > 0 && (
+        {filtersWithValues.length > 0 && (
           <SectionContainer>
-            {!hideHeader && (
+            {!hideHeader && filtersInScope.length > 0 && (
               <SectionHeader
                 onClick={() => toggleSection('filters')}
                 onKeyDown={e => {
@@ -344,10 +442,66 @@ const FilterControls: FC<FilterControlsProps> = ({
                 <StyledIcon iconSize="m" isOpen={sectionsOpen.filters} />
               </SectionHeader>
             )}
-            {(hideHeader || sectionsOpen.filters) && (
-              <SectionContent>{filtersInScope.map(renderer)}</SectionContent>
-            )}
-            {(hideHeader || sectionsOpen.filters) && <StyledDivider />}
+            <SectionContent $collapsed={!hideHeader && !sectionsOpen.filters}>
+              {hasGlobalFilters && (
+                <SubsectionTitle style={{ order: 0 }}>
+                  {t('Global filters')}
+                </SubsectionTitle>
+              )}
+              {hasGlobalFilters && showPeriodGrain && (
+                <PeriodGrainWrap style={{ order: 1 }}>
+                  <PeriodGrainLabel>{t('Period type')}</PeriodGrainLabel>
+                  <Select
+                    ariaLabel={t('Period type')}
+                    value={periodGrain}
+                    allowClear={false}
+                    getPopupContainer={() => document.body}
+                    options={[
+                      { value: 'annual', label: t('Annual') },
+                      { value: 'quarterly', label: t('Quarterly') },
+                      { value: 'monthly', label: t('Monthly') },
+                    ]}
+                    onChange={value => {
+                      if (
+                        value === 'annual' ||
+                        value === 'quarterly' ||
+                        value === 'monthly'
+                      ) {
+                        window.setTimeout(() => {
+                          handlePeriodGrainChange(value);
+                        }, 0);
+                      }
+                    }}
+                  />
+                </PeriodGrainWrap>
+              )}
+              {hasGlobalFilters && localFilters.length > 0 && (
+                <SubsectionTitle style={{ order: 90 }}>
+                  {t('Dashboard-specific')}
+                </SubsectionTitle>
+              )}
+              {filtersWithValues.map(filter => {
+                const inScope = inScopeIdSet.has(filter.id);
+                const grainHidden =
+                  inScope && !isPeriodFilterVisible(filter, periodGrain);
+                return (
+                  <GrainVisibility
+                    key={filter.id}
+                    $isHidden={!inScope || grainHidden}
+                    $order={getFilterVisualOrder(
+                      filter.id,
+                      periodFilters,
+                      orgUnitFilters,
+                      localFilters,
+                    )}
+                  >
+                    {renderer(filter)}
+                  </GrainVisibility>
+                );
+              })}
+            </SectionContent>
+            {(hideHeader || sectionsOpen.filters) &&
+              filtersInScope.length > 0 && <StyledDivider />}
           </SectionContainer>
         )}
 
@@ -432,6 +586,15 @@ const FilterControls: FC<FilterControlsProps> = ({
       hideHeader,
       handleChartCustomizationChange,
       dataMaskSelected,
+      hasGlobalFilters,
+      showPeriodGrain,
+      periodGrain,
+      handlePeriodGrainChange,
+      periodFilters,
+      orgUnitFilters,
+      localFilters,
+      filtersWithValues,
+      inScopeIdSet,
     ],
   );
 
@@ -486,7 +649,7 @@ const FilterControls: FC<FilterControlsProps> = ({
         selectedCrossFilters.at(-1),
       ),
     }));
-    const nativeFiltersInScope = filtersInScope.map((filter, index) => ({
+    const nativeFiltersInScope = filtersInScope.map(filter => ({
       id: filter.id,
       element: (
         <div
@@ -495,7 +658,7 @@ const FilterControls: FC<FilterControlsProps> = ({
             flex-shrink: 0;
           `}
         >
-          {renderer(filter, index)}
+          {renderer(filter)}
         </div>
       ),
     }));
@@ -704,17 +867,21 @@ const FilterControls: FC<FilterControlsProps> = ({
 
   return (
     <>
-      {portalNodes
-        .filter((node, index) => filterIds.has(filtersWithValues[index].id))
-        .map((node, index) => (
-          <InPortal node={node} key={filtersWithValues[index].id}>
+      {filtersWithValues.map((filter, index) => {
+        const node = portalNodes[index];
+        if (!node) {
+          return null;
+        }
+        return (
+          <InPortal node={node} key={filter.id}>
             {filterControlFactory(
               index,
               filterBarOrientation,
               overflowedByIndex[index],
             )}
           </InPortal>
-        ))}
+        );
+      })}
       {filterBarOrientation === FilterBarOrientation.Vertical &&
         renderVerticalContent()}
       {filterBarOrientation === FilterBarOrientation.Horizontal &&

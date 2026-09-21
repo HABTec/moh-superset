@@ -16,7 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { getColorBreakpointsBuckets, getBreakPoints } from './utils';
+import {
+  getColorBreakpointsBuckets,
+  getBreakPoints,
+  isMetricOutOfZeroToHundred,
+  OUT_OF_RANGE_LEGEND_LABEL,
+} from './utils';
 import { ColorBreakpointType } from './types';
 
 describe('getColorBreakpointsBuckets', () => {
@@ -40,9 +45,40 @@ describe('getColorBreakpointsBuckets', () => {
   });
 
   test('returns empty object if color_breakpoints is missing', () => {
-    const result = getColorBreakpointsBuckets({} as any);
+    const result = getColorBreakpointsBuckets({} as ColorBreakpointType[]);
     expect(result).toEqual({});
   });
+
+  test('adds an Above 100 or below 0 legend item from the default color', () => {
+    const colorBreakpoints: ColorBreakpointType[] = [
+      { minValue: 0, maxValue: 100, color: { r: 255, g: 0, b: 0, a: 1 } },
+      { minValue: 101, maxValue: 9999, color: { r: 0, g: 255, b: 0, a: 1 } },
+      {
+        minValue: -10000,
+        maxValue: -0.01,
+        color: { r: 0, g: 0, b: 255, a: 1 },
+      },
+    ];
+    const result = getColorBreakpointsBuckets(colorBreakpoints, {
+      r: 171,
+      g: 164,
+      b: 164,
+    });
+    expect(result).toEqual({
+      '0 - 100': { color: [255, 0, 0], enabled: true },
+      [OUT_OF_RANGE_LEGEND_LABEL]: { color: [171, 164, 164], enabled: true },
+    });
+  });
+});
+
+test('isMetricOutOfZeroToHundred flags values outside 0-100', () => {
+  expect(isMetricOutOfZeroToHundred(488.8)).toBe(true);
+  expect(isMetricOutOfZeroToHundred(-12)).toBe(true);
+  expect(isMetricOutOfZeroToHundred(0)).toBe(false);
+  expect(isMetricOutOfZeroToHundred(100)).toBe(false);
+  expect(isMetricOutOfZeroToHundred(81)).toBe(false);
+  expect(isMetricOutOfZeroToHundred(null)).toBe(false);
+  expect(isMetricOutOfZeroToHundred(undefined)).toBe(false);
 });
 
 describe('getBreakPoints', () => {

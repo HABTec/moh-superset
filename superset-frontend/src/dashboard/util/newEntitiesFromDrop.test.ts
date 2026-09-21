@@ -20,10 +20,12 @@ import newEntitiesFromDrop from 'src/dashboard/util/newEntitiesFromDrop';
 import {
   CHART_TYPE,
   DASHBOARD_GRID_TYPE,
+  MARKDOWN_TYPE,
   ROW_TYPE,
   TABS_TYPE,
   TAB_TYPE,
 } from 'src/dashboard/util/componentTypes';
+import { GRID_COLUMN_COUNT } from 'src/dashboard/util/constants';
 import type { DropResult } from 'src/dashboard/components/dnd/dragDroppableConfig';
 import type { DashboardComponentMap } from 'src/dashboard/types';
 
@@ -106,5 +108,30 @@ describe('newEntitiesFromDrop', () => {
     const newChart = result[newChartId];
     expect(newChart.type).toBe(CHART_TYPE);
     expect(newChart.parents).toEqual(['a', newRowId]);
+  });
+
+  test('should insert markdown at full grid width when wrapped in a new row', () => {
+    const result = newEntitiesFromDrop({
+      dropResult: {
+        destination: { id: 'a', type: DASHBOARD_GRID_TYPE, index: 0 },
+        dragging: { id: '', type: MARKDOWN_TYPE, meta: {} },
+        source: { id: 'b', type: MARKDOWN_TYPE, index: 0 },
+      } as DropResult,
+      layout: {
+        a: {
+          id: 'a',
+          type: DASHBOARD_GRID_TYPE,
+          children: [],
+          meta: {},
+        },
+      } as unknown as DashboardComponentMap,
+    });
+
+    const newRowId = result.a.children[0];
+    const newMarkdownId = result[newRowId].children[0];
+
+    expect(result[newRowId].type).toBe(ROW_TYPE);
+    expect(result[newMarkdownId].type).toBe(MARKDOWN_TYPE);
+    expect(result[newMarkdownId].meta.width).toBe(GRID_COLUMN_COUNT);
   });
 });

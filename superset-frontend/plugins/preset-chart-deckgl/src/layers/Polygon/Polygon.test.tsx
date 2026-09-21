@@ -262,7 +262,12 @@ describe('DeckGLPolygon Error Handling and Edge Cases', () => {
     renderWithTheme(<DeckGLPolygon {...propsWithMissingBreakpoints} />);
 
     // Should call getColorBreakpointsBuckets even with undefined breakpoints
-    expect(mockGetColorBreakpointsBuckets).toHaveBeenCalledWith(undefined);
+    expect(mockGetColorBreakpointsBuckets).toHaveBeenCalledWith(undefined, {
+      r: 158,
+      g: 158,
+      b: 158,
+      a: 1,
+    });
     expect(mockGetBuckets).not.toHaveBeenCalled();
   });
 

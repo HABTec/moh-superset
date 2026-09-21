@@ -97,3 +97,35 @@ test('does not render DeckglLayerVisibilityTooltip for standard filter type', ()
     screen.queryByTestId('deckgl-layer-visibility-tooltip-icon'),
   ).not.toBeInTheDocument();
 });
+
+test('relabels Year to Period and Org Unit to Organisation unit', () => {
+  const { rerender } = render(
+    <FilterControl
+      filter={{ ...nativeFilter, name: 'Year' }}
+      onFilterSelectionChange={jest.fn()}
+    />,
+  );
+  expect(screen.getByTestId('filter-control-name')).toHaveTextContent('Period');
+
+  rerender(
+    <FilterControl
+      filter={{ ...nativeFilter, name: 'Org Unit' }}
+      onFilterSelectionChange={jest.fn()}
+    />,
+  );
+  expect(screen.getByTestId('filter-control-name')).toHaveTextContent(
+    'Organisation unit',
+  );
+});
+
+test('keeps dashboard-specific filter names unchanged', () => {
+  render(
+    <FilterControl
+      filter={{ ...nativeFilter, name: 'Facility Type' }}
+      onFilterSelectionChange={jest.fn()}
+    />,
+  );
+  expect(screen.getByTestId('filter-control-name')).toHaveTextContent(
+    'Facility Type',
+  );
+});

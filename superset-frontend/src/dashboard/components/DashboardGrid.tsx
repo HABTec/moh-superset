@@ -83,6 +83,20 @@ const GridContent = styled.div<{
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+
+    .grid-row {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .grid-row > .dragdroppable:not(.empty-droptarget) {
+      min-width: 0;
+      max-width: 100%;
+      flex-shrink: 1;
+    }
     ${responsiveLayout &&
     `
       width: 100%;

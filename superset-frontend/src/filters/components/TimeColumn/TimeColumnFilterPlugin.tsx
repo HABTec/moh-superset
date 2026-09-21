@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { t, tn } from '@apache-superset/core/translation';
+import { t } from '@apache-superset/core/translation';
 import { ensureIsArray, ExtraFormData } from '@superset-ui/core';
 import { GenericDataType } from '@apache-superset/core/common';
 import { useEffect, useState } from 'react';
@@ -25,6 +25,7 @@ import {
   type FormItemProps,
   Select,
 } from '@superset-ui/core/components';
+import { getEmptyFilterPlaceholder } from 'src/filters/utils/filterDisplay';
 import { FilterPluginStyle, StatusMessage } from '../common';
 import { PluginFilterTimeColumnProps } from './types';
 
@@ -45,7 +46,7 @@ export default function PluginFilterTimeColumn(
     filterState,
     inputRef,
   } = props;
-  const { defaultValue } = formData;
+  const { defaultValue, enableEmptyFilter } = formData;
 
   const [value, setValue] = useState<string[]>(defaultValue ?? []);
 
@@ -79,10 +80,11 @@ export default function PluginFilterTimeColumn(
     row => row.dtype === GenericDataType.Temporal,
   );
 
-  const placeholderText =
-    timeColumns.length === 0
-      ? t('No time columns')
-      : tn('%s option', '%s options', timeColumns.length, timeColumns.length);
+  const placeholderText = getEmptyFilterPlaceholder({
+    optionCount: timeColumns.length,
+    enableEmptyFilter,
+    noDataLabel: t('No time columns'),
+  });
 
   const formItemData: FormItemProps = {};
   if (filterState.validateMessage) {

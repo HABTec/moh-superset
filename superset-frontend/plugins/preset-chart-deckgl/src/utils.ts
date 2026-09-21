@@ -215,18 +215,44 @@ export function getBuckets(
   return buckets;
 }
 
+export const OUT_OF_RANGE_LEGEND_LABEL = 'Above 100 or below 0';
+
+export type BreakpointDefaultColor = {
+  r: number;
+  g: number;
+  b: number;
+  a?: number;
+};
+
+export function isMetricOutOfZeroToHundred(value: unknown): boolean {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    (value < 0 || value > 100)
+  );
+}
+
+function isZeroToHundredBreakpoint(breakpoint: ColorBreakpointType): boolean {
+  return breakpoint.minValue <= 100 && breakpoint.maxValue >= 0;
+}
+
 export function getColorBreakpointsBuckets(
   colorBreakpoints: ColorBreakpointType[],
+  defaultColor?: BreakpointDefaultColor | null,
 ) {
-  const breakpoints = colorBreakpoints || [];
+  const breakpoints = Array.isArray(colorBreakpoints) ? colorBreakpoints : [];
 
   const buckets: Record<string, { color: Color; enabled: boolean }> = {};
 
-  if (!breakpoints || !breakpoints.length) {
+  const inRangeBreakpoints = defaultColor
+    ? breakpoints.filter(isZeroToHundredBreakpoint)
+    : breakpoints;
+
+  if (!inRangeBreakpoints.length && !defaultColor) {
     return buckets;
   }
 
-  breakpoints.forEach((breakpoint: ColorBreakpointType) => {
+  inRangeBreakpoints.forEach((breakpoint: ColorBreakpointType) => {
     const range = `${breakpoint.minValue} - ${breakpoint.maxValue}`;
 
     buckets[range] = {
@@ -234,6 +260,13 @@ export function getColorBreakpointsBuckets(
       enabled: true,
     };
   });
+
+  if (defaultColor) {
+    buckets[OUT_OF_RANGE_LEGEND_LABEL] = {
+      color: [defaultColor.r, defaultColor.g, defaultColor.b],
+      enabled: true,
+    };
+  }
 
   return buckets;
 }

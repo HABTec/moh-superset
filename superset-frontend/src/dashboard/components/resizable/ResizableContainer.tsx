@@ -68,6 +68,9 @@ const StyledResizable = styled(Resizable)`
     &.resizable-container {
       background-color: transparent;
       position: relative;
+      box-sizing: border-box;
+      max-width: 100%;
+      min-width: 0;
 
       /* re-resizable sets an empty div to 100% width and height, which doesn't
       play well with many 100% height containers we need */
