@@ -245,8 +245,13 @@ const ChartHolder = ({
     const holderRect = holder.getBoundingClientRect();
     const measuredWidth =
       Math.min(holder.clientWidth, holderRect.width) - horizontalPadding;
+    const viewportClientWidth =
+      document.documentElement.clientWidth || window.innerWidth;
     const viewportWidth =
-      window.innerWidth - Math.max(holderRect.left, 0) - horizontalPadding - 2;
+      viewportClientWidth -
+      Math.max(holderRect.left, 0) -
+      horizontalPadding -
+      2;
     const nextWidth = getResponsiveChartWidth(measuredWidth, viewportWidth);
 
     setResponsiveChartWidth(current =>

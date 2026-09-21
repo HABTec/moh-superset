@@ -87,7 +87,16 @@ const GridRow = styled.div<{ editMode: boolean; responsiveLayout: boolean }>`
     flex-wrap: nowrap;
     align-items: flex-start;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     height: fit-content;
+
+    & > .dragdroppable:not(.empty-droptarget) {
+      min-width: 0;
+      max-width: 100%;
+      flex-shrink: 1;
+    }
 
     & > :not(:last-child):not(.hover-menu) {
       ${!editMode &&

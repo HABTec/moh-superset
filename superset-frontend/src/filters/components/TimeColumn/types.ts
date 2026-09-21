@@ -28,6 +28,7 @@ import { PluginFilterHooks, PluginFilterStylesProps } from '../types';
 
 interface PluginFilterTimeColumnCustomizeProps {
   defaultValue?: string[] | null;
+  enableEmptyFilter?: boolean;
   inputRef?: RefObject<HTMLInputElement>;
 }
 

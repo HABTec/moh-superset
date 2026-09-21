@@ -32,6 +32,7 @@ import { FilterBarScrollContext } from '../Vertical';
 import { FilterControlProps } from './types';
 import { FilterCardPlacement } from '../../FilterCard/types';
 import { useIsFilterInScope } from '../../state';
+import { getFilterDisplayName } from '../filterBarLayout';
 import {
   FilterStyledIcon,
   RequiredFieldIndicator,
@@ -58,6 +59,7 @@ const FilterControl = ({
   const [isFilterActive, setIsFilterActive] = useState(false);
 
   const { name = '<undefined>' } = filter;
+  const displayName = getFilterDisplayName(filter) || name;
 
   const isFilterInScope = useIsFilterInScope();
   const isMissingRequiredValue =
@@ -81,7 +83,7 @@ const FilterControl = ({
           id={`filter-name-${filter.id}`}
           data-test="filter-control-name"
         >
-          {name}
+          {displayName}
         </FilterControlTitle>
         {isRequired && <RequiredFieldIndicator />}
         {filter.description?.trim() && (
@@ -97,7 +99,7 @@ const FilterControl = ({
     [
       FilterControlTitleBox,
       FilterControlTitle,
-      name,
+      displayName,
       isRequired,
       filter.description,
       filter.filterType,

@@ -105,12 +105,15 @@ function CountryMap(element: HTMLElement, props: CountryMapProps) {
   const div = d3.select(container);
   div.classed('superset-legacy-chart-country-map', true);
   div.selectAll('*').remove();
+  container.style.width = '100%';
+  container.style.maxWidth = '100%';
   container.style.height = `${height}px`;
-  container.style.width = `${width}px`;
+  container.style.maxHeight = '100%';
   const svg = div
     .append('svg:svg')
-    .attr('width', width)
-    .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('width', '100%')
+    .attr('height', '100%')
     .attr('preserveAspectRatio', 'xMidYMid meet');
   const backgroundRect = svg
     .append('rect')

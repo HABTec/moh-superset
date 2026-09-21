@@ -27,6 +27,7 @@ import {
 } from '@superset-ui/core/spec';
 import { formatNumber } from '@superset-ui/core';
 import { Select } from '.';
+import { getSafePopupContainer } from './utils';
 
 type Option = {
   label: string;
@@ -609,6 +610,13 @@ test('triggers getPopupContainer if passed', async () => {
   render(<Select {...defaultProps} getPopupContainer={getPopupContainer} />);
   await open();
   expect(getPopupContainer).toHaveBeenCalled();
+});
+
+test('safe popup container falls back to document.body when the trigger is detached', () => {
+  expect(getSafePopupContainer(null)).toBe(document.body);
+  expect(getSafePopupContainer(undefined)).toBe(document.body);
+  const orphan = document.createElement('div');
+  expect(getSafePopupContainer(orphan)).toBe(document.body);
 });
 
 test('does not render a helper text by default', async () => {

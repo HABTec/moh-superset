@@ -1687,3 +1687,33 @@ test('renders standard Select dropdown when operatorType is Exact', () => {
 
   expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
 });
+
+test('shows All as the empty placeholder when the filter is optional', () => {
+  render(
+    <SelectFilterPlugin
+      {...buildSelectFilterProps({
+        formData: { enableEmptyFilter: false },
+        filterState: { value: undefined },
+      })}
+    />,
+    { useRedux: true },
+  );
+
+  expect(screen.getByText('All')).toBeInTheDocument();
+  expect(screen.queryByText('3 options')).not.toBeInTheDocument();
+});
+
+test('shows Select... as the empty placeholder when the filter is required', () => {
+  render(
+    <SelectFilterPlugin
+      {...buildSelectFilterProps({
+        formData: { enableEmptyFilter: true },
+        filterState: { value: undefined },
+      })}
+    />,
+    { useRedux: true },
+  );
+
+  expect(screen.getByText('Select...')).toBeInTheDocument();
+  expect(screen.queryByText('3 options')).not.toBeInTheDocument();
+});
