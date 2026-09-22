@@ -38,6 +38,9 @@ The same customizations work in two runtimes:
 | `docker/requirements-local.txt` | **NEW** | AI provider SDKs installed on every container start (`google-genai`, `anthropic`, `openai`) |
 | `docker-compose.override.yml` | **MODIFIED** *(gitignored)* | Adds `superset-mcp` service running the bundled MCP server on port 5008 |
 | `docs/AI_CHAT_INTEGRATION.md` | **NEW** | Line-by-line integration guide for the AI Assistant |
+| `superset/moh_ai_insights.py` | **NEW** | Flask blueprint for per-chart AI insights (`/ai-insights/chart/<chart_id>/`). Hybrid: real LLM (Gemini/Claude/OpenAI) when configured, demo template generator otherwise |
+| `superset-frontend/src/components/AiInsightPanel/` | **NEW** | React side panel rendered to the right of each dashboard chart. Summarizes the chart's Redux query data, posts it to the blueprint, and displays the generated insight |
+| `superset-frontend/src/dashboard/components/gridComponents/ChartHolder/ChartHolder.tsx` | **MODIFIED** | Renders the `AiInsightPanel` beside each chart when the `MOH_AI_INSIGHTS` feature flag is on (shrinks the chart width to make room) |
 
 ### 1.2 What each piece does
 
@@ -71,6 +74,8 @@ appbuilder.indexview = MoHLandingView
 **`superset/moh_ai_chat.py`** + **`ai_chat.html`** — Self-contained Flask blueprint registered via `BLUEPRINTS = [ai_chat_bp]` in `moh_branding.py` (no edits to `init_views()`). Handler reads `MOH_AI_PROVIDER` and dispatches to `_ask_gemini`, `_ask_claude`, or `_ask_openai`; each opens an MCP session against `superset-mcp:5008` and runs the agent loop. Replies that contain a Superset explore/dashboard URL are auto-embedded inline as iframes (`?standalone=3`). Full details in [`docs/AI_CHAT_INTEGRATION.md`](docs/AI_CHAT_INTEGRATION.md).
 
 **`user_guide.html`** + **`moh_guide_bp`** (in `superset/moh_assets.py`) — Renders the dashboard Help & User Guide at `/guide/` (login required). The 13 embedded screenshots live in `superset/templates/superset/guide_images/` and are served through the existing `/moh-static/<path:filename>` allowlist route (names prefixed `guide_images/`). The landing page has a **User Guide** tile linking to `/guide/` (plus a top-nav link for signed-in users). To edit the guide, update `superset/templates/superset/user_guide.html` directly.
+
+**`superset/moh_ai_insights.py`** + **`AiInsightPanel/`** — Per-chart AI insights. On dashboards with the `MOH_AI_INSIGHTS` feature flag enabled (visible only in view mode, not while editing, maximizing, or on responsive layouts), every chart gets an insight panel on its right. The React panel reads the chart's already-loaded query data from Redux, summarizes it (numeric stats, trend direction, top values, up to 5 sample rows) without re-running SQL, and POSTs it to `/ai-insights/chart/<chart_id>/`. The blueprint builds a prompt and calls the configured LLM — falling back to a deterministic demo generator on missing credentials or any provider error — and caches results in-process by payload hash. Register the blueprint via `BLUEPRINTS` and the feature flag via `FEATURE_FLAGS["MOH_AI_INSIGHTS"] = True` in `superset_config.py`.
 
 ---
 
@@ -849,6 +854,11 @@ These must be set (or exported) before starting Gunicorn, Celery, or `superset r
 | `MCP_INTERNAL_URL` | `http://localhost:5008/mcp` | Internal MCP server URL — AI chat agent calls this to query Superset |
 | `MOH_CSP_DEV_ORIGIN` | — | Dev server origin added to CSP `frame-ancestors` (e.g. `http://localhost:9000`) |
 | `MOH_AI_IFRAME_URL` | — | External AI service URL to embed inside `/ai-chat/` instead of the built-in chat |
+| `MOH_AI_INSIGHTS_PROVIDER` | — | AI provider for per-chart insights: `openai`, `gemini`, or `claude`. Leave empty to use the built-in demo generator |
+| `MOH_AI_INSIGHTS_API_KEY` | — | Provider API key for `MOH_AI_INSIGHTS_PROVIDER`. Empty → demo generator |
+| `MOH_AI_INSIGHTS_MODEL` | provider default | Model name, e.g. `gpt-4o-mini`, `gemini-1.5-flash`, `claude-3-5-haiku-latest` |
+| `MOH_AI_INSIGHTS_TIMEOUT` | `20` | Seconds to wait for the provider before falling back to the demo generator |
+| `MOH_AI_INSIGHTS_CACHE_TTL` | `300` | Seconds identical insight requests are served from the in-process cache |
 
 ### 6.3 AI provider API keys (only if using `/ai-chat/`)
 

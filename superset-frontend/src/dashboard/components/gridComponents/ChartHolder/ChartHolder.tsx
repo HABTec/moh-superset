@@ -41,6 +41,12 @@ import ResizableContainer from 'src/dashboard/components/resizable/ResizableCont
 import getChartAndLabelComponentIdFromPath from 'src/dashboard/util/getChartAndLabelComponentIdFromPath';
 import useFilterFocusHighlightStyles from 'src/dashboard/util/useFilterFocusHighlightStyles';
 import { AntdThemeProvider } from '@superset-ui/core/components';
+import { FeatureFlag, isFeatureEnabled } from '@superset-ui/core';
+import {
+  AI_INSIGHT_PANEL_GUTTER,
+  AI_INSIGHT_PANEL_WIDTH,
+  AiInsightPanel,
+} from 'src/components/AiInsightPanel';
 import { COLUMN_TYPE, ROW_TYPE } from 'src/dashboard/util/componentTypes';
 import {
   GRID_BASE_UNIT,
@@ -67,6 +73,7 @@ const RESPONSIVE_KPI_CARD_CLASS =
   'dashboard-component-chart-holder--compact-kpi';
 const RESPONSIVE_KPI_SELECTOR =
   '.superset-legacy-chart-big-number.no-trendline';
+const MOH_AI_INSIGHTS_FLAG = 'MOH_AI_INSIGHTS' as FeatureFlag;
 
 export interface ChartHolderProps {
   id: string;
@@ -148,6 +155,17 @@ const ChartHolder = ({
     responsiveDashboardEnabled ||
     (typeof document !== 'undefined' &&
       document.body.classList.contains(RESPONSIVE_DASHBOARD_BODY_CLASS));
+
+  // AI insight panel sits to the right of each chart. Disabled while editing,
+  // while maximized, and on responsive/mobile layouts where a fixed side
+  // column would crowd the chart.
+  const aiInsightsEnabled =
+    !editMode &&
+    !isFullSize &&
+    !responsiveLayout &&
+    !responsiveDashboardActive &&
+    chartId != null &&
+    isFeatureEnabled(MOH_AI_INSIGHTS_FLAG);
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -339,6 +357,10 @@ const ChartHolder = ({
           (effectiveWidthMultiple - 1) * GRID_GUTTER_SIZE -
           CHART_MARGIN,
       );
+      if (aiInsightsEnabled) {
+        const aiPanelOffset = AI_INSIGHT_PANEL_WIDTH + AI_INSIGHT_PANEL_GUTTER;
+        width = Math.max(width - aiPanelOffset, 0);
+      }
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
       );
@@ -376,6 +398,7 @@ const ChartHolder = ({
       effectiveHeightMultiple: heightMultiple,
     };
   }, [
+    aiInsightsEnabled,
     columnWidth,
     component.meta.height,
     chartId,
@@ -526,30 +549,79 @@ const ChartHolder = ({
                     }`}
               </style>
             )}
-            {shouldRenderChart && (
-              <Chart
-                componentId={component.id}
-                id={component.meta.chartId ?? 0}
-                dashboardId={dashboardId}
-                width={chartWidth}
-                height={chartHeight}
-                sliceName={
-                  component.meta.sliceNameOverride ||
-                  component.meta.sliceName ||
-                  ''
-                }
-                updateSliceName={(_sliceId: number, name: string) =>
-                  handleUpdateSliceName(name)
-                }
-                isComponentVisible={isComponentVisible}
-                handleToggleFullSize={handleToggleFullSize}
-                isFullSize={isFullSize}
-                setControlValue={handleExtraControl}
-                extraControls={extraControls}
-                isInView={isInView}
-                chartHolderRef={chartHolderRef}
-                responsiveLayout={responsiveLayout}
-              />
+            {shouldRenderChart && aiInsightsEnabled ? (
+              <div
+                data-test="chart-with-ai-insight"
+                style={{
+                  display: 'flex',
+                  gap: AI_INSIGHT_PANEL_GUTTER,
+                  height: '100%',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Chart
+                    componentId={component.id}
+                    id={component.meta.chartId ?? 0}
+                    dashboardId={dashboardId}
+                    width={chartWidth}
+                    height={chartHeight}
+                    sliceName={
+                      component.meta.sliceNameOverride ||
+                      component.meta.sliceName ||
+                      ''
+                    }
+                    updateSliceName={(_sliceId: number, name: string) =>
+                      handleUpdateSliceName(name)
+                    }
+                    isComponentVisible={isComponentVisible}
+                    handleToggleFullSize={handleToggleFullSize}
+                    isFullSize={isFullSize}
+                    setControlValue={handleExtraControl}
+                    extraControls={extraControls}
+                    isInView={isInView}
+                    chartHolderRef={chartHolderRef}
+                    responsiveLayout={responsiveLayout}
+                  />
+                </div>
+                <AiInsightPanel
+                  chartId={chartId ?? 0}
+                  dashboardId={dashboardId}
+                  sliceName={
+                    component.meta.sliceNameOverride ||
+                    component.meta.sliceName ||
+                    ''
+                  }
+                  width={AI_INSIGHT_PANEL_WIDTH}
+                  height={chartHeight}
+                  inView={isComponentVisible && isInView}
+                />
+              </div>
+            ) : (
+              shouldRenderChart && (
+                <Chart
+                  componentId={component.id}
+                  id={component.meta.chartId ?? 0}
+                  dashboardId={dashboardId}
+                  width={chartWidth}
+                  height={chartHeight}
+                  sliceName={
+                    component.meta.sliceNameOverride ||
+                    component.meta.sliceName ||
+                    ''
+                  }
+                  updateSliceName={(_sliceId: number, name: string) =>
+                    handleUpdateSliceName(name)
+                  }
+                  isComponentVisible={isComponentVisible}
+                  handleToggleFullSize={handleToggleFullSize}
+                  isFullSize={isFullSize}
+                  setControlValue={handleExtraControl}
+                  extraControls={extraControls}
+                  isInView={isInView}
+                  chartHolderRef={chartHolderRef}
+                  responsiveLayout={responsiveLayout}
+                />
+              )
             )}
             {editMode && (
               <HoverMenu position="top">
@@ -563,6 +635,7 @@ const ChartHolder = ({
       </ResizableContainer>
     ),
     [
+      aiInsightsEnabled,
       component.id,
       component.meta.height,
       component.meta.chartId,
