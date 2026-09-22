@@ -125,8 +125,9 @@ export function getFilterDisplayName(filter: {
   }
   const col = getFilterColumnName(filter);
   const kind = getPeriodFilterKind(filter.name, col);
+  // The Period card supplies the "Period" heading; its year control is "Year".
   if (kind === 'year' && (col === 'fiscal_year' || !col)) {
-    return t('Period');
+    return t('Year');
   }
   if (
     isOrgUnitFilterName(filter.name) ||
@@ -202,6 +203,47 @@ export function shouldShowPeriodGrainControl(
       .map(filter => getPeriodFilterKindFromFilter(filter as Filter)),
   );
   return kinds.has('year') && (kinds.has('quarter') || kinds.has('month'));
+}
+
+const PERIOD_KIND_RANK: Record<PeriodFilterKind, number> = {
+  year: 0,
+  quarter: 1,
+  month: 2,
+};
+
+/** Orders period filters coarse to fine: year, quarter, month. */
+export function sortPeriodFilters(periodFilters: Filter[]): Filter[] {
+  const rank = (filter: Filter) => {
+    const kind = getPeriodFilterKindFromFilter(filter);
+    return kind ? PERIOD_KIND_RANK[kind] : PERIOD_KIND_RANK.month + 1;
+  };
+  return [...periodFilters].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * One-line summary of the selected period, e.g. "2018 EFY · Q3". Only the
+ * controls visible for the current period type contribute.
+ */
+export function getPeriodSummary(
+  periodFilters: Filter[],
+  dataMask: DataMaskStateWithId,
+  grain: PeriodGrain,
+): string {
+  return sortPeriodFilters(periodFilters)
+    .filter(
+      filter =>
+        isPeriodFilterVisible(filter, grain) &&
+        hasFilterValue(filter, dataMask),
+    )
+    .map(filter => {
+      const { label, value } = dataMask[filter.id]?.filterState ?? {};
+      if (typeof label === 'string' && label) {
+        return label;
+      }
+      return Array.isArray(value) ? value.join(', ') : String(value ?? '');
+    })
+    .filter(Boolean)
+    .join(' · ');
 }
 
 export function partitionFiltersInScope(filtersInScope: (Filter | Divider)[]): {

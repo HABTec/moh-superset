@@ -40,6 +40,7 @@ import { useSelector } from 'react-redux';
 import SliceHeaderControls from 'src/dashboard/components/SliceHeaderControls';
 import { SliceHeaderControlsProps } from 'src/dashboard/components/SliceHeaderControls/types';
 import FiltersBadge from 'src/dashboard/components/FiltersBadge';
+import ChartContextChip from 'src/dashboard/components/DashboardContext/ChartContextChip';
 import CustomizationsBadge from 'src/dashboard/components/CustomizationsBadge';
 import { RootState } from 'src/dashboard/types';
 import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip';
@@ -86,6 +87,7 @@ const ChartHeaderStyles = styled.div`
     font-weight: ${theme.fontWeightStrong};
     margin-bottom: ${theme.sizeUnit}px;
     display: flex;
+    flex-wrap: wrap;
     max-width: 100%;
     align-items: flex-start;
     height: max-content;
@@ -95,7 +97,10 @@ const ChartHeaderStyles = styled.div`
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: calc(100% - ${theme.sizeUnit * 4}px);
-      flex-grow: 1;
+      /* Zero basis keeps the title and controls on one row; the context chip
+         below takes a full row of its own. */
+      flex: 1 1 0;
+      min-width: 0;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -403,6 +408,9 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
             </>
           )}
         </div>
+        {!editMode && !uiConfig.hideChartControls && (
+          <ChartContextChip chartId={slice.slice_id} />
+        )}
       </ChartHeaderStyles>
     );
   },

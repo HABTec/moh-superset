@@ -98,14 +98,14 @@ test('does not render DeckglLayerVisibilityTooltip for standard filter type', ()
   ).not.toBeInTheDocument();
 });
 
-test('relabels Year to Period and Org Unit to Organisation unit', () => {
+test('labels the fiscal Year control Year and Org Unit Organisation unit', () => {
   const { rerender } = render(
     <FilterControl
       filter={{ ...nativeFilter, name: 'Year' }}
       onFilterSelectionChange={jest.fn()}
     />,
   );
-  expect(screen.getByTestId('filter-control-name')).toHaveTextContent('Period');
+  expect(screen.getByTestId('filter-control-name')).toHaveTextContent('Year');
 
   rerender(
     <FilterControl

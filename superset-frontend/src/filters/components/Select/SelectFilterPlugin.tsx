@@ -525,7 +525,22 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
         },
       });
 
-      updateDataMask(null);
+      // "Clear all" returns the filter to its configured default view; a
+      // filter without a default is simply emptied.
+      const defaultValue = ensureIsArray(formData?.defaultValue).filter(
+        value => value != null,
+      );
+      const firstItem: SelectValue =
+        defaultToFirstItem && data[0]
+          ? (groupby.map(column => data[0][column]) as string[])
+          : null;
+      if (defaultValue.length > 0) {
+        updateDataMask(defaultValue);
+      } else if (firstItem?.[0] !== undefined) {
+        updateDataMask(firstItem);
+      } else {
+        updateDataMask(null);
+      }
       setSearch('');
       setLikeInputValue('');
       onClearAllComplete?.(formData.nativeFilterId);

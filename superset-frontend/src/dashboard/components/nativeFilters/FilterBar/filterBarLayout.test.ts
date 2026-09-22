@@ -21,10 +21,12 @@ import {
   getFilterBarSection,
   getFilterDisplayName,
   getFilterVisualOrder,
+  getPeriodSummary,
   inferPeriodGrain,
   isPeriodFilterVisible,
   partitionFiltersInScope,
   shouldShowPeriodGrainControl,
+  sortPeriodFilters,
 } from './filterBarLayout';
 
 function mockFilter(
@@ -78,9 +80,9 @@ test('classifies DHIS2 fiscal period columns as global and survey/coverage years
   ).toEqual('local');
 });
 
-test('relabels fiscal Year to Period but keeps coverage Year as Year', () => {
+test('labels the fiscal year control Year inside the Period card', () => {
   expect(getFilterDisplayName(mockFilter('Year', 'fy', 'fiscal_year'))).toEqual(
-    'Period',
+    'Year',
   );
   expect(getFilterDisplayName(mockFilter('Year', 'vax', 'year'))).toEqual(
     'Year',
@@ -156,4 +158,33 @@ test('partitions global period and org unit filters from local filters', () => {
       localFilters,
     ),
   ).toEqual(100);
+});
+
+test('orders period filters year, quarter, month regardless of config order', () => {
+  const year = mockFilter('Year', 'year', 'fiscal_year');
+  const quarter = mockFilter('Quarter', 'quarter', 'quarter');
+  const month = mockFilter('Month', 'month', 'month_name');
+  expect(
+    sortPeriodFilters([month, year, quarter]).map(filter => filter.id),
+  ).toEqual(['year', 'quarter', 'month']);
+});
+
+test('summarises the selected period for the current period type', () => {
+  const year = mockFilter('Year', 'year', 'fiscal_year');
+  const quarter = mockFilter('Quarter', 'quarter', 'quarter');
+  const month = mockFilter('Month', 'month', 'month_name');
+  const dataMask = {
+    year: { id: 'year', filterState: { value: ['2018'], label: '2018 EFY' } },
+    quarter: { id: 'quarter', filterState: { value: ['Q3'], label: 'Q3' } },
+    month: { id: 'month', filterState: { value: ['Meskerem'] } },
+  };
+  const filters = [month, quarter, year];
+  expect(getPeriodSummary(filters, dataMask, 'annual')).toEqual('2018 EFY');
+  expect(getPeriodSummary(filters, dataMask, 'quarterly')).toEqual(
+    '2018 EFY · Q3',
+  );
+  expect(getPeriodSummary(filters, dataMask, 'monthly')).toEqual(
+    '2018 EFY · Meskerem',
+  );
+  expect(getPeriodSummary(filters, {}, 'monthly')).toEqual('');
 });

@@ -222,7 +222,11 @@ export const getColorForBreakpoints = (
 ) => {
   const aggResult = aggFunc(point);
 
-  if (aggResult === undefined) return undefined;
+  // A missing metric (no data reported for this feature) must not silently
+  // match the breakpoint that happens to cover 0 — callers rely on
+  // `undefined` here to mean "no colour match" and render a distinct "No
+  // data" swatch instead of a numeric bucket.
+  if (aggResult === undefined || aggResult === null) return undefined;
 
   if (Array.isArray(aggResult)) return undefined;
 

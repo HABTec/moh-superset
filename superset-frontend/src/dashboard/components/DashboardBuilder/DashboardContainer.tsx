@@ -41,6 +41,7 @@ import {
 import { ParentSize } from '@visx/responsive';
 import Tabs from '@superset-ui/core/components/Tabs';
 import DashboardGrid from 'src/dashboard/containers/DashboardGrid';
+import DashboardContextStrip from 'src/dashboard/components/DashboardContext/DashboardContextStrip';
 import {
   DashboardInfo,
   DashboardLayout,
@@ -372,12 +373,15 @@ const DashboardContainer: FC<DashboardContainerProps> = ({ topLevelTabs }) => {
               }}
             />
           ) : (
-            <DashboardGrid
-              gridComponent={gridComponent}
-              depth={DASHBOARD_ROOT_DEPTH + 1}
-              width={width}
-              isComponentVisible={index === tabIndex}
-            />
+            <>
+              {index === tabIndex && <DashboardContextStrip />}
+              <DashboardGrid
+                gridComponent={gridComponent}
+                depth={DASHBOARD_ROOT_DEPTH + 1}
+                width={width}
+                isComponentVisible={index === tabIndex}
+              />
+            </>
           ),
         };
       });
