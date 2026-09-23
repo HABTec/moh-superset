@@ -20,7 +20,8 @@ import { useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { t } from '@apache-superset/core/translation';
 import { DataMaskStateWithId, Filter } from '@superset-ui/core';
-import { RootState } from 'src/dashboard/types';
+import { DashboardLayout, RootState } from 'src/dashboard/types';
+import { CHART_TYPE, TAB_TYPE } from 'src/dashboard/util/componentTypes';
 import {
   getOrgUnitScopeLabel,
   useAssignedOrgUnit,
@@ -37,6 +38,43 @@ import {
   hasOrgUnitFilter,
   hasPeriodFilter,
 } from '../nativeFilters/FilterBar/globalContext';
+import { getFreshnessSource } from './dataFreshness';
+
+type LayoutItem = DashboardLayout[string];
+
+const byDepth = (a: LayoutItem, b: LayoutItem) =>
+  (a.parents?.length ?? 0) - (b.parents?.length ?? 0);
+
+/**
+ * The title of the outermost tab a chart lives under (or, with no
+ * `chartId`, the outermost active tab) — the "Summary" in
+ * "Summary · Child Health".
+ */
+function useTopLevelTabTitle(chartId?: number): string | undefined {
+  const layout = useSelector<RootState, DashboardLayout>(
+    state => state.dashboardLayout.present,
+  );
+  const activeTabs = useSelector<RootState, string[]>(
+    state => state.dashboardState?.activeTabs ?? [],
+  );
+
+  return useMemo(() => {
+    if (chartId === undefined) {
+      const tabs = Object.values(layout)
+        .filter(item => item?.type === TAB_TYPE && activeTabs.includes(item.id))
+        .sort(byDepth);
+      return tabs[0]?.meta?.text?.trim();
+    }
+    const chartItem = Object.values(layout).find(
+      item => item?.type === CHART_TYPE && item.meta?.chartId === chartId,
+    );
+    const tabParents = (chartItem?.parents ?? [])
+      .filter(id => layout[id]?.type === TAB_TYPE)
+      .map(id => layout[id])
+      .sort(byDepth);
+    return tabParents[0]?.meta?.text?.trim();
+  }, [layout, activeTabs, chartId]);
+}
 
 /**
  * The Period and Organisation unit currently applied. With a `chartId` it
@@ -75,6 +113,17 @@ export function useGlobalContext(chartId?: number): GlobalContext {
     [chartId, isFilterInScope],
   );
 
+  // A tab like Summary can sit outside every Period/Org Unit filter's scope
+  // by design — deliberately pinned to the latest period and the user's own
+  // area, not driven by whatever the user picked elsewhere — while still
+  // being built on the same period/org-unit data as the rest of the routine
+  // dashboards. Multi Source and Triangulation are a different case: their
+  // charts have no period or org unit dimension at all. Both look identical
+  // from filter scope alone (no filter reaches either), so the fallback
+  // below is gated on the tab's own data source instead.
+  const topLevelTabTitle = useTopLevelTabTitle(chartId);
+  const sourceIsKnown = getFreshnessSource(topLevelTabTitle) !== null;
+
   return useMemo(
     () =>
       getGlobalContext({
@@ -83,7 +132,7 @@ export function useGlobalContext(chartId?: number): GlobalContext {
         isRelevant,
         orgUnitScopeLabel,
         latestPeriodLabel,
-        latestPeriod,
+        sourceIsKnown,
       }),
     [
       filters,
@@ -91,7 +140,7 @@ export function useGlobalContext(chartId?: number): GlobalContext {
       isRelevant,
       orgUnitScopeLabel,
       latestPeriodLabel,
-      latestPeriod,
+      sourceIsKnown,
     ],
   );
 }

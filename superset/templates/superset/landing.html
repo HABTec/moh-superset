@@ -382,6 +382,26 @@
     </a>
 {% endmacro %}
 
+{% macro reports_tile() %}
+    <a class="tile" href="/reports/" title="Open Reports">
+      <h3>Reports</h3>
+      <p class="subtitle">Generate recurring Ministry reports</p>
+      <div class="tile-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 8 H40 L50 18 V56 H16 Z"/>
+          <path d="M40 8 V18 H50"/>
+          <line x1="23" y1="30" x2="43" y2="30"/>
+          <line x1="23" y1="38" x2="43" y2="38"/>
+          <line x1="23" y1="46" x2="36" y2="46"/>
+        </svg>
+      </div>
+      <div class="view-link">
+        <span>open reports</span>
+        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
+      </div>
+    </a>
+{% endmacro %}
+
 {% if featured and featured.tabs %}
   <div class="tile-grid">
   {% for t in featured.tabs %}
@@ -465,6 +485,7 @@
     </a>
 {% endif %}
   {{ ai_assistant_tile() }}
+  {{ reports_tile() }}
   </div>
 {% elif featured %}
   <div class="tile-grid">
@@ -474,10 +495,12 @@
       <div class="view-link"><span>Open</span><span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span></div>
     </a>
     {{ ai_assistant_tile() }}
+    {{ reports_tile() }}
   </div>
 {% else %}
   <div class="tile-grid">
     {{ ai_assistant_tile() }}
+    {{ reports_tile() }}
   </div>
   <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
 {% endif %}

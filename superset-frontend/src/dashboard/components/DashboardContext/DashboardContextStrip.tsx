@@ -17,15 +17,17 @@
  * under the License.
  */
 import { useMemo } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { css, styled, useTheme } from '@apache-superset/core/theme';
+import { useSelector } from 'react-redux';
+import { css, styled } from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
-import { Button, Tooltip } from '@superset-ui/core/components';
-import { setDirectPathToChild } from 'src/dashboard/actions/dashboardState';
 import { DashboardLayout, RootState } from 'src/dashboard/types';
 import { TAB_TYPE } from 'src/dashboard/util/componentTypes';
 import { useDataFreshness } from 'src/filters/components/OrgUnitTree/useDataFreshness';
-import { formatDataDate, getFreshnessSource } from './dataFreshness';
+import {
+  formatFreshnessPeriod,
+  getFreshnessGrain,
+  getFreshnessSource,
+} from './dataFreshness';
 import { useGlobalContext } from './useGlobalContext';
 
 const Strip = styled.div`
@@ -88,16 +90,13 @@ const byDepth = (a: LayoutItem, b: LayoutItem) =>
   (a.parents?.length ?? 0) - (b.parents?.length ?? 0);
 
 /**
- * Header for each dashboard tab: where the user is, how fresh and reliable
- * the data is, and whether the filters are on their default view.
+ * Header for each dashboard tab: where the user is, how fresh the data is,
+ * and whether the filters are on their default view.
  *
  * "Data as of" shows when the tab's data source was last updated, and
- * "Not available" for sources without an agreed update time. The Data Quality
- * status shows "Not available" until it is bound to agreed programme rules.
+ * "Not available" for sources without an agreed update time.
  */
 const DashboardContextStrip = () => {
-  const dispatch = useDispatch();
-  const theme = useTheme();
   const layout = useSelector<RootState, DashboardLayout>(
     state => state.dashboardLayout.present,
   );
@@ -122,16 +121,10 @@ const DashboardContextStrip = () => {
 
   const freshness = useDataFreshness();
   const source = getFreshnessSource(tabTitles[0]);
-  const updatedAt = source ? freshness?.[source] : null;
-  const dataDate = updatedAt ? formatDataDate(updatedAt) : null;
-
-  const dataQualityTab = useMemo(() => {
-    const tabs = Object.values(layout).filter(
-      item =>
-        item?.type === TAB_TYPE && /data quality/i.test(item.meta?.text ?? ''),
-    );
-    return tabs.sort(byDepth)[0];
-  }, [layout]);
+  const grain = getFreshnessGrain(tabTitles);
+  const dataAsOf = source
+    ? formatFreshnessPeriod(freshness?.[source]?.[grain], grain)
+    : null;
 
   if (editMode) {
     return null;
@@ -143,38 +136,7 @@ const DashboardContextStrip = () => {
     <Strip data-test="dashboard-context-strip">
       {title && <Title data-test="context-strip-title">{title}</Title>}
       <Meta data-test="data-as-of">
-        {t('Data as of')}{' '}
-        {dataDate ? (
-          <Tooltip title={dataDate.dateTime}>
-            <strong>{dataDate.date}</strong>
-          </Tooltip>
-        ) : (
-          <strong>{NOT_AVAILABLE()}</strong>
-        )}
-      </Meta>
-      <Meta>
-        {t('Data Quality')} <strong>{NOT_AVAILABLE()}</strong>
-        {dataQualityTab && !activeTabs.includes(dataQualityTab.id) && (
-          <Tooltip title={t('Open the Data Quality tab')}>
-            <Button
-              buttonStyle="link"
-              buttonSize="xsmall"
-              css={css`
-                padding: 0 ${theme.sizeUnit}px;
-              `}
-              onClick={() =>
-                dispatch(
-                  setDirectPathToChild([
-                    ...(dataQualityTab.parents ?? []),
-                    dataQualityTab.id,
-                  ]),
-                )
-              }
-            >
-              {t('View DQ →')}
-            </Button>
-          </Tooltip>
-        )}
+        {t('Data as of')} <strong>{dataAsOf ?? NOT_AVAILABLE()}</strong>
       </Meta>
       {view && (
         <ViewChip data-test="default-view-chip" $isDefault={isDefault}>

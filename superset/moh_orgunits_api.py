@@ -34,11 +34,16 @@ no edits to upstream Superset init code.
 from __future__ import annotations
 
 import logging
+import re
+import time
+from datetime import date
 from typing import Any
 
-from flask import Blueprint, abort, current_app, jsonify, request
+from flask import abort, Blueprint, current_app, jsonify, request, Response
 from flask_login import current_user
 from sqlalchemy import text
+
+from superset.moh_calendar import current_period_key
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +317,254 @@ def get_unit(uid: str):
     response = _row_to_dhis2(unit)
     response["children"] = [_row_to_dhis2(r) for r in children]
     return jsonify(response)
+
+
+def _qualified_user_org_units_table() -> str:
+    """`"schema"."table"` for the user → org unit assignment table."""
+    schema = current_app.config.get("MOH_USER_ORG_UNITS_SCHEMA", _schema())
+    table = current_app.config.get("MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit")
+    return f'"{schema}"."{table}"' if schema else f'"{table}"'
+
+
+@moh_orgunits_bp.route("/me/organisationUnit", methods=["GET"])
+def get_my_unit() -> Response:
+    """Return the org unit the logged-in user is assigned to.
+
+    Dashboard datasets scope an empty Org Unit selection to this unit, so the
+    UI uses it to say what the user is looking at. The username match mirrors
+    the row-level-security lookup used by the datasets (case-insensitive,
+    trimmed). ``organisationUnit`` is ``null`` when the user has no assignment.
+    """
+    _require_authenticated()
+    database = _get_database()
+
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT ou.id, ou.name, ou.level "
+                    f"FROM {_qualified_user_org_units_table()} AS uo "
+                    f"INNER JOIN {_qualified_table()} AS ou "
+                    "ON toString(uo.org_unit_id) = toString(ou.id) "
+                    "WHERE lower(trimBoth(uo.username)) = lower(trimBoth(:username)) "
+                    "ORDER BY ou.level "
+                    "LIMIT 1"
+                ),
+                {"username": current_user.username},
+            ).first()
+
+    if row is None:
+        return jsonify({"organisationUnit": None})
+    unit = row._mapping
+    return jsonify(
+        {
+            "organisationUnit": {
+                "id": unit["id"],
+                "name": (unit["name"] or "").strip(),
+                "level": unit["level"],
+            }
+        }
+    )
+
+
+_LATEST_PERIOD_TTL_SECONDS = 600
+_latest_period_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
+
+
+def _qualified(table: str) -> str:
+    """`"schema"."table"` for ClickHouse."""
+    schema = _schema()
+    return f'"{schema}"."{table}"' if schema else f'"{table}"'
+
+
+def _query_latest_monthly_period(
+    values_table: str, before: str | None = None
+) -> dict[str, Any] | None:
+    """Latest ``YYYYMM`` period with real data in ``values_table``.
+
+    With ``before``, only periods strictly earlier than it qualify (used to
+    exclude a month still in progress). Without it, the true latest period
+    with any data at all — used for "data as of", where an in-progress
+    month's partial data is still the freshest thing available.
+    """
+    periods = _qualified(
+        current_app.config.get("MOH_PERIODS_TABLE", "monthly_periods")
+    )
+    values = _qualified(values_table)
+    where_before = "WHERE p.period < :before " if before is not None else ""
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT p.period, p.fiscal_year, p.quarter, p.quarter_name, "
+                    "p.month_name "
+                    f"FROM {periods} AS p "
+                    f"{where_before}"
+                    f"{'AND' if where_before else 'WHERE'} p.period IN ("
+                    f"SELECT DISTINCT period FROM {values} "
+                    "WHERE match(period, '^[0-9]{6}$')"
+                    ") "
+                    "ORDER BY p.period DESC "
+                    "LIMIT 1"
+                ),
+                {"before": before},
+            ).first()
+    if row is None:
+        return None
+    period = row._mapping
+    return {
+        "period": period["period"],
+        "fiscalYear": period["fiscal_year"],
+        "quarter": period["quarter"],
+        "quarterName": (period["quarter_name"] or "").strip() or None,
+        "monthName": (period["month_name"] or "").strip() or None,
+    }
+
+
+def _query_latest_quarterly_period(values_table: str) -> dict[str, Any] | None:
+    """Latest quarterly-native period (e.g. ``2018NovQ4``) with real data.
+
+    Some indicators are only ever reported at quarterly grain — those rows
+    never show up in a ``YYYYMM``-format period, so the monthly lookup can't
+    see them. ``quarterly_nov_periods`` is the fiscal lookup for that period
+    format, parallel to ``monthly_periods``.
+    """
+    periods = _qualified(
+        current_app.config.get("MOH_QUARTERLY_PERIODS_TABLE", "quarterly_nov_periods")
+    )
+    values = _qualified(values_table)
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT p.period, p.fiscal_year, p.quarter, p.quarter_name "
+                    f"FROM {periods} AS p "
+                    "WHERE p.period IN (SELECT DISTINCT period FROM "
+                    f"{values}) "
+                    "ORDER BY p.period DESC "
+                    "LIMIT 1"
+                )
+            ).first()
+    if row is None:
+        return None
+    period = row._mapping
+    return {
+        "period": period["period"],
+        "fiscalYear": period["fiscal_year"],
+        "quarter": period["quarter"],
+        "quarterName": (period["quarter_name"] or "").strip() or None,
+        "monthName": None,
+    }
+
+
+@moh_orgunits_bp.route("/latest-period", methods=["GET"])
+def get_latest_period() -> Response:
+    """Return the latest completed month that has data.
+
+    The month still in progress is excluded: it only holds the first reports
+    and would misrepresent the "latest" period. The result carries the fiscal
+    year, fiscal quarter and month name. ``latestPeriod`` is ``null`` when no
+    month qualifies. Cached briefly because the check scans the fact table.
+    """
+    _require_authenticated()
+    current_period = current_period_key(date.today())
+    cached = _latest_period_cache.get(current_period)
+    if cached and time.monotonic() - cached[0] < _LATEST_PERIOD_TTL_SECONDS:
+        return jsonify({"latestPeriod": cached[1]})
+
+    values_table = current_app.config.get(
+        "MOH_INDICATOR_VALUES_TABLE", "indicator_data_values"
+    )
+    latest = _query_latest_monthly_period(values_table, before=current_period)
+    _latest_period_cache.clear()
+    _latest_period_cache[current_period] = (time.monotonic(), latest)
+    return jsonify({"latestPeriod": latest})
+
+
+_DATA_FRESHNESS_TTL_SECONDS = 600
+_data_freshness_cache: tuple[float, dict[str, Any]] | None = None
+
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+# "Data as of" reads the latest period each source actually has data for, not
+# an ingestion timestamp: monthly_data_set_registration_status.loaded_at, for
+# example, is an ETL bulk-load stamp — every row in the table (6.5M+,
+# spanning periods years apart) carries the same value, from whenever the
+# table was last reloaded wholesale, so it would just report today's date
+# after every reload regardless of which period's data actually changed.
+#
+# ``has_quarterly_periods`` marks a source that is genuinely collected at
+# quarterly grain too (a separate ``quarterly_nov_periods``-format period,
+# e.g. "2018NovQ4" — not derived from monthly data, and can legitimately lag
+# behind it). Override the table names with the MOH_DATA_FRESHNESS_SOURCES
+# config key: {source: {"table": ..., "has_quarterly_periods": bool}}.
+_DEFAULT_FRESHNESS_SOURCES: dict[str, dict[str, Any]] = {
+    "routine": {"table": "indicator_data_values", "has_quarterly_periods": True},
+    "quality": {
+        "table": "monthly_data_set_registration_status",
+        "has_quarterly_periods": False,
+    },
+}
+
+
+def _query_data_freshness() -> dict[str, Any]:
+    """Latest period with real data per source, at monthly and quarterly grain.
+
+    A source with no genuinely separate quarterly-collected data (``quality``)
+    reports the same latest monthly period for both grains — the quarterly
+    view there is just that monthly data re-aggregated, not a different
+    dataset with its own currency.
+    """
+    sources = current_app.config.get(
+        "MOH_DATA_FRESHNESS_SOURCES", _DEFAULT_FRESHNESS_SOURCES
+    )
+    result: dict[str, Any] = {}
+    for source, spec in sources.items():
+        table = spec.get("table", "")
+        if not _IDENTIFIER.match(table):
+            logger.error("Invalid data freshness source %r", source)
+            result[source] = {"monthly": None, "quarterly": None}
+            continue
+        try:
+            monthly = _query_latest_monthly_period(table)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Data freshness lookup failed for %r (monthly)", source)
+            monthly = None
+        if spec.get("has_quarterly_periods"):
+            try:
+                quarterly = _query_latest_quarterly_period(table)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception(
+                    "Data freshness lookup failed for %r (quarterly)", source
+                )
+                quarterly = None
+        else:
+            quarterly = monthly
+        result[source] = {"monthly": monthly, "quarterly": quarterly}
+    return result
+
+
+@moh_orgunits_bp.route("/data-freshness", methods=["GET"])
+def get_data_freshness() -> Response:
+    """Return the latest period each data source has real data for.
+
+    ``sources`` maps a source name (``routine``, ``quality``) to
+    ``{"monthly": <period>, "quarterly": <period>}``, where each period is
+    the same shape ``/latest-period`` returns (fiscal year, quarter, month
+    name) or ``null`` when it cannot be determined. Cached briefly because
+    the lookup scans large fact tables.
+    """
+    global _data_freshness_cache  # pylint: disable=global-statement
+    _require_authenticated()
+    cached = _data_freshness_cache
+    if cached and time.monotonic() - cached[0] < _DATA_FRESHNESS_TTL_SECONDS:
+        return jsonify({"sources": cached[1]})
+
+    sources = _query_data_freshness()
+    _data_freshness_cache = (time.monotonic(), sources)
+    return jsonify({"sources": sources})
 
 
 # ---------------------------------------------------------------------------

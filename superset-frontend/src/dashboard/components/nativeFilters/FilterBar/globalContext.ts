@@ -32,21 +32,20 @@ import {
 
 export type GlobalContext = {
   /**
-   * Text for the Period part, or null when the dashboard has no period filter.
-   * With no selection, or for charts no period filter reaches, it is the
-   * latest period.
+   * Text for the Period part. Null when the dashboard has no period filter,
+   * or when no period filter reaches this scope and the scope's own data
+   * source has no period dimension (the filter panel calls this "not
+   * available for this source"). With a relevant filter but no selection
+   * yet — or with no relevant filter but a scope built on a known,
+   * period-having source (e.g. a Summary tab deliberately pinned to the
+   * latest period) — it is the latest period.
    */
   period: string | null;
   /**
-   * Text for the Organisation unit part, or null when the dashboard has no
-   * org unit filter. With no selection, or for charts no org unit filter
-   * reaches, it is the user's own area.
+   * Text for the Organisation unit part. Same rule as `period`, for the
+   * user's own area instead of the latest period.
    */
   orgUnit: string | null;
-  /** A selected period exists that this scope does not follow. */
-  periodOverridden: boolean;
-  /** A selected org unit exists that this scope does not follow. */
-  orgUnitOverridden: boolean;
   /** Every relevant global filter holds its configured default value. */
   isDefault: boolean;
 };
@@ -58,16 +57,18 @@ type GlobalContextArgs = {
   isRelevant: (filter: Filter) => boolean;
   /** Text shown for the org unit when nothing is selected. */
   orgUnitScopeLabel: string;
-  /** Text shown for the period when nothing is selected or no filter applies. */
+  /** Text shown for the period when a relevant filter has no selection yet. */
   latestPeriodLabel: string;
-  /** The latest period itself, to tell whether a selection already matches it. */
-  latestPeriod?: LatestPeriodParts | null;
-};
-
-export type LatestPeriodParts = {
-  fiscalYear: string;
-  quarter: number;
-  monthName: string;
+  /**
+   * Whether the scope being described (a chart or a tab) is built on a data
+   * source known to have a period/org-unit dimension, even when no filter's
+   * own scope reaches it — e.g. a Summary tab deliberately left out of every
+   * filter's scope so it always shows the latest period, as opposed to
+   * Multi Source, whose charts have no period or org unit dimension at all.
+   * Filter scope alone can't tell those two apart, since neither has a
+   * filter reaching it.
+   */
+  sourceIsKnown: boolean;
 };
 
 export function isOrgUnitFilter(filter: Filter): boolean {
@@ -114,32 +115,6 @@ function describeSelection(
     : null;
 }
 
-/** Whether every selected period value is part of the latest period. */
-function selectionMatchesLatest(
-  periodFilters: Filter[],
-  dataMask: DataMaskStateWithId,
-  latest: LatestPeriodParts | null | undefined,
-): boolean {
-  if (!latest) {
-    return false;
-  }
-  return periodFilters.every(filter => {
-    const values = normalizeValues(dataMask[filter.id]?.filterState?.value);
-    switch (getPeriodFilterKindFromFilter(filter)) {
-      case 'year':
-        return values.every(value => value === String(latest.fiscalYear));
-      case 'quarter':
-        return values.every(value => value.includes(`Q${latest.quarter}`));
-      case 'month':
-        return values.every(
-          value => value.toLowerCase() === latest.monthName.toLowerCase(),
-        );
-      default:
-        return false;
-    }
-  });
-}
-
 function hasDefaultSelection(filter: Filter, dataMask: DataMaskStateWithId) {
   // The Org Unit tree never preloads a default; empty means the user's scope.
   const defaults = isOrgUnitFilter(filter)
@@ -162,7 +137,7 @@ export function getGlobalContext({
   isRelevant,
   orgUnitScopeLabel,
   latestPeriodLabel,
-  latestPeriod,
+  sourceIsKnown,
 }: GlobalContextArgs): GlobalContext {
   const nativeFilters = getNativeFilters(filters);
   const allPeriod = nativeFilters.filter(getPeriodFilterKindFromFilter);
@@ -175,38 +150,26 @@ export function getGlobalContext({
       .map(filter => describeSelection(filter, dataMask))
       .filter((label): label is string => Boolean(label));
 
-  const ignoresPeriod = allPeriod.length > 0 && period.length === 0;
-  const ignoresOrgUnit = allOrgUnit.length > 0 && orgUnit.length === 0;
-  const hasCustomSelection = (items: Filter[]) =>
-    items.some(filter => !hasDefaultSelection(filter, dataMask));
-
-  const selectedPeriod = allPeriod.filter(
-    filter => normalizeValues(dataMask[filter.id]?.filterState?.value).length,
-  );
-
-  let periodText: string | null = null;
-  if (ignoresPeriod) {
-    periodText = latestPeriodLabel;
-  } else if (period.length) {
-    periodText = labels(period).join(' · ') || latestPeriodLabel;
-  }
-
-  let orgUnitText: string | null = null;
-  if (ignoresOrgUnit) {
-    orgUnitText = orgUnitScopeLabel;
-  } else if (orgUnit.length) {
-    orgUnitText = labels(orgUnit).join(', ') || orgUnitScopeLabel;
-  }
+  // No relevant filter reaches this scope. When the scope's own source has
+  // no period/org-unit dimension at all (Multi Source), report nothing
+  // rather than a fabricated "latest" label that belongs to a different
+  // data source. When it does (a Summary tab deliberately left unfiltered),
+  // fall back to the latest period / the user's own area, same as a
+  // relevant filter with no selection yet.
+  const periodText = period.length
+    ? labels(period).join(' · ') || latestPeriodLabel
+    : allPeriod.length > 0 && sourceIsKnown
+      ? latestPeriodLabel
+      : null;
+  const orgUnitText = orgUnit.length
+    ? labels(orgUnit).join(', ') || orgUnitScopeLabel
+    : allOrgUnit.length > 0 && sourceIsKnown
+      ? orgUnitScopeLabel
+      : null;
 
   return {
     period: periodText,
     orgUnit: orgUnitText,
-    periodOverridden:
-      ignoresPeriod &&
-      hasCustomSelection(allPeriod) &&
-      selectedPeriod.length > 0 &&
-      !selectionMatchesLatest(selectedPeriod, dataMask, latestPeriod),
-    orgUnitOverridden: ignoresOrgUnit && hasCustomSelection(allOrgUnit),
     isDefault: [...period, ...orgUnit].every(filter =>
       hasDefaultSelection(filter, dataMask),
     ),

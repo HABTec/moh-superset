@@ -18,8 +18,20 @@
  */
 import { useEffect, useState } from 'react';
 
-/** Update time per data source (ISO string), `null` when unknown. */
-export type DataFreshness = Record<string, string | null>;
+/** The latest period a source has real data for, at one grain. */
+export type FreshnessPeriod = {
+  period: string;
+  fiscalYear: string;
+  quarter: number;
+  quarterName: string | null;
+  monthName: string | null;
+};
+
+/** The latest monthly and quarterly period with data, per data source. */
+export type DataFreshness = Record<
+  string,
+  { monthly: FreshnessPeriod | null; quarterly: FreshnessPeriod | null }
+>;
 
 const DEFAULT_API_BASE_URL = '/api/v1/moh/dhis2';
 

@@ -1,0 +1,168 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports — MOH Performance Monitoring Dashboard</title>
+<style>
+:root {
+  --moh-blue: #2563eb;
+  --moh-navy: #1e293b;
+  --moh-navy-light: #334155;
+  --moh-teal: #14b8c4;
+  --moh-bg-card: #eef4fd;
+  --moh-bg-page: #ffffff;
+  --moh-border: #dbe3f0;
+  --moh-grey: #64748b;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--moh-navy);
+  background: var(--moh-bg-page);
+  line-height: 1.5;
+  margin: 0;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--moh-border);
+  backdrop-filter: blur(4px);
+}
+.topbar .logo { height: 36px; width: auto; }
+.topbar .back-link {
+  color: var(--moh-blue);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 6px 14px;
+  border: 1px solid var(--moh-border);
+  border-radius: 999px;
+}
+.topbar .back-link:hover { background: var(--moh-bg-card); }
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+.page-header { margin-bottom: 24px; }
+.page-header h1 { margin: 0 0 4px; font-size: 1.8rem; color: var(--moh-navy); }
+.page-header p { margin: 0; color: var(--moh-grey); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--moh-bg-card);
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.card:hover {
+  box-shadow: 0 6px 18px rgba(30, 41, 59, 0.08);
+  transform: translateY(-1px);
+}
+.card h3 { margin: 0 0 6px; color: var(--moh-navy); font-size: 1.05rem; }
+.card p { margin: 0 0 18px; color: var(--moh-grey); font-size: 0.92rem; min-height: 2.6em; }
+.card .grains {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.card .grain {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--moh-teal);
+  background: rgba(20, 184, 196, 0.12);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.card .open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--moh-blue);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.card .open .arrow { transition: transform 0.15s; }
+.card:hover .open .arrow { transform: translateX(3px); }
+
+.note {
+  margin-top: 28px;
+  padding: 14px 16px;
+  background: #fff7e6;
+  border: 1px solid #ffe1a8;
+  border-radius: var(--radius);
+  color: #7a5300;
+  font-size: 0.88rem;
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+  <a class="back-link" href="/">&larr; Back to Portal</a>
+</div>
+
+<div class="wrap">
+  <div class="page-header">
+    <h1>Reports</h1>
+    <p>Select the report you want to generate. Each one opens its own Period and Organisation Unit context, a preview, and export options.</p>
+  </div>
+
+  <div class="grid">
+    {% for section in sections %}
+    <a class="card" href="{{ url_for('moh_reports.report_view', code=section.code) }}">
+      <h3>{{ section.title }}</h3>
+      <p>{{ section.subtitle }}</p>
+      <div class="grains">
+        {% for grain in section.grains %}
+          <span class="grain">{{ grain }}</span>
+        {% endfor %}
+      </div>
+      <div class="open">
+        <span>Open report</span>
+        <span class="arrow">&rarr;</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <p class="note">
+    Report selection comes first. Period and Organisation Unit are requested only after you choose a report — and each report only offers the reporting periods it actually has data for.
+  </p>
+</div>
+</body>
+</html>

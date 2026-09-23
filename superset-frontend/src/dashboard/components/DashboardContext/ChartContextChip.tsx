@@ -17,12 +17,10 @@
  * under the License.
  */
 import { css, styled } from '@apache-superset/core/theme';
-import { t } from '@apache-superset/core/translation';
-import { Tooltip } from '@superset-ui/core/components';
 import { useGlobalContext } from './useGlobalContext';
 
-const Chip = styled.div<{ $isOverride: boolean }>`
-  ${({ theme, $isOverride }) => css`
+const Chip = styled.div`
+  ${({ theme }) => css`
     display: inline-flex;
     flex: 0 0 100%;
     order: 3;
@@ -34,10 +32,8 @@ const Chip = styled.div<{ $isOverride: boolean }>`
     border-radius: ${theme.borderRadiusLG}px;
     font-size: ${theme.fontSizeSM}px;
     font-weight: ${theme.fontWeightNormal};
-    color: ${$isOverride ? theme.colorWarningText : theme.colorTextSecondary};
-    background: ${$isOverride
-      ? theme.colorWarningBg
-      : theme.colorFillQuaternary};
+    color: ${theme.colorTextSecondary};
+    background: ${theme.colorFillQuaternary};
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -45,12 +41,12 @@ const Chip = styled.div<{ $isOverride: boolean }>`
 `;
 
 /**
- * Shows the Period and Organisation unit a chart shows, and warns when the
- * chart does not follow a selection the user made.
+ * Shows the Period and Organisation unit a chart is filtered by. Renders
+ * nothing when neither filter reaches this chart — that source has no
+ * period or org unit dimension to report.
  */
 const ChartContextChip = ({ chartId }: { chartId: number }) => {
-  const { period, orgUnit, periodOverridden, orgUnitOverridden } =
-    useGlobalContext(chartId);
+  const { period, orgUnit } = useGlobalContext(chartId);
 
   const parts = [period, orgUnit].filter((part): part is string =>
     Boolean(part),
@@ -59,23 +55,7 @@ const ChartContextChip = ({ chartId }: { chartId: number }) => {
     return null;
   }
 
-  const isOverride = periodOverridden || orgUnitOverridden;
-  const chip = (
-    <Chip data-test="chart-context-chip" $isOverride={isOverride}>
-      {parts.join(' | ')}
-    </Chip>
-  );
-  return isOverride ? (
-    <Tooltip
-      title={t(
-        'This chart always shows the latest period and your own area, so it does not follow the Period or Organisation unit you selected.',
-      )}
-    >
-      {chip}
-    </Tooltip>
-  ) : (
-    chip
-  );
+  return <Chip data-test="chart-context-chip">{parts.join(' | ')}</Chip>;
 };
 
 export default ChartContextChip;

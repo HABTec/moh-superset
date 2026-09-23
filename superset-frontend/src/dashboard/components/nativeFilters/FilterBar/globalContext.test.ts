@@ -53,6 +53,7 @@ const args = {
   isRelevant: everything,
   orgUnitScopeLabel: 'National',
   latestPeriodLabel,
+  sourceIsKnown: false,
 };
 
 test('describes the selected period and falls back to the org unit scope', () => {
@@ -103,56 +104,60 @@ test('is a custom view when the period differs or an org unit is picked', () => 
   ).toBe(false);
 });
 
-test('shows the latest period and the user scope where no filter reaches', () => {
+test('reports nothing for a source no filter reaches and no source is known (Multi Source)', () => {
   const context = getGlobalContext({
     ...args,
     isRelevant: () => false,
+    sourceIsKnown: false,
     dataMask: {
       year: { id: 'year', filterState: { value: ['2018'] } },
     },
   });
-  expect(context.period).toBe(latestPeriodLabel);
-  expect(context.orgUnit).toBe('National');
-  expect(context.periodOverridden).toBe(false);
-  expect(context.orgUnitOverridden).toBe(false);
+  expect(context.period).toBeNull();
+  expect(context.orgUnit).toBeNull();
 });
 
-test('flags a selection the scope does not follow', () => {
+test('still reports nothing when a selection exists for a scope no filter reaches', () => {
   const context = getGlobalContext({
     ...args,
     isRelevant: () => false,
+    sourceIsKnown: false,
     dataMask: {
       year: { id: 'year', filterState: { value: ['2017'] } },
       org: { id: 'org', filterState: { value: ['Oromia'] } },
     },
   });
-  expect(context.periodOverridden).toBe(true);
-  expect(context.orgUnitOverridden).toBe(true);
+  expect(context.period).toBeNull();
+  expect(context.orgUnit).toBeNull();
+});
+
+test('falls back to the latest period and user scope for a known source no filter reaches (Summary)', () => {
+  const context = getGlobalContext({
+    ...args,
+    isRelevant: () => false,
+    sourceIsKnown: true,
+    dataMask: {},
+  });
+  expect(context.period).toBe(latestPeriodLabel);
+  expect(context.orgUnit).toBe('National');
+});
+
+test('a known source with no period or org unit filter at all still reports nothing', () => {
+  const context = getGlobalContext({
+    filters: { facility } as Record<string, Filter>,
+    dataMask: {},
+    isRelevant: () => false,
+    orgUnitScopeLabel: 'National',
+    latestPeriodLabel,
+    sourceIsKnown: true,
+  });
+  expect(context.period).toBeNull();
+  expect(context.orgUnit).toBeNull();
 });
 
 test('shows the latest period when a period filter has no selection', () => {
   const context = getGlobalContext({ ...args, dataMask: {} });
   expect(context.period).toBe(latestPeriodLabel);
-});
-
-test('does not flag a selected period that already is the latest period', () => {
-  const latestPeriod = { fiscalYear: '2019', quarter: 1, monthName: 'Nehase' };
-  const notReached = { ...args, isRelevant: () => false, latestPeriod };
-  expect(
-    getGlobalContext({
-      ...notReached,
-      dataMask: { year: { id: 'year', filterState: { value: ['2019'] } } },
-    }).periodOverridden,
-  ).toBe(false);
-  expect(
-    getGlobalContext({
-      ...notReached,
-      dataMask: { year: { id: 'year', filterState: { value: ['2017'] } } },
-    }).periodOverridden,
-  ).toBe(true);
-  expect(
-    getGlobalContext({ ...notReached, dataMask: {} }).periodOverridden,
-  ).toBe(false);
 });
 
 test('adds the EFY suffix to a fiscal year that has no label', () => {
@@ -170,11 +175,10 @@ test('reports nothing when the dashboard has no global filters', () => {
     isRelevant: everything,
     orgUnitScopeLabel: 'National',
     latestPeriodLabel,
+    sourceIsKnown: false,
   });
   expect(context.period).toBeNull();
   expect(context.orgUnit).toBeNull();
-  expect(context.periodOverridden).toBe(false);
-  expect(context.orgUnitOverridden).toBe(false);
 });
 
 test('finds an org unit filter that has no targets', () => {

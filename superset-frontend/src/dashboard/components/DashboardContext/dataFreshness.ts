@@ -16,7 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import { formatFilterOptionLabel } from 'src/filters/utils/filterDisplay';
+import { FreshnessPeriod } from 'src/filters/components/OrgUnitTree/useDataFreshness';
+
 export type FreshnessSource = 'routine' | 'quality';
+export type FreshnessGrain = 'monthly' | 'quarterly';
+
+export type { FreshnessPeriod };
 
 /**
  * The data source a top-level tab reads. Tabs whose source has no agreed
@@ -33,38 +39,41 @@ export function getFreshnessSource(tabName?: string): FreshnessSource | null {
   return null;
 }
 
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-const twoDigits = (value: number) => String(value).padStart(2, '0');
+/**
+ * Which grain a tab's own path reads — from a "Quarterly" sub-tab, or
+ * "Monthly" otherwise (also the default when the path names neither, since
+ * that's how the Summary tab reads).
+ */
+export function getFreshnessGrain(
+  tabTitles: (string | undefined)[],
+): FreshnessGrain {
+  const joined = tabTitles.filter(Boolean).join(' ').toLowerCase();
+  return /quarter/.test(joined) ? 'quarterly' : 'monthly';
+}
 
 /**
- * "20 Sep 2026" for display and "20 Sep 2026, 20:46" for the tooltip, formatted
- * the same in every browser.
+ * "2019 EFY · Meskerem" for a monthly grain, "2019 EFY · Q1" for quarterly.
+ * Null when the period, or the field that grain needs, is unknown.
  */
-export function formatDataDate(isoTime: string): {
-  date: string;
-  dateTime: string;
-} | null {
-  const time = new Date(isoTime);
-  if (Number.isNaN(time.getTime())) {
+export function formatFreshnessPeriod(
+  period: FreshnessPeriod | null | undefined,
+  grain: FreshnessGrain,
+): string | null {
+  if (!period) {
     return null;
   }
-  const date = `${time.getDate()} ${MONTHS[time.getMonth()]} ${time.getFullYear()}`;
-  return {
-    date,
-    dateTime: `${date}, ${twoDigits(time.getHours())}:${twoDigits(time.getMinutes())}`,
-  };
+  const fiscalYear = formatFilterOptionLabel(
+    String(period.fiscalYear),
+    'fiscal_year',
+  );
+  const grainPart =
+    grain === 'quarterly'
+      ? period.quarter
+        ? `Q${period.quarter}`
+        : null
+      : period.monthName;
+  if (!grainPart) {
+    return null;
+  }
+  return [fiscalYear, grainPart].join(' · ');
 }
