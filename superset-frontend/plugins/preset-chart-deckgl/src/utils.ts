@@ -216,6 +216,7 @@ export function getBuckets(
 }
 
 export const OUT_OF_RANGE_LEGEND_LABEL = 'Above 100 or below 0';
+export const NO_DATA_LEGEND_LABEL = 'No data';
 
 export type BreakpointDefaultColor = {
   r: number;
@@ -262,7 +263,17 @@ export function getColorBreakpointsBuckets(
   });
 
   if (defaultColor) {
+    // Two distinct reasons a feature can fall back to the default colour:
+    // a value reported outside the expected range, or no value at all.
+    // Both currently share the same swatch (there is no separate "No data
+    // colour" control yet) but get their own legend row so map readers are
+    // told which one applies rather than seeing one ambiguous "default"
+    // entry — a feature with genuinely no data is not the same as bad data.
     buckets[OUT_OF_RANGE_LEGEND_LABEL] = {
+      color: [defaultColor.r, defaultColor.g, defaultColor.b],
+      enabled: true,
+    };
+    buckets[NO_DATA_LEGEND_LABEL] = {
       color: [defaultColor.r, defaultColor.g, defaultColor.b],
       enabled: true,
     };

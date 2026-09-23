@@ -20,6 +20,7 @@ import {
   getColorBreakpointsBuckets,
   getBreakPoints,
   isMetricOutOfZeroToHundred,
+  NO_DATA_LEGEND_LABEL,
   OUT_OF_RANGE_LEGEND_LABEL,
 } from './utils';
 import { ColorBreakpointType } from './types';
@@ -67,7 +68,20 @@ describe('getColorBreakpointsBuckets', () => {
     expect(result).toEqual({
       '0 - 100': { color: [255, 0, 0], enabled: true },
       [OUT_OF_RANGE_LEGEND_LABEL]: { color: [171, 164, 164], enabled: true },
+      [NO_DATA_LEGEND_LABEL]: { color: [171, 164, 164], enabled: true },
     });
+  });
+
+  test('labels missing data separately from out-of-range data in the legend', () => {
+    const result = getColorBreakpointsBuckets([], {
+      r: 171,
+      g: 164,
+      b: 164,
+    });
+    expect(Object.keys(result)).toEqual([
+      OUT_OF_RANGE_LEGEND_LABEL,
+      NO_DATA_LEGEND_LABEL,
+    ]);
   });
 });
 

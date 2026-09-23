@@ -224,6 +224,7 @@ from superset.moh_monitoring_dashboard import (  # noqa: E402
     monitoring_dashboard_bp as _monitoring_dashboard_bp,
 )
 from superset.moh_orgunits_api import moh_orgunits_bp as _moh_orgunits_bp  # noqa: E402
+from superset.moh_reports import moh_reports_bp as _moh_reports_bp  # noqa: E402
 
 BLUEPRINTS = [
     _ai_chat_bp,
@@ -232,6 +233,7 @@ BLUEPRINTS = [
     _moh_guide_bp,
     _hpc_bp,
     _monitoring_dashboard_bp,
+    _moh_reports_bp,
 ]
 
 # -----------------------------------------------------------------------------

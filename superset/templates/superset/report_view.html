@@ -1,0 +1,560 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ section.title }} — Reports</title>
+<style>
+:root {
+  --moh-blue: #2563eb;
+  --moh-navy: #1e293b;
+  --moh-navy-light: #334155;
+  --moh-teal: #14b8c4;
+  --moh-bg-card: #eef4fd;
+  --moh-bg-page: #ffffff;
+  --moh-border: #dbe3f0;
+  --moh-green: #16a34a;
+  --moh-amber: #d97706;
+  --moh-grey: #64748b;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--moh-navy);
+  background: var(--moh-bg-page);
+  line-height: 1.5;
+  margin: 0;
+}
+a { color: var(--moh-blue); }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--moh-border);
+}
+.topbar .logo { height: 32px; width: auto; }
+.topbar .links { display: flex; gap: 16px; align-items: center; font-size: 0.9rem; }
+.topbar a.back-link { text-decoration: none; font-weight: 600; }
+
+.crumbs { padding: 14px 24px 0; font-size: 0.85rem; color: var(--moh-grey); }
+.crumbs a { text-decoration: none; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 24px 64px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+/* ---- Filter panel ---- */
+.panel {
+  background: var(--moh-bg-card);
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  padding: 18px;
+  position: sticky;
+  top: 16px;
+}
+.panel h2 { margin: 0 0 14px; font-size: 1rem; color: var(--moh-navy); }
+.field { margin-bottom: 16px; }
+.field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--moh-grey);
+  margin-bottom: 6px;
+}
+.field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--moh-border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.92rem;
+  color: var(--moh-navy);
+}
+.panel .apply-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--moh-blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.panel .apply-btn:hover { background: #1d4fd1; }
+.panel .selected-report {
+  font-size: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--moh-border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 16px;
+}
+.panel .selected-report strong { display: block; color: var(--moh-navy); }
+.panel .change-report { font-size: 0.8rem; }
+
+/* ---- Main column ---- */
+.main h1 { margin: 0 0 2px; font-size: 1.6rem; }
+.main .steps { margin: 0 0 18px; color: var(--moh-grey); font-size: 0.88rem; }
+
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  background: var(--moh-bg-card);
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  font-size: 0.88rem;
+}
+.status-line .item strong { color: var(--moh-navy); }
+.status-line .clamp-note {
+  color: var(--moh-amber);
+  font-weight: 600;
+}
+
+.kpi-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.kpi-group-header .label { font-size: 1.02rem; font-weight: 700; color: var(--moh-navy); }
+.kpi-group-header .value { font-size: 1.6rem; font-weight: 800; color: var(--moh-navy); }
+.kpi-group-header .baseline { font-size: 0.82rem; color: var(--moh-grey); }
+
+.panels-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+@media (max-width: 700px) {
+  .panels-row { grid-template-columns: 1fr; }
+}
+.box {
+  background: #fff;
+  border: 1px solid var(--moh-border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.box h3 { margin: 0 0 12px; font-size: 0.95rem; color: var(--moh-navy); }
+.trend-chart { width: 100%; height: 200px; }
+.trend-chart .line { fill: none; stroke: var(--moh-teal); stroke-width: 2.5; }
+.trend-chart .dot { fill: var(--moh-teal); }
+.trend-chart .axis-label { fill: var(--moh-grey); font-size: 10px; }
+.trend-chart .value-label { fill: var(--moh-navy-light); font-size: 10px; font-weight: 600; }
+
+.kpi-group { margin-bottom: 22px; }
+.kpi-group + .kpi-group { padding-top: 6px; border-top: 1px solid var(--moh-border); }
+
+table.regional { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+table.regional th, table.regional td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--moh-border);
+}
+table.regional th { color: var(--moh-grey); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+table.regional td.value { text-align: right; font-weight: 700; color: var(--moh-navy); }
+
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: #fff8e8;
+  border: 1px solid #ffe1a8;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.export-row .label {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: var(--moh-amber);
+  letter-spacing: 0.03em;
+  margin-right: 6px;
+}
+.export-row a.export-btn {
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid var(--moh-border);
+  color: var(--moh-navy);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.export-row a.export-btn:hover { border-color: var(--moh-blue); color: var(--moh-blue); }
+
+.empty-note {
+  padding: 24px;
+  text-align: center;
+  color: var(--moh-grey);
+  background: var(--moh-bg-card);
+  border: 1px dashed var(--moh-border);
+  border-radius: var(--radius);
+}
+
+/* ---- Print mode (used for the PDF export render) ---- */
+body.print-mode .topbar,
+body.print-mode .crumbs,
+body.print-mode .panel,
+body.print-mode .main .steps,
+body.print-mode .export-row { display: none; }
+body.print-mode .layout { grid-template-columns: 1fr; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+  <div class="links">
+    <a class="back-link" href="{{ url_for('moh_reports.catalogue') }}">&larr; All reports</a>
+    <a href="/">Portal</a>
+  </div>
+</div>
+<div class="crumbs">
+  <a href="{{ url_for('moh_reports.catalogue') }}">Reports</a> &rsaquo; {{ section.title }}
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <h2>Filters and controls</h2>
+    <div class="selected-report">
+      <strong>{{ section.title }}</strong>
+      <a class="change-report" href="{{ url_for('moh_reports.catalogue') }}">Change report</a>
+    </div>
+
+    {% if section.grains|length > 1 %}
+    <div class="field">
+      <label for="grainSelect">Period type</label>
+      <select id="grainSelect">
+        {% for grain in section.grains %}
+          <option value="{{ grain }}">{{ grain|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="periodSelect">Period</label>
+      <select id="periodSelect"></select>
+    </div>
+
+    <div class="field">
+      <label for="orgUnitSelect">Organisation unit</label>
+      <select id="orgUnitSelect"></select>
+    </div>
+
+    <button class="apply-btn" id="applyBtn" type="button">Apply filters</button>
+  </div>
+
+  <div class="main">
+    <h1 id="reportTitle">{{ section.title }}</h1>
+    <p class="steps">Step 2 &middot; Select reporting context &rarr; Step 3 &middot; Preview &rarr; Step 4 &middot; Generate / Export</p>
+
+    <div class="status-line" id="statusLine"></div>
+
+    <div id="reportBody"></div>
+
+    <div class="export-row" style="margin-top: 18px;">
+      <span class="label">Generate / Export</span>
+      <a class="export-btn" id="exportPdf" href="#">PDF</a>
+      <a class="export-btn" id="exportXlsx" href="#">Excel</a>
+      <a class="export-btn" id="exportCsv" href="#">CSV / Data</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var SECTION_CODE = {{ section.code | tojson }};
+  var REPORT = {{ report | tojson }};
+  var DATA_URL = {{ url_for('moh_reports.report_data', code=section.code) | tojson }};
+  var EXPORT_BASE = {{ url_for('moh_reports.report_view', code=section.code) | tojson }};
+
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('print') === '1') {
+    document.body.classList.add('print-mode');
+  }
+
+  function fmt(value) {
+    return value === null || value === undefined ? '—' : value;
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function renderStatusLine(report) {
+    var line = document.getElementById('statusLine');
+    line.innerHTML = '';
+    var period = el('span', 'item');
+    period.innerHTML = '<strong>Period:</strong> ' + fmt(report.period);
+    line.appendChild(period);
+
+    var org = el('span', 'item');
+    org.innerHTML = '<strong>Org Unit:</strong> ' + fmt(report.orgUnit && report.orgUnit.name);
+    line.appendChild(org);
+
+    var asOf = el('span', 'item');
+    asOf.innerHTML = '<strong>Data as of:</strong> ' + (report.dataAsOf ? report.dataAsOf.slice(0, 10) : 'Not available');
+    line.appendChild(asOf);
+
+    if (report.clamped) {
+      var note = el('span', 'clamp-note', 'Scope limited to your assigned area');
+      line.appendChild(note);
+    }
+  }
+
+  function renderKpiHeader(kpi) {
+    var header = el('div', 'kpi-group-header');
+    header.appendChild(el('span', 'label', kpi.indicator));
+    header.appendChild(el('span', 'value', fmt(kpi.value)));
+    if (kpi.baseline !== null && kpi.baseline !== undefined) {
+      header.appendChild(el('span', 'baseline', 'Baseline: ' + kpi.baseline));
+    }
+    return header;
+  }
+
+  function renderTrendSvg(points) {
+    points = points || [];
+    var width = 400, height = 180, padding = 28;
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'trend-chart');
+    svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    if (!points.length) {
+      var msg = document.createElementNS(svgNS, 'text');
+      msg.setAttribute('x', width / 2);
+      msg.setAttribute('y', height / 2);
+      msg.setAttribute('text-anchor', 'middle');
+      msg.setAttribute('class', 'axis-label');
+      msg.textContent = 'No trend data for this selection';
+      svg.appendChild(msg);
+      return svg;
+    }
+
+    var values = points.map(function (p) { return p.value === null ? 0 : p.value; });
+    var minV = Math.min.apply(null, values);
+    var maxV = Math.max.apply(null, values);
+    if (minV === maxV) { minV -= 1; maxV += 1; }
+    var innerW = width - padding * 2;
+    var innerH = height - padding * 2;
+
+    var coords = points.map(function (p, i) {
+      var x = padding + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+      var v = p.value === null ? minV : p.value;
+      var y = padding + innerH - ((v - minV) / (maxV - minV)) * innerH;
+      return { x: x, y: y, label: p.monthName, value: p.value };
+    });
+
+    var path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('class', 'line');
+    path.setAttribute(
+      'd',
+      coords.map(function (c, i) { return (i === 0 ? 'M' : 'L') + c.x.toFixed(1) + ' ' + c.y.toFixed(1); }).join(' ')
+    );
+    svg.appendChild(path);
+
+    coords.forEach(function (c, i) {
+      var dot = document.createElementNS(svgNS, 'circle');
+      dot.setAttribute('class', 'dot');
+      dot.setAttribute('cx', c.x.toFixed(1));
+      dot.setAttribute('cy', c.y.toFixed(1));
+      dot.setAttribute('r', 3);
+      svg.appendChild(dot);
+
+      var labelText = document.createElementNS(svgNS, 'text');
+      labelText.setAttribute('class', 'axis-label');
+      labelText.setAttribute('x', c.x.toFixed(1));
+      labelText.setAttribute('y', height - 6);
+      labelText.setAttribute('text-anchor', 'middle');
+      labelText.textContent = (c.label || '').slice(0, 3);
+      if (i % 2 === 0 || coords.length <= 6) svg.appendChild(labelText);
+
+      if (c.value !== null && (i === 0 || i === coords.length - 1 || i % 3 === 0)) {
+        var valueText = document.createElementNS(svgNS, 'text');
+        valueText.setAttribute('class', 'value-label');
+        valueText.setAttribute('x', c.x.toFixed(1));
+        valueText.setAttribute('y', (c.y - 8).toFixed(1));
+        valueText.setAttribute('text-anchor', 'middle');
+        valueText.textContent = c.value;
+        svg.appendChild(valueText);
+      }
+    });
+
+    return svg;
+  }
+
+  function renderRegional(regional, indicatorName) {
+    if (!regional || !regional.length) return null;
+    var box = el('div', 'box');
+    box.appendChild(el('h3', null, indicatorName + ' by region'));
+    var table = document.createElement('table');
+    table.className = 'regional';
+    var tbody = document.createElement('tbody');
+    regional.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(el('td', null, row.region));
+      tr.appendChild(el('td', 'value', fmt(row.value)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+    return box;
+  }
+
+  function renderKpiGroup(kpi) {
+    var group = el('div', 'kpi-group');
+    group.appendChild(renderKpiHeader(kpi));
+
+    var panelsRow = el('div', 'panels-row');
+    var trendBox = el('div', 'box');
+    trendBox.appendChild(el('h3', null, kpi.indicator + ' — monthly'));
+    trendBox.appendChild(renderTrendSvg(kpi.trend));
+    panelsRow.appendChild(trendBox);
+
+    var regionalBox = renderRegional(kpi.regional, kpi.indicator);
+    if (regionalBox) panelsRow.appendChild(regionalBox);
+
+    group.appendChild(panelsRow);
+    return group;
+  }
+
+  function renderBody(report) {
+    var container = document.getElementById('reportBody');
+    container.innerHTML = '';
+
+    if (!report.period) {
+      container.appendChild(
+        el('div', 'empty-note', 'No data is available yet for this report and organisation unit.')
+      );
+      return;
+    }
+    if (!report.kpis || !report.kpis.length) {
+      container.appendChild(
+        el('div', 'empty-note', 'No indicators reported for this period and organisation unit.')
+      );
+      return;
+    }
+
+    // Every KPI gets its own header, trend and regional breakdown — a
+    // report meant to be read (especially once printed) shouldn't need a
+    // selector to see indicators beyond the first.
+    report.kpis.forEach(function (kpi) {
+      container.appendChild(renderKpiGroup(kpi));
+    });
+  }
+
+  function populateOrgUnitSelect(report, selectedId) {
+    var select = document.getElementById('orgUnitSelect');
+    select.innerHTML = '';
+    (report.orgUnitOptions || []).forEach(function (opt) {
+      var option = document.createElement('option');
+      option.value = opt.id;
+      option.textContent = opt.name;
+      if (opt.id === selectedId) option.selected = true;
+      select.appendChild(option);
+    });
+  }
+
+  function populatePeriodSelect(report) {
+    // The period list itself is not fetched separately in this version —
+    // the current period is shown as the only option, with Clear filters
+    // (browser back / reload) as the way to pick a different one for now.
+    var select = document.getElementById('periodSelect');
+    select.innerHTML = '';
+    if (report.period) {
+      var option = document.createElement('option');
+      option.value = report.period;
+      option.textContent = report.period + (report.fiscalYear ? ' (FY ' + report.fiscalYear + ')' : '');
+      option.selected = true;
+      select.appendChild(option);
+    }
+  }
+
+  function updateExportLinks(report) {
+    var query = new URLSearchParams();
+    if (report.period) query.set('period', report.period);
+    if (report.orgUnit && report.orgUnit.id) query.set('org_unit', report.orgUnit.id);
+    var qs = query.toString();
+    document.getElementById('exportPdf').href = EXPORT_BASE + 'export.pdf' + (qs ? '?' + qs : '');
+    document.getElementById('exportXlsx').href = EXPORT_BASE + 'export.xlsx' + (qs ? '?' + qs : '');
+    document.getElementById('exportCsv').href = EXPORT_BASE + 'export.csv' + (qs ? '?' + qs : '');
+  }
+
+  function render(report) {
+    renderStatusLine(report);
+    renderBody(report);
+    populateOrgUnitSelect(report, report.orgUnit && report.orgUnit.id);
+    populatePeriodSelect(report);
+    updateExportLinks(report);
+  }
+
+  document.getElementById('applyBtn').addEventListener('click', function () {
+    var orgUnit = document.getElementById('orgUnitSelect').value;
+    var period = document.getElementById('periodSelect').value;
+    var query = new URLSearchParams();
+    if (orgUnit) query.set('org_unit', orgUnit);
+    if (period) query.set('period', period);
+
+    fetch(DATA_URL + '?' + query.toString(), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        render(json);
+        var url = new URL(window.location.href);
+        url.search = query.toString();
+        window.history.replaceState(null, '', url);
+      })
+      .catch(function () {
+        var line = document.getElementById('statusLine');
+        line.innerHTML = '<span class="clamp-note">Could not refresh the preview — try again.</span>';
+      });
+  });
+
+  render(REPORT);
+})();
+</script>
+</body>
+</html>

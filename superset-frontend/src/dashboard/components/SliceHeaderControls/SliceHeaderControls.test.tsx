@@ -176,10 +176,12 @@ test('Should render default props', () => {
 
   renderWrapper(props);
   openMenu();
-  expect(screen.getByText('Enter fullscreen')).toBeInTheDocument();
+  expect(screen.getByText('View fullscreen')).toBeInTheDocument();
   expect(screen.getByText('Force refresh')).toBeInTheDocument();
-  expect(screen.getByText('Show chart description')).toBeInTheDocument();
-  expect(screen.getByText('Edit chart')).toBeInTheDocument();
+  expect(
+    screen.getByText('View details / interpretations'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Explore visual')).toBeInTheDocument();
   expect(screen.getByText('Download')).toBeInTheDocument();
   expect(screen.getByText('Share')).toBeInTheDocument();
 
@@ -299,12 +301,12 @@ test('Should export to pivoted Excel if report is pivot table', async () => {
   );
 });
 
-test('Should "Show chart description"', () => {
+test('Should "View details / interpretations"', () => {
   const props = createProps();
   renderWrapper(props);
   openMenu();
   expect(props.toggleExpandSlice).toHaveBeenCalledTimes(0);
-  userEvent.click(screen.getByText('Show chart description'));
+  userEvent.click(screen.getByText('View details / interpretations'));
   expect(props.toggleExpandSlice).toHaveBeenCalledTimes(1);
   expect(props.toggleExpandSlice).toHaveBeenCalledWith(371);
 });
@@ -337,7 +339,7 @@ test('Should sync local state after entering fullscreen', async () => {
   openMenu();
   expect(props.handleToggleFullSize).toHaveBeenCalledTimes(0);
   const fullscreenItem = screen.getByRole('menuitem', {
-    name: /enter fullscreen/i,
+    name: /view fullscreen/i,
   });
   await userEvent.click(fullscreenItem);
   expect(props.handleToggleFullSize).toHaveBeenCalledTimes(0);
@@ -574,7 +576,7 @@ test('Should show "View as table"', () => {
   expect(screen.getByText('View as table')).toBeInTheDocument();
 });
 
-test('Should not show "View as table"', () => {
+test('Should disable "View as table" without permission', () => {
   const props = {
     ...createProps(),
     supersetCanExplore: false,
@@ -584,10 +586,12 @@ test('Should not show "View as table"', () => {
     Admin: [['invalid_permission', 'Dashboard']],
   });
   openMenu();
-  expect(screen.queryByText('View as table')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('menuitem', { name: 'View as table' }),
+  ).toHaveAttribute('aria-disabled', 'true');
 });
 
-test('Should not show the "Edit chart" button', () => {
+test('Should disable "Explore visual" without the explore permission', () => {
   const props = {
     ...createProps(),
     supersetCanExplore: false,
@@ -601,7 +605,50 @@ test('Should not show the "Edit chart" button', () => {
     ],
   });
   openMenu();
-  expect(screen.queryByText('Edit chart')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('menuitem', { name: 'Explore visual' }),
+  ).toHaveAttribute('aria-disabled', 'true');
+});
+
+test('Should disable "Download" without the export permission', () => {
+  const props = {
+    ...createProps(),
+    supersetCanCSV: false,
+  };
+  renderWrapper(props);
+  openMenu();
+  expect(screen.getByRole('menuitem', { name: 'Download' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+});
+
+test('Should disable "View details / interpretations" when the chart has no description', () => {
+  const props = createProps();
+  props.slice.description = '';
+  renderWrapper(props);
+  openMenu();
+  expect(
+    screen.getByRole('menuitem', { name: 'View details / interpretations' }),
+  ).toHaveAttribute('aria-disabled', 'true');
+});
+
+test('Should list the standard actions first, in a fixed order', () => {
+  renderWrapper();
+  openMenu();
+  const labels = screen.getAllByRole('menuitem').map(item => item.textContent);
+  const standard = [
+    'View fullscreen',
+    'View as table',
+    'Explore visual',
+    'Download',
+    'View details / interpretations',
+  ];
+  expect(labels.slice(0, standard.length)).toEqual(standard);
+  const forceRefreshIndex = labels.findIndex(label =>
+    label?.startsWith('Force refresh'),
+  );
+  expect(forceRefreshIndex).toBeGreaterThan(standard.length - 1);
 });
 
 test('Dataset drill info API call is made when user has drill permissions', async () => {
