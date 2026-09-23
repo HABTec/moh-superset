@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 from flask import (
     Blueprint,
@@ -86,16 +87,17 @@ _TV_PAGE = """<!doctype html>
 <title>MoH Dashboard TV</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  /* The iframe is rendered at full TV width, then scaled+centred to fit the
-     whole tab on screen (no scrolling on a TV). transform-origin top-left so the
-     translate offsets below position it predictably. */
+  /* The iframe is laid out on a fixed canvas (1920x1080 by default) and that
+     canvas is scaled to the screen. transform-origin top-left so the translate
+     offsets below position it predictably. */
   #tv {
     position: absolute; top: 0; left: 0; border: 0;
     transform-origin: top left; background: #fff;
   }
+  /* 22px: the same legibility floor the slides are held to. */
   #label {
     position: fixed; left: 16px; bottom: 12px; z-index: 10;
-    font: 600 16px/1.2 system-ui, sans-serif; color: #fff;
+    font: 600 22px/1.2 system-ui, sans-serif; color: #fff;
     background: rgba(0,0,0,.45); padding: 6px 12px; border-radius: 8px;
     pointer-events: none;
   }
@@ -127,6 +129,10 @@ _TV_PAGE = """<!doctype html>
   </div>
   <script>
     const CFG = __CONFIG__;
+    CFG.canvas = CFG.canvas || { width: 1920, height: 1080 };
+    CFG.skipEmptyRatio = CFG.skipEmptyRatio || 0.8;
+    CFG.readyTimeoutMs = CFG.readyTimeoutMs || 25000;
+    CFG.emptyMarkers = CFG.emptyMarkers || [];
     const frame = document.getElementById('tv');
     const label = document.getElementById('label');
     const controls = document.getElementById('controls');
@@ -200,13 +206,60 @@ _TV_PAGE = """<!doctype html>
       let fitTimers = [];
       let token = 0;        // guards against overlapping slide switches
       let pending = -1;     // slide to activate after the iframe loads
+      let shrink = 1;       // <1 when the current slide is taller than the canvas
+      let skipStreak = 0;   // consecutive skipped slides, so an all-empty loop still shows something
+      let watchdog = null;
+      const warned = {};
+
+      const CANVAS_W = CFG.canvas.width;
+      const CANVAS_H = CFG.canvas.height;
+      const THEME_KEY = 'superset-dev-theme-override';
 
       const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+      // Give the wall its own theme (larger type) without touching the
+      // database or the desktop theme: Superset's theme controller reads this
+      // local-storage key when the dashboard starts and merges it over the
+      // default theme. It is removed when this page is left, so a normal tab
+      // in the same browser profile is not affected.
+      if (CFG.theme) {
+        try {
+          localStorage.setItem(THEME_KEY, JSON.stringify(CFG.theme));
+          window.addEventListener('pagehide', () => {
+            try { localStorage.removeItem(THEME_KEY); } catch (e) { /* ignore */ }
+          });
+        } catch (e) { /* storage blocked: the desktop theme is used */ }
+      }
+
+      function screenScale() {
+        return Math.min(window.innerWidth / CANVAS_W, window.innerHeight / CANVAS_H);
+      }
+
+      function placeFrame(w, h, s) {
+        const k = screenScale() * s;
+        frame.style.width = w + 'px';
+        frame.style.height = h + 'px';
+        frame.style.transform =
+          'translate(' + ((window.innerWidth - w * k) / 2) + 'px,'
+          + ((window.innerHeight - h * k) / 2) + 'px) scale(' + k + ')';
+      }
+
       function resetFrame() {
-        frame.style.transform = 'none';
-        frame.style.width = window.innerWidth + 'px';
-        frame.style.height = window.innerHeight + 'px';
+        placeFrame(CANVAS_W, CANVAS_H, 1);
+      }
+
+      function updateLabel(n) {
+        const slide = CFG.slides[n === undefined ? i : n];
+        const tall = shrink < 0.995;
+        label.textContent = (slide && slide.label || '')
+          + (tall ? ' · too tall, text at ' + Math.round(shrink * 100) + '%' : '');
+        label.style.background = tall ? 'rgba(160,50,30,.9)' : '';
+        if (tall && slide && !warned[slide.label]) {
+          warned[slide.label] = true;
+          console.warn('TV: "' + slide.label + '" is taller than the '
+            + CANVAS_H + 'px canvas; text is shrunk to ' + Math.round(shrink * 100)
+            + '%. Split or trim the slide.');
+        }
       }
 
       function safeDoc() {
@@ -259,9 +312,13 @@ _TV_PAGE = """<!doctype html>
         ).forEach(el => { el.style.display = 'none'; });
       }
 
-      // Fill the whole screen — no letterbox bars. Solve the scale that maps
-      // content height onto screen height, then size the frame width to
-      // innerWidth / scale so the scaled width lands exactly on screen width.
+      // Lay the slide out on the fixed canvas and scale that canvas to the
+      // screen. A slide that fits is drawn 1:1, so its text keeps the size the
+      // TV theme gave it and does not change from slide to slide. The old
+      // behaviour scaled every slide by its own height, so type size swung
+      // with how tall each slide happened to be. Now only a slide taller than
+      // the canvas is shrunk, just enough to be seen whole, and it is flagged
+      // on the label so someone splits it.
       function fit() {
         const doc = safeDoc();
         if (!doc || !doc.body) return;
@@ -269,28 +326,21 @@ _TV_PAGE = """<!doctype html>
         hideTabBars(doc);
         wireIframeGestures();
         wireResizeObserver(doc);
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
 
-        let s = vh / contentHeight(doc);
-        for (let k = 0; k < 4; k++) {
-          const w = Math.max(320, Math.round(vw / s));
-          if (Math.abs((parseFloat(frame.style.width) || 0) - w) < 2) break;
-          frame.style.width = w + 'px';
-          s = vh / contentHeight(doc);
+        let s = 1;
+        for (let n = 0; n < 4; n++) {
+          const w = Math.round(CANVAS_W / s);
+          if (Math.abs((parseFloat(frame.style.width) || 0) - w) >= 2) {
+            frame.style.width = w + 'px';
+          }
+          s = Math.min(1, CANVAS_H / Math.max(contentHeight(doc), 1));
+          if (Math.abs(Math.round(CANVAS_W / s) - w) < 2) break;
         }
-        s = Math.min(Math.max(s, 0.25), 5);
-
-        // Overshoot ~0.5% and centre-crop so rounding or late chart renders
-        // never leave a hairline gap on any edge.
-        s *= 1.005;
-        const w = Math.max(320, Math.round(vw / s));
-        const h = Math.round(contentHeight(doc));
-        frame.style.width = w + 'px';
-        frame.style.height = h + 'px';
-        frame.style.transform =
-          'translate(' + ((vw - w * s) / 2) + 'px,' + ((vh - h * s) / 2)
-          + 'px) scale(' + s + ')';
+        shrink = s;
+        const w = Math.round(CANVAS_W / s);
+        const h = Math.max(Math.round(contentHeight(doc)), Math.ceil(CANVAS_H / s));
+        placeFrame(w, h, s);
+        updateLabel();
       }
 
       function scheduleFit() {
@@ -333,10 +383,70 @@ _TV_PAGE = """<!doctype html>
         return true;
       }
 
+      // What the visible charts are doing, read from the dashboard DOM.
+      // "Empty" is Superset's own no-results message; a chart that failed
+      // shows an error alert instead. Selectors and the empty wording come
+      // from the Superset build in this repo (see MOH_TV_EMPTY_MARKERS).
+      function slideState(doc) {
+        const st = { total: 0, loading: 0, empty: 0, error: 0 };
+        if (!doc) return st;
+        doc.querySelectorAll('[data-test="dashboard-component-chart-holder"]')
+          .forEach(holder => {
+            if (!isVisible(holder)) return;
+            st.total++;
+            if (holder.querySelector('[data-test="loading-indicator"]')) {
+              st.loading++;
+            } else if (holder.querySelector('.ant-alert-error,[data-test="error-message"]')) {
+              st.error++;
+            } else {
+              const text = holder.textContent || '';
+              if (CFG.emptyMarkers.some(m => text.indexOf(m) !== -1)) st.empty++;
+            }
+          });
+        return st;
+      }
+
+      // Wait until the slide's charts have stopped loading, then decide
+      // whether it has anything to show. The dwell timer starts only now, so a
+      // slow slide is not charged for its loading time, and a slide with
+      // nothing to show is skipped instead of holding the room for a full slot.
+      async function settle(n, my) {
+        const t0 = Date.now();
+        let calm = 0;
+        while (my === token && Date.now() - t0 < CFG.readyTimeoutMs) {
+          await sleep(500);
+          const st = slideState(safeDoc());
+          const quiet = st.total > 0 ? st.loading === 0 : Date.now() - t0 >= 4000;
+          calm = quiet ? calm + 1 : 0;
+          if (calm >= 3) break;
+        }
+        if (my !== token) return;
+        fit();
+
+        const doc = safeDoc();
+        const st = slideState(doc);
+        const blank = st.total === 0 && contentHeight(doc) < 120;
+        const unusable = st.total > 0 &&
+          (st.empty + st.error) / st.total >= CFG.skipEmptyRatio;
+        if ((blank || unusable) && CFG.slides.length > 1
+            && skipStreak < CFG.slides.length - 1) {
+          skipStreak++;
+          console.warn('TV: skipping "' + CFG.slides[n].label + '" — '
+            + (blank ? 'nothing rendered'
+              : (st.empty + st.error) + ' of ' + st.total + ' cards empty or failed'));
+          next();
+          return;
+        }
+        skipStreak = 0;
+        startTimer();
+      }
+
       async function run(n) {
         const my = ++token;
-        label.textContent = CFG.slides[n].label || '';
+        shrink = 1;
+        updateLabel(n);
         resetFrame();
+        stopTimer();
 
         const doc = safeDoc();
         const ready = doc &&
@@ -346,6 +456,7 @@ _TV_PAGE = """<!doctype html>
         try {
           if (await clickPath(CFG.slides[n].path, my) && my === token) {
             scheduleFit();
+            await settle(n, my);
           }
         } catch (e) {
           if (my !== token) return;
@@ -364,16 +475,26 @@ _TV_PAGE = """<!doctype html>
       });
       window.addEventListener('resize', fit);
 
-      // Manual skip (◀/▶) also restarts the timer so the new slide still
-      // gets its full interval before advancing again.
+      // The dwell timer starts when a slide is ready (see settle), including
+      // after a manual ◀/▶, so every slide gets its full interval on screen.
+      // The watchdog starts it anyway if a slide never reports ready, so the
+      // rotation cannot stall on a broken slide.
       let slideTimer = null;
       function startTimer() {
         stopTimer();
+        clearTimeout(watchdog);
         if (CFG.slides.length > 1) slideTimer = setInterval(next, CFG.intervalMs);
       }
       function stopTimer() { if (slideTimer) { clearInterval(slideTimer); slideTimer = null; } }
-      function next() { i = (i + 1) % CFG.slides.length; run(i); startTimer(); }
-      function prev() { i = (i - 1 + CFG.slides.length) % CFG.slides.length; run(i); startTimer(); }
+      function go() {
+        stopTimer();
+        clearTimeout(watchdog);
+        watchdog = setTimeout(() => { if (!slideTimer) startTimer(); },
+          CFG.readyTimeoutMs + 20000);
+        run(i);
+      }
+      function next() { i = (i + 1) % CFG.slides.length; go(); }
+      function prev() { i = (i - 1 + CFG.slides.length) % CFG.slides.length; go(); }
 
       document.addEventListener('keydown', e => {
         if (e.key === 'ArrowRight') next();
@@ -388,7 +509,6 @@ _TV_PAGE = """<!doctype html>
       });
 
       next();
-      startTimer();
       // Safety net: even without per-slide reloads, freshen everything now
       // and then (0 disables).
       if (CFG.reloadMinutes > 0) {
@@ -401,8 +521,63 @@ _TV_PAGE = """<!doctype html>
 """
 
 
+def default_tv_theme(tokens: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Theme override for the wall TV, derived from ``MOH_TV_TYPE_SCALE_TOKENS``.
+
+    Type sizes are chosen for a 55-inch 1080p panel viewed from 3 m, where one
+    CSS pixel subtends about 0.727 arcminutes and readable text needs about 16,
+    so nothing readable may be smaller than 22 px. Chart text is a separate
+    setting because ECharts draws on a canvas and ignores the component font
+    size. ``hideOverlap`` makes crowded labels thin out instead of shrinking.
+    """
+    tokens = tokens or {}
+    floor = int(tokens.get("tv_size_floor", 22))
+    chart = int(tokens.get("tv_size_chart", 24))
+    axis_label = {"fontSize": chart, "hideOverlap": True}
+    return {
+        "token": {"fontSize": floor},
+        "echartsOptionsOverrides": {
+            "textStyle": {"fontSize": chart},
+            "legend": {"textStyle": {"fontSize": chart}},
+            "xAxis": {"axisLabel": axis_label},
+            "yAxis": {"axisLabel": axis_label},
+        },
+        "echartsOptionsOverridesByChartType": {
+            "echarts_timeseries": {
+                "xAxis": {"axisLabel": {**axis_label, "rotate": 0}},
+            },
+        },
+    }
+
+
+def _tv_options() -> dict[str, Any]:
+    """Shell behaviour settings, read from config with safe defaults."""
+    config = current_app.config
+    theme = config.get("MOH_TV_THEME")
+    if theme is None:
+        theme = default_tv_theme(config.get("MOH_TV_TYPE_SCALE_TOKENS"))
+    return {
+        "theme": theme or None,
+        "canvas": {
+            "width": int(config.get("MOH_TV_CANVAS_WIDTH", 1920) or 1920),
+            "height": int(config.get("MOH_TV_CANVAS_HEIGHT", 1080) or 1080),
+        },
+        "skipEmptyRatio": float(config.get("MOH_TV_SKIP_EMPTY_RATIO", 0.8)),
+        "readyTimeoutMs": int(config.get("MOH_TV_READY_TIMEOUT_SECONDS", 25)) * 1000,
+        "emptyMarkers": list(
+            config.get(
+                "MOH_TV_EMPTY_MARKERS",
+                ["No results were returned for this query", "No data"],
+            )
+        ),
+    }
+
+
 def _tv_page_payload(
-    slides_cfg: dict, interval_seconds: int, reload_minutes: int
+    slides_cfg: dict,
+    interval_seconds: int,
+    reload_minutes: int,
+    options: dict[str, Any] | None = None,
 ) -> dict:
     """Build the JSON payload consumed by the TV page script.
 
@@ -411,6 +586,9 @@ def _tv_page_payload(
          "slides": [{"path": ["Services Delivery", "NCD"], "label": "NCD"}, ...]}
     Slides reference TABS BY TITLE PATH instead of URL, so switching happens
     by clicking tabs inside one live iframe — no page reload per slide.
+
+    ``options`` carries the shell settings from ``_tv_options()``; without it
+    the page falls back to the defaults built into its script.
     """
     return {
         "url": str(slides_cfg.get("dashboard", "") or ""),
@@ -422,6 +600,7 @@ def _tv_page_payload(
         ],
         "intervalMs": int(interval_seconds) * 1000,
         "reloadMinutes": int(reload_minutes),
+        **(options or {}),
     }
 
 
@@ -443,7 +622,9 @@ def _tv_response(
     )
     reload_minutes = int(current_app.config.get("MOH_TV_RELOAD_MINUTES", 120) or 120)
     return Response(
-        _render_tv_page(_tv_page_payload(cfg, interval, reload_minutes)),
+        _render_tv_page(
+            _tv_page_payload(cfg, interval, reload_minutes, _tv_options())
+        ),
         mimetype="text/html",
     )
 

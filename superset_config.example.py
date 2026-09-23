@@ -316,6 +316,31 @@ DEFAULT_ZOOM = 5.8
 MOH_TV_INTERVAL_SECONDS = int(os.environ.get("MOH_TV_INTERVAL_SECONDS", "30"))
 MOH_TV_SLIDES = []
 
+# Optional TV page settings. Every key below has a working default, so none
+# has to be set.
+#
+# Type sizes for a 55-inch 1080p panel viewed from 3 m. The TV page builds its
+# theme override from these (chart text from tv_size_chart, everything else
+# from tv_size_floor) and hands it to the dashboard for the wall only.
+# MOH_TV_TYPE_SCALE_TOKENS = {"tv_size_floor": 22, "tv_size_chart": 24}
+#
+# A full theme JSON, to replace the one built from the tokens above.
+# MOH_TV_THEME = {...}
+#
+# Slides are laid out on this fixed canvas and it is scaled to the screen. A
+# slide taller than the canvas is shrunk to fit and flagged on the label.
+# MOH_TV_CANVAS_WIDTH = 1920
+# MOH_TV_CANVAS_HEIGHT = 1080
+#
+# A slide is skipped when at least this share of its charts are empty or
+# failed, or when it renders nothing. The dwell timer starts once the slide's
+# charts have loaded, waiting at most this many seconds.
+# MOH_TV_SKIP_EMPTY_RATIO = 0.8
+# MOH_TV_READY_TIMEOUT_SECONDS = 25
+#
+# Text that marks a chart as empty (Superset's no-results message).
+# MOH_TV_EMPTY_MARKERS = ["No results were returned for this query", "No data"]
+
 # -----------------------------------------------------------------------------
 # REDIS
 # -----------------------------------------------------------------------------
