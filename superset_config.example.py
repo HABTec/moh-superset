@@ -337,6 +337,17 @@ MOH_TV_SLIDES = []
 # charts have loaded, waiting at most this many seconds.
 # MOH_TV_SKIP_EMPTY_RATIO = 0.8
 # MOH_TV_READY_TIMEOUT_SECONDS = 25
+# Yengwe identity / context strip (no database edit). Defaults are used if omitted.
+# MOH_TV_MASTHEAD_TITLE = "Ministry of Health"
+# MOH_TV_WORDMARK = "Service Delivery"
+# MOH_TV_GEOGRAPHY = "National · Ethiopia"
+# Period on the mast is the latest fiscal year from /data-freshness, not a
+# fixed 2018 / Gregorian pair.
+# MOH_TV_PERIOD = "2018 EFY"
+# Default when a slide does not name its own source. Service-delivery slides
+# use this; Health Equity / PHEM / Blood / financing / etc. are mapped in code.
+# A slide may also set "source": "EDHS · Survey" in MOH_TV_SLIDES / MOH_TV_GROUPS.
+# MOH_TV_SOURCE = "DHIS2 · Routine"
 #
 # Text that marks a chart as empty (Superset's no-results message).
 # MOH_TV_EMPTY_MARKERS = ["No results were returned for this query", "No data"]

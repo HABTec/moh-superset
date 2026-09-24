@@ -153,6 +153,46 @@
         return;
       }
 
+      function mohTvQuery() {
+        var qs = window.location.search || '';
+        var next = '';
+        try {
+          var match = qs.match(/[?&]next=([^&]*)/);
+          next = match ? decodeURIComponent(match[1]) : '';
+        } catch (err) {
+          next = '';
+        }
+        return {
+          qs: qs,
+          next: next,
+          isTv: qs.indexOf('_tv=') !== -1
+            || qs.indexOf('moh_tv=') !== -1
+            || next.indexOf('_tv=') !== -1
+            || next.indexOf('moh_tv=') !== -1
+            || next.indexOf('/moh-static/tv') !== -1,
+        };
+      }
+
+      // Wall TV has no keyboard. Hide ASK AI there only (Yengwe F-043),
+      // including the /login/?next=… hop before the dashboard opens.
+      var tvQuery = mohTvQuery();
+      if (tvQuery.isTv) {
+        var overlay = document.getElementById('mohAiOverlay');
+        if (overlay) {
+          overlay.style.display = 'none';
+        }
+        if (tvQuery.qs.indexOf('moh_tv=') !== -1) {
+          var player = document.createElement('script');
+          player.src = '/moh-static/moh_tv_player.js?v=year-dyn-1';
+          var nonce = document.currentScript && document.currentScript.nonce;
+          if (nonce) {
+            player.nonce = nonce;
+          }
+          document.body.appendChild(player);
+        }
+        return;
+      }
+
       function openPanel() {
         panel.classList.add('open');
         toggle.setAttribute('aria-expanded', 'true');
