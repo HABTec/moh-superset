@@ -60,11 +60,35 @@ export interface ChartDataSummary {
 const SAMPLE_ROWS_LIMIT = 5;
 const TREND_EPSILON = 0.02;
 const DATE_LIKE_PATTERN = /\b(date|time|period|month|year|week)\b/i;
+const NUMERIC_STRING_PATTERN = /^\s*-?\d+(\.\d+)?([eE][+-]?\d+)?\s*$/;
+const LONG_VALUE_CHARS = 120;
+const SAMPLE_VALUE_CHARS = 200;
+const STRUCTURAL_COLUMN_PATTERN =
+  /(^|[^a-z0-9])(geometry|geojson|geo_json|wkt|coordinates|shape)s?([^a-z0-9]|$)/i;
 
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value);
+/**
+ * Coerce a value to a finite number, tolerating numeric strings such as
+ * `"55.0"` that some databases (e.g. ClickHouse) return for metric columns.
+ * Returns null for anything that isn't a usable number.
+ */
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && NUMERIC_STRING_PATTERN.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
 
-const isDateLikeColumn = (column: string, rows: Record<string, unknown>[]): boolean => {
+const isStructuralColumn = (column: string): boolean =>
+  STRUCTURAL_COLUMN_PATTERN.test(column);
+
+const isDateLikeColumn = (
+  column: string,
+  rows: Record<string, unknown>[],
+): boolean => {
   if (DATE_LIKE_PATTERN.test(column)) {
     return true;
   }
@@ -109,8 +133,8 @@ const buildTrend = (
   const ordered = rows
     .map(row => {
       const label = row[dateColumn];
-      const value = row[metricColumn];
-      if (label === null || label === undefined || !isFiniteNumber(value)) {
+      const value = toFiniteNumber(row[metricColumn]);
+      if (label === null || label === undefined || value === null) {
         return null;
       }
       return {
@@ -120,9 +144,7 @@ const buildTrend = (
       };
     })
     .filter(
-      (
-        point,
-      ): point is { label: string; timestamp: number; value: number } =>
+      (point): point is { label: string; timestamp: number; value: number } =>
         point !== null,
     )
     .sort((a, b) => a.timestamp - b.timestamp);
@@ -135,9 +157,11 @@ const buildTrend = (
   const delta = last.value - first.value;
   const magnitude = Math.max(Math.abs(first.value), Math.abs(last.value), 1);
   const direction: TrendDirection =
-    delta > TREND_EPSILON * magnitude ? 'increasing' : delta < -TREND_EPSILON * magnitude
-      ? 'decreasing'
-      : 'stable';
+    delta > TREND_EPSILON * magnitude
+      ? 'increasing'
+      : delta < -TREND_EPSILON * magnitude
+        ? 'decreasing'
+        : 'stable';
 
   return {
     column: metricColumn,
@@ -162,8 +186,10 @@ const buildTopValues = (
       if (
         value === null ||
         value === undefined ||
-        isFiniteNumber(value) ||
-        isDateLikeColumn(column, rows)
+        toFiniteNumber(value) !== null ||
+        isDateLikeColumn(column, rows) ||
+        isStructuralColumn(column) ||
+        (typeof value === 'string' && value.length > LONG_VALUE_CHARS)
       ) {
         continue;
       }
@@ -188,6 +214,24 @@ const buildTopValues = (
  * Redux) into a compact summary the backend can turn into an AI insight.
  * Returns null when there is nothing to summarize.
  */
+
+const sanitizeSampleRow = (
+  row: Record<string, unknown>,
+): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const [column, value] of Object.entries(row)) {
+    if (isStructuralColumn(column)) {
+      continue;
+    }
+    if (typeof value === 'string' && value.length > SAMPLE_VALUE_CHARS) {
+      result[column] = `${value.slice(0, SAMPLE_VALUE_CHARS)}…`;
+    } else {
+      result[column] = value;
+    }
+  }
+  return result;
+};
+
 export const summarizeQueryData = (
   queriesResponse: QueryData[] | null | undefined,
 ): ChartDataSummary | null => {
@@ -214,8 +258,8 @@ export const summarizeQueryData = (
   const numericStats: NumericStat[] = [];
   for (const column of columns) {
     const values = rows
-      .map(row => row[column])
-      .filter(isFiniteNumber);
+      .map(row => toFiniteNumber(row[column]))
+      .filter((value): value is number => value !== null);
     if (values.length === 0) {
       continue;
     }
@@ -242,6 +286,6 @@ export const summarizeQueryData = (
     numericStats,
     topValues,
     trend,
-    sampleRows: rows.slice(0, SAMPLE_ROWS_LIMIT),
+    sampleRows: rows.slice(0, SAMPLE_ROWS_LIMIT).map(sanitizeSampleRow),
   };
 };

@@ -66,6 +66,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from typing import Any
 
@@ -167,34 +168,38 @@ def _direction_word(direction: str) -> str:
     }.get(direction, "trended")
 
 
-def _generate_demo_insight(summary: dict[str, Any], sample_rows: list[Any]) -> str:
-    """Build a deterministic 2-4 sentence insight from a compact summary."""
-    sentences: list[str] = []
-
+def _generate_demo_insight(
+    summary: dict[str, Any], sample_rows: list[Any]
+) -> dict[str, Any]:
+    """Build a deterministic insight: a 1-2 sentence summary + short bullets."""
     columns = summary.get("columns") or []
     row_count = summary.get("row_count")
+    numeric_stats = summary.get("numeric_stats") or []
+    trend = summary.get("trend") or {}
+    top_values = summary.get("top_values") or []
+
+    summary_lines: list[str] = []
+    bullets: list[str] = []
+
     if isinstance(row_count, (int, float)):
         noun = "row" if int(row_count) == 1 else "rows"
         cols_txt = f" across {len(columns)} columns" if columns else ""
-        sentences.append(
+        summary_lines.append(
             f"This chart covers {row_count:,} {noun} of data{cols_txt}."
         )
 
-    numeric_stats = summary.get("numeric_stats") or []
-    if isinstance(row_count, (int, float)) or numeric_stats:
-        for stat in numeric_stats[:2]:
-            column = stat.get("column", "value")
-            metric_range = (
-                f"ranges from {_format_number(stat.get('min'))} to "
-                f"{_format_number(stat.get('max'))}"
-            )
-            avg = stat.get("avg")
-            avg_txt = (
-                f" with an average of {_format_number(avg)}" if avg is not None else ""
-            )
-            sentences.append(f"{column.capitalize()} {metric_range}{avg_txt}.")
+    for stat in numeric_stats[:2]:
+        column = stat.get("column", "value")
+        metric_range = (
+            f"{column.capitalize()} ranges from {_format_number(stat.get('min'))} "
+            f"to {_format_number(stat.get('max'))}"
+        )
+        avg = stat.get("avg")
+        avg_txt = (
+            f" with an average of {_format_number(avg)}" if avg is not None else ""
+        )
+        bullets.append(f"{metric_range}{avg_txt}.")
 
-    trend = summary.get("trend") or {}
     if trend.get("direction") and trend.get("column"):
         start = _format_number(trend.get("start"))
         end = _format_number(trend.get("end"))
@@ -203,12 +208,11 @@ def _generate_demo_insight(summary: dict[str, Any], sample_rows: list[Any]) -> s
         period_txt = (
             f" from {first} to {last}" if first is not None and last is not None else ""
         )
-        sentences.append(
-            f"Over the period{period_txt}, {trend.get('column')} {_direction_word(str(trend.get('direction')))} "
-            f"from {start} to {end}."
+        bullets.append(
+            f"{trend.get('column')} {_direction_word(str(trend.get('direction')))} "
+            f"from {start} to {end}{period_txt}."
         )
 
-    top_values = summary.get("top_values") or []
     for top in top_values[:1]:
         values = top.get("values") or []
         if values:
@@ -218,17 +222,20 @@ def _generate_demo_insight(summary: dict[str, Any], sample_rows: list[Any]) -> s
                 f" ({int(leader.get('count', 0)) / int(total) * 100:.0f}% of all records)"
                 if total else ""
             )
-            sentences.append(
+            bullets.append(
                 f"The leading {top.get('column', 'category')} is {leader.get('value')} "
                 f"with {leader.get('count')} records{pct}."
             )
 
-    if not sentences:
-        sentences.append(
+    summary_text = " ".join(summary_lines[:2])
+    if not summary_text and bullets:
+        summary_text = bullets.pop(0)
+    if not summary_text:
+        summary_text = (
             "This chart returned no data. Check the active filters or refresh the dashboard."
         )
 
-    return " ".join(sentences)
+    return {"summary": summary_text, "bullets": bullets[:4]}
 
 
 # ---------------------------------------------------------------------------
@@ -252,9 +259,22 @@ def _build_llm_prompt(
         f"Summary of the latest query:\n{compact}\n\n"
         f"Sample rows (first {len(sample_rows)}):\n"
         f"{json.dumps(sample_rows, sort_keys=True, default=str, ensure_ascii=True)}\n\n"
-        "Write 2-4 concise sentences on the most notable patterns, outliers, and "
-        "implications for health decision-makers. Plain text only, no markdown, "
-        "no headings."
+        'Return ONLY a JSON object with exactly this shape (no markdown, no '
+        "extra text):\n"
+        '{\n'
+        '  "summary": "1 short sentence giving the headline takeaway",\n'
+        '  "bullets": [\n'
+        '    "short insight 1",\n'
+        '    "short insight 2",\n'
+        '    "short insight 3",\n'
+        '  ]\n'
+        "}\n"
+        "Rules:\n"
+        "- summary: 1 short sentence only, plain takeaway for decision-makers.\n"
+        "- bullets: 3 very concise, one-line insights on the most notable patterns, "
+        "outliers, and implications for health decision-makers.\n"
+        "- Use plain text only inside the strings; no markdown, no headings, no "
+        "extra keys."
     )
     return prompt
 
@@ -340,6 +360,38 @@ def _ask_llm(
     raise ValueError(f"Unsupported AI insights provider: {provider}")
 
 
+def _parse_llm_insight(text: str) -> dict[str, Any] | None:
+    """Extract {summary, bullets} from an LLM JSON response.
+
+    The LLM is asked to return a JSON object shaped
+    {"summary": str, "bullets": [str, ...]}. Tolerates stray markdown code
+    fences and returns None if the text can't be parsed into that shape so the
+    caller can fall back to the demo generator.
+    """
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-z]*\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        data = json.loads(cleaned)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    summary = data.get("summary")
+    raw_bullets = data.get("bullets")
+    if not isinstance(summary, str) or not summary.strip():
+        return None
+    if not isinstance(raw_bullets, list):
+        return None
+    bullets = [
+        str(item).strip()
+        for item in raw_bullets
+        if isinstance(item, str) and item.strip()
+    ]
+    return {"summary": summary.strip(), "bullets": bullets[:4]}
+
+
 # ---------------------------------------------------------------------------
 # Main generator with caching + hybrid fallback
 # ---------------------------------------------------------------------------
@@ -358,22 +410,24 @@ def _generate_insight(
     summary: dict[str, Any],
     sample_rows: list[Any],
 ) -> dict[str, Any]:
-    """Return {insight, provider} — LLM when configured, else demo templates."""
+    """Return {summary, bullets, provider} — LLM when configured, else demo."""
+    demo = _generate_demo_insight(summary, sample_rows)
     provider = _provider()
     api_key = _api_key()
 
     if provider in _PROVIDER_ENDPOINTS and api_key:
         prompt = _build_llm_prompt(chart_name, viz_type, summary, sample_rows)
         try:
-            insight = _ask_llm(
+            raw = _ask_llm(
                 provider,
                 api_key,
                 _model(),
                 prompt,
                 _timeout(),
             )
-            if insight:
-                return {"insight": insight, "provider": provider}
+            structured = _parse_llm_insight(raw) if raw else None
+            if structured:
+                return {**structured, "provider": provider}
         except Exception:  # noqa: BLE001 - fall back to demo on any LLM failure
             logger.warning(
                 "AI insights LLM call failed for chart %s (%s); using demo "
@@ -383,7 +437,7 @@ def _generate_insight(
                 exc_info=True,
             )
 
-    return {"insight": _generate_demo_insight(summary, sample_rows), "provider": "demo"}
+    return {**demo, "provider": "demo"}
 
 
 @ai_insights_bp.route("/ai-insights/chart/<int:chart_id>/", methods=["POST"])
@@ -411,20 +465,23 @@ def generate_chart_insight(chart_id: int) -> FlaskResponse:
                 summary: {type: object}
                 sample_rows: {type: array}
       responses:
-        200:
-          description: Generated insight
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  chart_id: {type: integer}
-                  chart_name: {type: string}
-                  dashboard_id: {type: integer}
-                  insight: {type: string}
-                  provider: {type: string}
-                  generated_at: {type: string}
-                  cached: {type: boolean}
+200:
+           description: Generated insight
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   chart_id: {type: integer}
+                   chart_name: {type: string}
+                   dashboard_id: {type: integer}
+                   summary: {type: string}
+                   bullets:
+                     type: array
+                     items: {type: string}
+                   provider: {type: string}
+                   generated_at: {type: string}
+                   cached: {type: boolean}
         404:
           description: AI insights are disabled
     """
@@ -479,7 +536,8 @@ def generate_chart_insight(chart_id: int) -> FlaskResponse:
         "chart_id": chart_id,
         "chart_name": chart_name,
         "dashboard_id": dashboard_id,
-        "insight": result["insight"],
+        "summary": result["summary"],
+        "bullets": result["bullets"],
         "provider": result["provider"],
         "generated_at": generated_at,
         "cached": False,

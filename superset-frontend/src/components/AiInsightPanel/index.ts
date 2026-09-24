@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-// Fixed width (in px) of the insight panel rendered to the right of each chart.
+// Width (in px) of the expanded insight panel rendered to the right of each chart.
 export const AI_INSIGHT_PANEL_WIDTH = 260;
+// Width (in px) of the collapsed insight panel — a slim strip that keeps an
+// expand control visible next to the chart.
+export const AI_INSIGHT_PANEL_COLLAPSED_WIDTH = 32;
 // Vertical gutter between the chart and the insight panel.
 export const AI_INSIGHT_PANEL_GUTTER = 8;
 

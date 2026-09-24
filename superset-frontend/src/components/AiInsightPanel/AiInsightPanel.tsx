@@ -27,6 +27,7 @@ import {
   Button,
   Flex,
   Icons,
+  List,
   Loading,
   Tag,
   Tooltip,
@@ -40,7 +41,8 @@ import { summarizeQueryData } from './summarizeQueryData';
 const MOH_AI_INSIGHTS_FLAG = 'MOH_AI_INSIGHTS' as FeatureFlag;
 
 interface InsightResponse {
-  insight: string;
+  summary: string;
+  bullets: string[];
   provider: string;
   generated_at: string;
 }
@@ -52,6 +54,11 @@ interface AiInsightPanelProps {
   width: number;
   height: number;
   inView: boolean;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  onOpenPopup?: () => void;
+  onClose?: () => void;
+  showCollapseToggle?: boolean;
 }
 
 type InsightStatus = 'idle' | 'loading' | 'error' | 'no-data';
@@ -72,6 +79,15 @@ const PROVIDER_COLORS: Record<string, string> = {
   anthropic: 'orange',
 };
 
+// Chart types that render a single number/trend card (KPI "card" and
+// "slider" cards) or a custom template with no narrative to summarize —
+// AI insights are skipped for these.
+const AI_INSIGHT_EXCLUDED_VIZ_TYPES = new Set([
+  'big_number',
+  'big_number_total',
+  'handlebars',
+]);
+
 export const AiInsightPanel = memo(
   ({
     chartId,
@@ -80,6 +96,11 @@ export const AiInsightPanel = memo(
     width,
     height,
     inView,
+    collapsed = false,
+    onToggleCollapsed = () => {},
+    onOpenPopup = () => {},
+    onClose,
+    showCollapseToggle = true,
   }: AiInsightPanelProps) => {
     const theme = useTheme();
     const [status, setStatus] = useState<InsightStatus>('loading');
@@ -126,6 +147,11 @@ export const AiInsightPanel = memo(
     }, [chartId, dashboardId, sliceName, summary, vizType]);
 
     useEffect(() => {
+      if (AI_INSIGHT_EXCLUDED_VIZ_TYPES.has(vizType)) {
+        setStatus('no-data');
+        setInsight(null);
+        return;
+      }
       if (!isFeatureEnabled(MOH_AI_INSIGHTS_FLAG)) {
         setStatus('no-data');
         setInsight(null);
@@ -135,11 +161,55 @@ export const AiInsightPanel = memo(
         return;
       }
       loadInsight();
-    }, [inView, loadInsight]);
+    }, [inView, loadInsight, vizType]);
 
     const provider = insight?.provider ?? '';
     const providerLabel = PROVIDER_LABELS[provider] || provider || 'AI';
     const providerColor = PROVIDER_COLORS[provider] || 'default';
+
+    if (AI_INSIGHT_EXCLUDED_VIZ_TYPES.has(vizType)) {
+      return null;
+    }
+
+    if (collapsed) {
+      return (
+        <Flex
+          vertical
+          align="center"
+          data-test="ai-insight-panel"
+          css={css`
+            width: ${width}px;
+            height: ${height}px;
+            flex-shrink: 0;
+            border-left: 1px solid ${theme.colorBorderSecondary};
+            padding-top: ${theme.sizeUnit}px;
+          `}
+        >
+          <Icons.BulbOutlined
+            css={css`
+              color: ${theme.colorPrimary};
+              margin-bottom: ${theme.sizeUnit / 2}px;
+            `}
+          />
+          <Tooltip title={t('Expand')} placement="left">
+            <Button
+              buttonStyle="link"
+              onClick={onToggleCollapsed}
+              icon={<Icons.MenuUnfoldOutlined />}
+              aria-label={t('Expand AI insight panel')}
+            />
+          </Tooltip>
+          <Tooltip title={t('Pop out chart and AI insight')} placement="left">
+            <Button
+              buttonStyle="link"
+              onClick={onOpenPopup}
+              icon={<Icons.ExpandOutlined />}
+              aria-label={t('Pop out chart and AI insight')}
+            />
+          </Tooltip>
+        </Flex>
+      );
+    }
 
     const body =
       status === 'loading' ? (
@@ -169,8 +239,30 @@ export const AiInsightPanel = memo(
       ) : (
         <Flex vertical gap={8}>
           <Typography.Paragraph className="ai-insight-text">
-            {insight?.insight}
+            {insight?.summary}
           </Typography.Paragraph>
+          {insight?.bullets?.length ? (
+            <List
+              size="small"
+              split={false}
+              dataSource={insight.bullets}
+              renderItem={(item: string) => (
+                <List.Item>
+                  <Flex align="flex-start" gap={6}>
+                    <Typography.Text
+                      css={css`
+                        color: ${theme.colorPrimary};
+                        line-height: inherit;
+                      `}
+                    >
+                      •
+                    </Typography.Text>
+                    <Typography.Text>{item}</Typography.Text>
+                  </Flex>
+                </List.Item>
+              )}
+            />
+          ) : null}
           {insight?.generated_at && (
             <Typography.Text
               type="secondary"
@@ -178,7 +270,8 @@ export const AiInsightPanel = memo(
                 font-size: ${theme.fontSizeSM}px;
               `}
             >
-              {t('Generated')}: {new Date(insight.generated_at).toLocaleString()}
+              {t('Generated')}:{' '}
+              {new Date(insight.generated_at).toLocaleString()}
             </Typography.Text>
           )}
         </Flex>
@@ -213,15 +306,37 @@ export const AiInsightPanel = memo(
             <Typography.Text strong>{t('AI Insight')}</Typography.Text>
             <Tag color={providerColor}>{providerLabel}</Tag>
           </Flex>
-          <Tooltip title={t('Regenerate')}>
-            <Button
-              buttonStyle="link"
-              disabled={status !== 'idle' && status !== 'error'}
-              onClick={loadInsight}
-              icon={<Icons.SyncOutlined />}
-              aria-label={t('Regenerate AI insight')}
-            />
-          </Tooltip>
+          <Flex align="center" gap={4}>
+            {showCollapseToggle && (
+              <Tooltip title={t('Collapse')}>
+                <Button
+                  buttonStyle="link"
+                  onClick={onToggleCollapsed}
+                  icon={<Icons.MenuFoldOutlined />}
+                  aria-label={t('Collapse AI insight panel')}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title={t('Regenerate')}>
+              <Button
+                buttonStyle="link"
+                disabled={status !== 'idle' && status !== 'error'}
+                onClick={loadInsight}
+                icon={<Icons.SyncOutlined />}
+                aria-label={t('Regenerate AI insight')}
+              />
+            </Tooltip>
+            {onClose && (
+              <Tooltip title={t('Close')}>
+                <Button
+                  buttonStyle="link"
+                  onClick={onClose}
+                  icon={<Icons.CloseOutlined />}
+                  aria-label={t('Close AI insight popup')}
+                />
+              </Tooltip>
+            )}
+          </Flex>
         </Flex>
         {body}
       </Flex>

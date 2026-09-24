@@ -113,3 +113,93 @@ test('caps sample rows at five', () => {
   const summary = summarizeQueryData([query]);
   expect(summary?.sampleRows).toHaveLength(5);
 });
+
+test('parses numeric strings into numeric stats (clickhouse metrics)', () => {
+  const query = baseQuery({
+    rowcount: 56,
+    colnames: ['region', 'disease', 'AVG(deaths)', 'rank'],
+    data: [
+      {
+        region: 'Amhara',
+        disease: 'Cholera',
+        'AVG(deaths)': '55.0',
+        rank: '1.0',
+      },
+      {
+        region: 'Oromia',
+        disease: 'Malaria',
+        'AVG(deaths)': '12.0',
+        rank: '2.0',
+      },
+    ],
+  });
+  const summary = summarizeQueryData([query]);
+  expect(summary?.numericStats).toContainEqual(
+    expect.objectContaining({
+      column: 'AVG(deaths)',
+      min: 12,
+      max: 55,
+      avg: 33.5,
+      count: 2,
+    }),
+  );
+});
+
+test('ignores structural columns and oversized strings in top values (deckgl)', () => {
+  const geometry = `{"type":"Polygon","coordinates":["${'x'.repeat(2000)}"]}`;
+  const query = baseQuery({
+    rowcount: 4,
+    colnames: ['geometry_geojson', 'region', 'target_achievement_pct'],
+    data: [
+      {
+        geometry_geojson: geometry,
+        region: 'Oromia',
+        target_achievement_pct: 40,
+      },
+      {
+        geometry_geojson: geometry,
+        region: 'Oromia',
+        target_achievement_pct: 55,
+      },
+      {
+        geometry_geojson: geometry,
+        region: 'Amhara',
+        target_achievement_pct: null,
+      },
+      {
+        geometry_geojson: geometry,
+        region: 'Amhara',
+        target_achievement_pct: null,
+      },
+    ],
+  });
+  const summary = summarizeQueryData([query]);
+  const topColumns = summary?.topValues.map(top => top.column) ?? [];
+  expect(topColumns).not.toContain('geometry_geojson');
+  expect(topColumns).toContain('region');
+  for (const top of summary?.topValues ?? []) {
+    for (const { value } of top.values) {
+      expect(typeof value).toBe('string');
+      expect(value.length).toBeLessThanOrEqual(120);
+    }
+  }
+});
+
+test('strips structural columns and caps long strings in sample rows', () => {
+  const geometry = `{"coordinates":["${'y'.repeat(5000)}"]}`;
+  const query = baseQuery({
+    rowcount: 1,
+    colnames: ['geometry_geojson', 'region', 'notes'],
+    data: [
+      { geometry_geojson: geometry, region: 'Oromia', notes: 'n'.repeat(5000) },
+    ],
+  });
+  const summary = summarizeQueryData([query]);
+  expect(summary?.sampleRows).toHaveLength(1);
+  const row = summary?.sampleRows[0];
+  expect(row).not.toHaveProperty('geometry_geojson');
+  expect(row?.region).toBe('Oromia');
+  expect((row?.notes as string | undefined)?.length ?? 0).toBeLessThanOrEqual(
+    201,
+  );
+});

@@ -58,14 +58,20 @@ const renderPanel = (props: { inView?: boolean } = {}) =>
 
 beforeEach(() => {
   mockPost.mockClear();
-  (window as unknown as { featureFlags: Record<string, boolean> }).featureFlags =
-    { MOH_AI_INSIGHTS: true };
+  (
+    window as unknown as { featureFlags: Record<string, boolean> }
+  ).featureFlags = { MOH_AI_INSIGHTS: true };
 });
 
 test('posts the summarized query data and renders the insight', async () => {
   mockPost.mockResolvedValue({
     json: {
-      insight: 'visits increased from 10 to 30 over the period',
+      summary: 'Visits grew steadily over the reported period.',
+      bullets: [
+        'Values increased from 10 to 30.',
+        'February saw the largest single jump.',
+        'Daily average sits at 20 visits.',
+      ],
       provider: 'demo',
       generated_at: '2026-09-21T00:00:00Z',
     },
@@ -76,9 +82,18 @@ test('posts the summarized query data and renders the insight', async () => {
   expect(screen.getByTestId('ai-insight-panel')).toBeInTheDocument();
   await waitFor(() =>
     expect(
-      screen.getByText(/visits increased from 10 to 30 over the period/),
+      screen.getByText(/Visits grew steadily over the reported period/),
     ).toBeInTheDocument(),
   );
+  expect(
+    screen.getByText(/Values increased from 10 to 30/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/February saw the largest single jump/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Daily average sits at 20 visits/),
+  ).toBeInTheDocument();
   expect(mockPost).toHaveBeenCalledWith(
     expect.objectContaining({
       endpoint: '/ai-insights/chart/42/',
@@ -95,25 +110,57 @@ test('posts the summarized query data and renders the insight', async () => {
 
 test('shows a no-data message and skips the request when the feature flag is off', async () => {
   mockPost.mockResolvedValue({
-    json: { insight: 'x', provider: 'demo', generated_at: '' },
+    json: { summary: 'x', bullets: [], provider: 'demo', generated_at: '' },
   } as never);
 
   renderPanel();
-  await waitFor(() =>
-    expect(mockPost).toHaveBeenCalledTimes(1),
-  );
+  await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
 
   mockPost.mockClear();
-  (window as unknown as { featureFlags: Record<string, boolean> }).featureFlags =
-    { MOH_AI_INSIGHTS: false };
+  (
+    window as unknown as { featureFlags: Record<string, boolean> }
+  ).featureFlags = { MOH_AI_INSIGHTS: false };
 
   renderPanel();
   await waitFor(() =>
     expect(screen.getByText(/No data available/)).toBeInTheDocument(),
   );
-  expect(mockPost).not.toHaveBeenCalled();
 });
 
+// Card-type charts (KPI big-number and handlebars templates) never get an
+// AI insight generated — the sidebar is not rendered and no request fires.
+test.each(['big_number', 'big_number_total', 'handlebars'])(
+  'renders no sidebar and skips the insight request for %s charts',
+  async vizType => {
+    const cardState = {
+      charts: {
+        42: { queriesResponse: [mockQuery] },
+      },
+      sliceEntities: {
+        slices: {
+          42: { slice_id: 42, slice_name: 'KPI', viz_type: vizType },
+        },
+      },
+    };
+
+    render(
+      <AiInsightPanel
+        chartId={42}
+        dashboardId={8}
+        sliceName="KPI"
+        width={260}
+        height={200}
+        inView
+      />,
+      { useRedux: true, initialState: cardState },
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('ai-insight-panel')).not.toBeInTheDocument(),
+    );
+    expect(mockPost).not.toHaveBeenCalled();
+  },
+);
 test('renders the no-data state when the chart has no rows', async () => {
   const emptyState = {
     charts: {
@@ -144,4 +191,91 @@ test('renders the no-data state when the chart has no rows', async () => {
     expect(screen.getByText(/No data available/)).toBeInTheDocument(),
   );
   expect(mockPost).not.toHaveBeenCalled();
+});
+
+const renderCollapsible = (
+  props: {
+    collapsed?: boolean;
+    onToggleCollapsed?: () => void;
+    onOpenPopup?: () => void;
+    onClose?: () => void;
+    showCollapseToggle?: boolean;
+  } = {},
+) =>
+  render(
+    <AiInsightPanel
+      chartId={42}
+      dashboardId={8}
+      sliceName="Visits"
+      width={32}
+      height={200}
+      inView
+      collapsed={props.collapsed ?? false}
+      onToggleCollapsed={props.onToggleCollapsed}
+      onOpenPopup={props.onOpenPopup}
+      onClose={props.onClose}
+      showCollapseToggle={props.showCollapseToggle}
+    />,
+    { useRedux: true, initialState },
+  );
+
+test('when collapsed renders only a slim strip with an expand control', async () => {
+  renderCollapsible({ collapsed: true });
+
+  expect(screen.getByLabelText('Expand AI insight panel')).toBeInTheDocument();
+  expect(
+    screen.queryByLabelText('Collapse AI insight panel'),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText('Regenerate AI insight'),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('AI Insight')).not.toBeInTheDocument();
+});
+
+test('clicking the expand control calls onToggleCollapsed', async () => {
+  const onToggleCollapsed = jest.fn();
+  renderCollapsible({ collapsed: true, onToggleCollapsed });
+
+  screen.getByLabelText('Expand AI insight panel').click();
+  expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+});
+
+test('collapsed strip exposes a pop up control calling onOpenPopup', async () => {
+  const onOpenPopup = jest.fn();
+  renderCollapsible({ collapsed: true, onOpenPopup });
+
+  expect(
+    screen.getByLabelText('Pop out chart and AI insight'),
+  ).toBeInTheDocument();
+  screen.getByLabelText('Pop out chart and AI insight').click();
+  expect(onOpenPopup).toHaveBeenCalledTimes(1);
+});
+
+test('when expanded shows a collapse control next to regenerate', async () => {
+  const onToggleCollapsed = jest.fn();
+  renderCollapsible({ collapsed: false, onToggleCollapsed });
+
+  const collapseButton = screen.getByLabelText('Collapse AI insight panel');
+  expect(collapseButton).toBeInTheDocument();
+  collapseButton.click();
+  expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+});
+
+test('hides the collapse control when showCollapseToggle is false', async () => {
+  renderCollapsible({ collapsed: false, showCollapseToggle: false });
+
+  expect(
+    screen.queryByLabelText('Collapse AI insight panel'),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Regenerate AI insight')).toBeInTheDocument();
+});
+
+test('shows a close control that calls onClose when provided', async () => {
+  const onClose = jest.fn();
+  renderCollapsible({ collapsed: false, onClose });
+
+  const closeButton = screen.getByLabelText('Close AI insight popup');
+  expect(closeButton).toBeInTheDocument();
+  closeButton.click();
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
