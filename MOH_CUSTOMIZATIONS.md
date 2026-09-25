@@ -964,13 +964,19 @@ if os.environ.get("MOH_USE_PLAYWRIGHT", "false").lower() == "true":
     FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
 ```
 
-For dashboards that pull from a remote Postgres role with a low connection
-limit, keep the SQLAlchemy pool tiny or requests hang and screenshots time out:
+When the metadata DB is a remote Postgres role with a connection limit, cap the
+SQLAlchemy pool so Superset stays within it. Each gunicorn worker gets its own
+pool and serves many threads (gthread) that all need a metadata connection, so
+a pool of 1 serializes the whole app: dashboards load slowly and requests fail
+with `QueuePool limit of size 1 overflow 0 reached`. Size it as
+`workers × (pool_size + max_overflow)` + Celery concurrency + beat, and keep
+that under the role's `rolconnlimit` minus what other servers on the same role
+use. With 4 workers the values below use about 8 connections, and 20 at peak:
 
 ```python
-SQLALCHEMY_POOL_SIZE = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "1"))
-SQLALCHEMY_MAX_OVERFLOW = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "0"))
-SQLALCHEMY_POOL_TIMEOUT = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "30"))
+SQLALCHEMY_POOL_SIZE = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "2"))
+SQLALCHEMY_MAX_OVERFLOW = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "3"))
+SQLALCHEMY_POOL_TIMEOUT = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "10"))
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_size": SQLALCHEMY_POOL_SIZE,
     "max_overflow": SQLALCHEMY_MAX_OVERFLOW,
