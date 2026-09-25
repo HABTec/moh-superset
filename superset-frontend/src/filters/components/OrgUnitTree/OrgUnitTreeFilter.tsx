@@ -30,6 +30,7 @@ import type { Key as ReactKey } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from 'src/dashboard/types';
 
+import { useAssignedOrgUnit } from './useAssignedOrgUnit';
 import type {
   OrgUnit,
   OrgUnitSelection,
@@ -273,6 +274,10 @@ export default function OrgUnitTreeFilter({
   const apiBaseUrl = formData.apiBaseUrl || '/api/v1/moh/dhis2';
   const rootLevel = Number(formData.rootLevel || 2); // 2 = Region (matches MOH_ORG_UNITS_ROOT_LEVEL)
   const maxLevel = Number(formData.maxLevel || 6);
+  // The API limits sub-national users to their assigned unit's subtree.
+  const assignedUnit = useAssignedOrgUnit(true, apiBaseUrl);
+  const scopeName =
+    assignedUnit && assignedUnit.level > 1 ? assignedUnit.name : null;
 
   const nativeFilters = useSelector(
     (state: RootState) => state.nativeFilters?.filters,
@@ -460,7 +465,12 @@ export default function OrgUnitTreeFilter({
                 types: cbmpTypes.join(', '),
                 n: treeData.length,
               })
-            : t('All org units · %(n)s roots', { n: treeData.length })}
+            : scopeName
+              ? t('Within %(name)s · %(n)s roots', {
+                  name: scopeName,
+                  n: treeData.length,
+                })
+              : t('All org units · %(n)s roots', { n: treeData.length })}
         </Status>
       </Toolbar>
       <TreeBox>
