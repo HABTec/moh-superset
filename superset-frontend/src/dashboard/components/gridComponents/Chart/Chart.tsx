@@ -61,6 +61,7 @@ import {
 import { useIsAutoRefreshing } from 'src/dashboard/contexts/AutoRefreshContext';
 
 import SliceHeader from '../../SliceHeader';
+import ChartFooter, { findPercentOverHundred } from '../../ChartFooter';
 import MissingChart from '../../MissingChart';
 
 import {
@@ -176,6 +177,7 @@ const Chart = (props: ChartProps) => {
   const dispatch = useDispatch();
   const descriptionRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
   const chartWrapperRef = useRef<HTMLDivElement>(null);
 
   const boundActionCreators = useMemo(
@@ -267,6 +269,7 @@ const Chart = (props: ChartProps) => {
 
   const [descriptionHeight, setDescriptionHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_HEIGHT);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [height, setHeight] = useState(props.height);
   const [width, setWidth] = useState(props.width);
   const [chartBodyWidth, setChartBodyWidth] = useState(props.width);
@@ -440,7 +443,8 @@ const Chart = (props: ChartProps) => {
     const resizeObserver = new ResizeObserver(updateMeasuredLayout);
     if (headerRef.current) resizeObserver.observe(headerRef.current);
     if (descriptionRef.current) resizeObserver.observe(descriptionRef.current);
-    if (chartWrapperRef.current) resizeObserver.observe(chartWrapperRef.current);
+    if (chartWrapperRef.current)
+      resizeObserver.observe(chartWrapperRef.current);
     if (props.chartHolderRef?.current) {
       resizeObserver.observe(props.chartHolderRef.current);
     }
@@ -595,13 +599,18 @@ const Chart = (props: ChartProps) => {
     const queriedLabelHeight =
       showChartTimestamps && queriedDttm != null ? QUERIED_LABEL_HEIGHT : 0;
     return Math.max(
-      height - headerHeight - descriptionHeight - queriedLabelHeight,
+      height -
+        headerHeight -
+        descriptionHeight -
+        queriedLabelHeight -
+        footerHeight,
       20,
     );
   }, [
     height,
     headerHeight,
     descriptionHeight,
+    footerHeight,
     queriedDttm,
     showChartTimestamps,
   ]);
@@ -861,6 +870,37 @@ const Chart = (props: ChartProps) => {
     boundActionCreators.logEvent,
   ]);
 
+  const showPercentFooter = useMemo(
+    () =>
+      chartStatus !== 'loading' &&
+      chartStatus !== 'failed' &&
+      findPercentOverHundred({
+        sliceName: props.sliceName,
+        formData: formData as unknown as Record<string, unknown>,
+        queriesResponse: queriesResponse as { data?: unknown }[] | null,
+      }),
+    [chartStatus, formData, props.sliceName, queriesResponse],
+  );
+
+  // The footer takes its height from the chart body, like the header does.
+  useLayoutEffect(() => {
+    const measureFooter = () => {
+      const element = footerRef.current;
+      const next = element
+        ? Math.ceil(element.getBoundingClientRect().height) +
+          (parseInt(getComputedStyle(element).marginTop, 10) || 0)
+        : 0;
+      setFooterHeight(current => (current === next ? current : next));
+    };
+    measureFooter();
+    if (!footerRef.current || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver(measureFooter);
+    observer.observe(footerRef.current);
+    return () => observer.disconnect();
+  }, [showPercentFooter]);
+
   if (!chart || (slice as unknown) === EMPTY_OBJECT) {
     return <MissingChart height={getChartHeight()} />;
   }
@@ -1007,6 +1047,8 @@ const Chart = (props: ChartProps) => {
           filterState={dataMask[props.id]?.filterState}
         />
       </ChartWrapper>
+
+      {showPercentFooter && <ChartFooter ref={footerRef} />}
 
       {!isLoading && showChartTimestamps && queriedDttm != null && (
         <LastQueriedLabel queriedDttm={queriedDttm} />

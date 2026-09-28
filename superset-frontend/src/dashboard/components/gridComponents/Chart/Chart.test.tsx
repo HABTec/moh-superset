@@ -482,3 +482,56 @@ test('should pass filterState from dataMask to ChartContainer', () => {
     mockFilterState,
   );
 });
+
+const withCoverageResult = (performance: number) => ({
+  ...defaultState,
+  charts: {
+    ...defaultState.charts,
+    [queryId]: {
+      ...defaultState.charts[queryId],
+      chartStatus: 'rendered',
+      form_data: {
+        ...defaultState.charts[queryId].form_data,
+        metrics: ['Performance'],
+        x_axis: 'region',
+      },
+      queriesResponse: [
+        {
+          data: [
+            { region: 'Oromia', Performance: 91 },
+            { region: 'Amhara', Performance: performance },
+          ],
+        },
+      ],
+    },
+  },
+});
+
+test('shows the >100% footer on a coverage chart with a value above 100', () => {
+  const { getByTestId } = setup(
+    { sliceName: 'Full Immunization Coverage' },
+    withCoverageResult(120.16),
+  );
+
+  expect(getByTestId('chart-footer')).toHaveTextContent(
+    'Some values exceed 100%.',
+  );
+});
+
+test('omits the footer when coverage stays within 100%', () => {
+  const { queryByTestId } = setup(
+    { sliceName: 'Full Immunization Coverage' },
+    withCoverageResult(99.5),
+  );
+
+  expect(queryByTestId('chart-footer')).not.toBeInTheDocument();
+});
+
+test('omits the footer on charts that are not percentages', () => {
+  const { queryByTestId } = setup(
+    { sliceName: 'Health Facilities by Region' },
+    withCoverageResult(5400),
+  );
+
+  expect(queryByTestId('chart-footer')).not.toBeInTheDocument();
+});
