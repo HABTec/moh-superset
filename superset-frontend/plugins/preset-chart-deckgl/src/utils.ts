@@ -245,9 +245,13 @@ export function getColorBreakpointsBuckets(
 
   const buckets: Record<string, { color: Color; enabled: boolean }> = {};
 
-  const inRangeBreakpoints = defaultColor
-    ? breakpoints.filter(isZeroToHundredBreakpoint)
-    : breakpoints;
+  // Legend rows follow value order, not the order the bands were entered in
+  // the control panel; colour lookup matches by range so it is unaffected.
+  const inRangeBreakpoints = (
+    defaultColor ? breakpoints.filter(isZeroToHundredBreakpoint) : breakpoints
+  )
+    .slice()
+    .sort((a, b) => a.minValue - b.minValue);
 
   if (!inRangeBreakpoints.length && !defaultColor) {
     return buckets;

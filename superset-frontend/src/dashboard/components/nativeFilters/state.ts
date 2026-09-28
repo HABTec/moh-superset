@@ -40,11 +40,20 @@ import {
 const EMPTY_ARRAY: ChartCustomizationConfiguration = [];
 const defaultFilterConfiguration: (Filter | Divider)[] = [];
 
+type StateWithOptionalExplore = RootState & {
+  explore?: { nativeFilterConfiguration?: (Filter | Divider)[] };
+};
+
 export const selectFilterConfiguration: (
   state: RootState,
 ) => (Filter | Divider)[] = createSelector(
   (state: RootState) =>
-    state.dashboardInfo?.metadata?.native_filter_configuration,
+    state.dashboardInfo?.metadata?.native_filter_configuration ??
+    // Explore has no dashboardInfo. When the session was opened from a
+    // dashboard, that dashboard's native filter configuration is hydrated
+    // onto the explore state instead. The two sources are never both
+    // populated, so the dashboard path is unchanged.
+    (state as StateWithOptionalExplore).explore?.nativeFilterConfiguration,
   (nativeFilterConfig): (Filter | Divider)[] => {
     if (!nativeFilterConfig) {
       return defaultFilterConfiguration;

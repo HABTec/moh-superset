@@ -585,6 +585,9 @@ test('Should render RowCountLabel when row limit is hit, and hide it otherwise',
   });
 
   expect(screen.getByTestId('warning')).toBeInTheDocument();
+  expect(screen.getByTestId('row-limit-banner')).toHaveTextContent(
+    'Showing the first 10 rows only. Some data is not displayed.',
+  );
 
   rerender(
     <SliceHeader
@@ -594,6 +597,7 @@ test('Should render RowCountLabel when row limit is hit, and hide it otherwise',
   );
 
   expect(screen.queryByTestId('warning')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('row-limit-banner')).not.toBeInTheDocument();
 
   mockUseUiConfig.mockRestore();
 });

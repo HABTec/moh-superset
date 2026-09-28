@@ -72,6 +72,7 @@ import { ReportObject } from 'src/features/reports/types';
 import ViewQueryModal from '../controls/ViewQueryModal';
 import EmbedCodeContent from '../EmbedCodeContent';
 import { useDashboardsMenuItems } from './DashboardsSubMenu';
+import { useExploreFullscreen } from '../ExploreFullscreen';
 
 export const SEARCH_THRESHOLD = 10;
 
@@ -79,6 +80,7 @@ const MENU_KEYS = {
   EDIT_PROPERTIES: 'edit_properties',
   DASHBOARDS_ADDED_TO: 'dashboards_added_to',
   DOWNLOAD_SUBMENU: 'download_submenu',
+  FULLSCREEN: 'fullscreen',
   DATA_EXPORT_OPTIONS: 'data_export_options',
   EXPORT_ALL_DATA_GROUP: 'export_all_data_group',
   EXPORT_CURRENT_VIEW_GROUP: 'export_current_view_group',
@@ -211,6 +213,11 @@ export const useExploreAdditionalActionsMenu = (
   const theme = useTheme();
   const { addDangerToast, addSuccessToast } = useToasts();
   const dispatch = useDispatch();
+  const {
+    isAvailable: isFullscreenAvailable,
+    isFullscreen,
+    toggle: toggleFullscreen,
+  } = useExploreFullscreen();
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
   const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
   const deferredDashboardSearchTerm = useDeferredValue(dashboardSearchTerm);
@@ -998,6 +1005,19 @@ export const useExploreAdditionalActionsMenu = (
       children: shareChildren,
     });
 
+    // Fullscreen, mirroring the dashboard chart menu. Hidden when there is no
+    // fullscreen container to target.
+    if (isFullscreenAvailable) {
+      menuItems.push({
+        key: MENU_KEYS.FULLSCREEN,
+        label: isFullscreen ? t('Exit fullscreen') : t('View fullscreen'),
+        onClick: () => {
+          toggleFullscreen();
+          setIsDropdownVisible(false);
+        },
+      });
+    }
+
     // Divider
     menuItems.push({ type: 'divider' as const });
 
@@ -1069,6 +1089,9 @@ export const useExploreAdditionalActionsMenu = (
     ownState,
     hasExportCurrentView,
     canExportImage,
+    isFullscreenAvailable,
+    isFullscreen,
+    toggleFullscreen,
   ]);
 
   // Return streaming modal state and handlers for parent to render

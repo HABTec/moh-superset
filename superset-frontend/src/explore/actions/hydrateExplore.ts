@@ -48,6 +48,8 @@ import { getDatasourceUid } from 'src/utils/getDatasourceUid';
 import { getUrlParam } from 'src/utils/urlUtils';
 import { URL_PARAMS } from 'src/constants';
 import { findPermission } from 'src/utils/findPermission';
+import { ActiveFilters } from 'src/dashboard/types';
+import type { ExploreState } from 'src/explore/reducers/exploreReducer';
 
 enum ColorSchemeType {
   CATEGORICAL = 'CATEGORICAL',
@@ -64,9 +66,12 @@ export const hydrateExplore =
     saveAction = null,
     dataMask,
     chartStates,
+    native_filter_configuration,
+    activeFilters,
   }: ExplorePageInitialData & {
     dataMask?: DataMaskStateWithId;
     chartStates?: Record<number, JsonObject>;
+    activeFilters?: ActiveFilters;
   }) =>
   (dispatch: Dispatch, getState: () => ExplorePageState) => {
     const { user, datasources, charts, sliceEntities, common, explore } =
@@ -198,6 +203,19 @@ export const hydrateExplore =
       saveAction,
       common,
     };
+
+    // Native filters inherited from the dashboard Explore was opened from.
+    // Left out when there is no dashboard context, which keeps Explore free of
+    // a filter bar for charts opened directly.
+    const inheritedFilters: Partial<
+      Pick<ExploreState, 'nativeFilterConfiguration' | 'activeFilters'>
+    > = {
+      ...(native_filter_configuration && {
+        nativeFilterConfiguration: native_filter_configuration,
+      }),
+      ...(activeFilters && { activeFilters }),
+    };
+    Object.assign(exploreState, inheritedFilters);
 
     // apply initial mapStateToProps for all controls, must execute AFTER
     // bootstrapState has initialized `controls`. Order of execution is not

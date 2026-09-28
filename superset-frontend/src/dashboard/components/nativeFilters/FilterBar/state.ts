@@ -123,8 +123,8 @@ export const useFilterUpdates = (
 };
 
 // Load filters after charts loaded
-export const useInitialization = () => {
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+export const useInitialization = (waitForCharts = true) => {
+  const [isInitialized, setIsInitialized] = useState<boolean>(!waitForCharts);
   const filters = useFilters();
   const charts = useSelector<RootState, ChartsState>(state => state.charts);
 

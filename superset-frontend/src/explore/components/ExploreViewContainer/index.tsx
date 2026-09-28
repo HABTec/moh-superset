@@ -37,6 +37,9 @@ import {
   MatrixifyFormData,
   DatasourceType,
   ensureIsArray,
+  DataMaskStateWithId,
+  Divider,
+  Filter,
 } from '@superset-ui/core';
 import {
   ControlStateMapping,
@@ -69,11 +72,16 @@ import { getUrlParam } from 'src/utils/urlUtils';
 import cx from 'classnames';
 import * as chartActions from 'src/components/Chart/chartAction';
 import { fetchDatasourceMetadata } from 'src/dashboard/actions/datasources';
-import { mergeExtraFormData } from 'src/dashboard/components/nativeFilters/utils';
+import {
+  getExtraFormData,
+  mergeExtraFormData,
+} from 'src/dashboard/components/nativeFilters/utils';
 import { postFormData, putFormData } from 'src/explore/exploreUtils/formData';
 import { datasourcesActions } from 'src/explore/actions/datasourcesActions';
 import { mountExploreUrl } from 'src/explore/exploreUtils';
 import { getFormDataFromControls } from 'src/explore/controlUtils';
+import getNativeFiltersForChart from './getNativeFiltersForChart';
+import { ActiveFilters } from 'src/dashboard/types';
 import * as exploreActions from 'src/explore/actions/exploreActions';
 import * as saveModalActions from 'src/explore/actions/saveModalActions';
 import { useTabId } from 'src/hooks/useTabId';
@@ -93,6 +101,8 @@ import SaveModal from '../SaveModal';
 import DataSourcePanel from '../DatasourcePanel';
 import ConnectedExploreChartHeader from '../ExploreChartHeader';
 import ExploreContainer from '../ExploreContainer';
+import ExploreFilterBar from '../ExploreFilterBar';
+import ExploreFullscreen from '../ExploreFullscreen';
 
 const ExplorePanelContainer = styled.div`
   ${({ theme }) => css`
@@ -300,6 +310,8 @@ interface ExploreRootState {
     force: boolean;
     form_data?: QueryFormData;
     saveAction?: SaveActionType | null;
+    nativeFilterConfiguration?: (Filter | Divider)[];
+    activeFilters?: ActiveFilters;
   };
   charts: Record<number, ChartState>;
   common: {
@@ -308,7 +320,7 @@ interface ExploreRootState {
     };
   };
   impressionId: string;
-  dataMask: Record<number, { ownState?: JsonObject }>;
+  dataMask: DataMaskStateWithId;
   reports: JsonObject;
   user: User;
   saveModal: {
@@ -927,164 +939,167 @@ function ExploreViewContainer(props: ExploreViewContainerProps) {
 
   return (
     <ExploreContainer>
-      <ConnectedExploreChartHeader
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Combined actions type is compatible at runtime
-        actions={props.actions as any}
-        canOverwrite={props.can_overwrite}
-        canDownload={props.can_download}
-        dashboardId={props.dashboardId}
-        colorScheme={props.dashboardColorScheme}
-        isStarred={props.isStarred}
-        slice={props.slice}
-        sliceName={props.sliceName ?? undefined}
-        table_name={props.table_name}
-        formData={props.form_data}
-        chart={props.chart}
-        ownState={props.ownState}
-        user={props.user}
-        saveDisabled={!!errorMessage || props.chart.chartStatus === 'loading'}
-        metadata={props.metadata}
-        isSaveModalVisible={props.isSaveModalVisible}
-      />
-      <ExplorePanelContainer id="explore-container">
-        <Global
-          styles={css`
-            .navbar {
-              margin-bottom: 0;
-            }
-            body {
-              height: 100vh;
-              max-height: 100vh;
-              overflow: hidden;
-            }
-            #app-menu,
-            #app {
-              flex: 1 1 auto;
-            }
-            #app {
-              flex-basis: 100%;
-              overflow: hidden;
-              height: 100%;
-            }
-            #app-menu {
-              flex-shrink: 0;
-            }
-          `}
+      <ExploreFullscreen>
+        <ConnectedExploreChartHeader
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Combined actions type is compatible at runtime
+          actions={props.actions as any}
+          canOverwrite={props.can_overwrite}
+          canDownload={props.can_download}
+          dashboardId={props.dashboardId}
+          colorScheme={props.dashboardColorScheme}
+          isStarred={props.isStarred}
+          slice={props.slice}
+          sliceName={props.sliceName ?? undefined}
+          table_name={props.table_name}
+          formData={props.form_data}
+          chart={props.chart}
+          ownState={props.ownState}
+          user={props.user}
+          saveDisabled={!!errorMessage || props.chart.chartStatus === 'loading'}
+          metadata={props.metadata}
+          isSaveModalVisible={props.isSaveModalVisible}
         />
-        <Resizable
-          onResizeStop={(evt, direction, ref, d) => {
-            setWidth(ref.getBoundingClientRect().width);
-            setSidebarWidths(LocalStorageKeys.DatasourceWidth, d);
-          }}
-          defaultSize={{
-            width: getSidebarWidths(LocalStorageKeys.DatasourceWidth),
-            height: '100%',
-          }}
-          minWidth={defaultSidebarsWidth[LocalStorageKeys.DatasourceWidth]}
-          maxWidth="33%"
-          enable={{ right: true }}
-          className={
-            isCollapsed ? 'no-show' : 'explore-column data-source-selection'
-          }
-        >
-          <div className="title-container">
-            <span className="horizontal-text">{t('Chart Source')}</span>
-            <span
-              role="button"
-              tabIndex={0}
-              className="action-button"
-              onClick={toggleCollapse}
-            >
-              <Icons.VerticalAlignTopOutlined
-                iconSize="xl"
-                css={css`
-                  transform: rotate(-90deg);
-                `}
-                className="collapse-icon"
-                iconColor={theme.colorPrimary}
-              />
-            </span>
-          </div>
-          {/* eslint-disable @typescript-eslint/no-explicit-any -- DataSourcePanel uses narrower types that are compatible at runtime */}
-          <DataSourcePanel
-            formData={props.form_data}
-            datasource={props.datasource as any}
-            controls={props.controls as any}
-            actions={props.actions as any}
-            width={width}
+        <ExploreFilterBar />
+        <ExplorePanelContainer id="explore-container">
+          <Global
+            styles={css`
+              .navbar {
+                margin-bottom: 0;
+              }
+              body {
+                height: 100vh;
+                max-height: 100vh;
+                overflow: hidden;
+              }
+              #app-menu,
+              #app {
+                flex: 1 1 auto;
+              }
+              #app {
+                flex-basis: 100%;
+                overflow: hidden;
+                height: 100%;
+              }
+              #app-menu {
+                flex-shrink: 0;
+              }
+            `}
           />
-          {/* eslint-enable @typescript-eslint/no-explicit-any */}
-        </Resizable>
-        {isCollapsed ? (
-          <div
-            className="sidebar"
-            onClick={toggleCollapse}
-            data-test="open-datasource-tab"
-            role="button"
-            tabIndex={0}
+          <Resizable
+            onResizeStop={(evt, direction, ref, d) => {
+              setWidth(ref.getBoundingClientRect().width);
+              setSidebarWidths(LocalStorageKeys.DatasourceWidth, d);
+            }}
+            defaultSize={{
+              width: getSidebarWidths(LocalStorageKeys.DatasourceWidth),
+              height: '100%',
+            }}
+            minWidth={defaultSidebarsWidth[LocalStorageKeys.DatasourceWidth]}
+            maxWidth="33%"
+            enable={{ right: true }}
+            className={
+              isCollapsed ? 'no-show' : 'explore-column data-source-selection'
+            }
           >
-            <span role="button" tabIndex={0} className="action-button">
-              <Tooltip title={t('Open Datasource tab')}>
+            <div className="title-container">
+              <span className="horizontal-text">{t('Chart Source')}</span>
+              <span
+                role="button"
+                tabIndex={0}
+                className="action-button"
+                onClick={toggleCollapse}
+              >
                 <Icons.VerticalAlignTopOutlined
                   iconSize="xl"
                   css={css`
-                    transform: rotate(90deg);
+                    transform: rotate(-90deg);
                   `}
                   className="collapse-icon"
                   iconColor={theme.colorPrimary}
                 />
-              </Tooltip>
-            </span>
+              </span>
+            </div>
+            {/* eslint-disable @typescript-eslint/no-explicit-any -- DataSourcePanel uses narrower types that are compatible at runtime */}
+            <DataSourcePanel
+              formData={props.form_data}
+              datasource={props.datasource as any}
+              controls={props.controls as any}
+              actions={props.actions as any}
+              width={width}
+            />
+            {/* eslint-enable @typescript-eslint/no-explicit-any */}
+          </Resizable>
+          {isCollapsed ? (
+            <div
+              className="sidebar"
+              onClick={toggleCollapse}
+              data-test="open-datasource-tab"
+              role="button"
+              tabIndex={0}
+            >
+              <span role="button" tabIndex={0} className="action-button">
+                <Tooltip title={t('Open Datasource tab')}>
+                  <Icons.VerticalAlignTopOutlined
+                    iconSize="xl"
+                    css={css`
+                      transform: rotate(90deg);
+                    `}
+                    className="collapse-icon"
+                    iconColor={theme.colorPrimary}
+                  />
+                </Tooltip>
+              </span>
+            </div>
+          ) : null}
+          <Resizable
+            onResizeStop={(evt, direction, ref, d) =>
+              setSidebarWidths(LocalStorageKeys.ControlsWidth, d)
+            }
+            defaultSize={{
+              width: getSidebarWidths(LocalStorageKeys.ControlsWidth),
+              height: '100%',
+            }}
+            minWidth={defaultSidebarsWidth[LocalStorageKeys.ControlsWidth]}
+            maxWidth="33%"
+            enable={{ right: true }}
+            className="col-sm-3 explore-column controls-column"
+          >
+            <ConnectedControlPanelsContainer
+              exploreState={props.exploreState}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Combined actions type is compatible at runtime
+              actions={props.actions as any}
+              form_data={props.form_data}
+              controls={props.controls}
+              chart={props.chart}
+              datasource_type={props.datasource_type}
+              isDatasourceMetaLoading={props.isDatasourceMetaLoading}
+              onQuery={onQuery}
+              onStop={onStop}
+              canStopQuery={props.can_add || props.can_overwrite}
+              errorMessage={dataTabErrorMessage}
+              buttonErrorMessage={errorMessage}
+              chartIsStale={chartIsStale}
+            />
+          </Resizable>
+          <div
+            className={cx(
+              'main-explore-content',
+              isCollapsed ? 'col-sm-9' : 'col-sm-7',
+            )}
+          >
+            {renderChartContainer()}
           </div>
-        ) : null}
-        <Resizable
-          onResizeStop={(evt, direction, ref, d) =>
-            setSidebarWidths(LocalStorageKeys.ControlsWidth, d)
-          }
-          defaultSize={{
-            width: getSidebarWidths(LocalStorageKeys.ControlsWidth),
-            height: '100%',
-          }}
-          minWidth={defaultSidebarsWidth[LocalStorageKeys.ControlsWidth]}
-          maxWidth="33%"
-          enable={{ right: true }}
-          className="col-sm-3 explore-column controls-column"
-        >
-          <ConnectedControlPanelsContainer
-            exploreState={props.exploreState}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Combined actions type is compatible at runtime
-            actions={props.actions as any}
+        </ExplorePanelContainer>
+        {props.isSaveModalVisible && (
+          <SaveModal
+            addDangerToast={props.addDangerToast}
+            actions={props.actions}
             form_data={props.form_data}
-            controls={props.controls}
-            chart={props.chart}
-            datasource_type={props.datasource_type}
-            isDatasourceMetaLoading={props.isDatasourceMetaLoading}
-            onQuery={onQuery}
-            onStop={onStop}
-            canStopQuery={props.can_add || props.can_overwrite}
-            errorMessage={dataTabErrorMessage}
-            buttonErrorMessage={errorMessage}
-            chartIsStale={chartIsStale}
+            sliceName={props.sliceName ?? undefined}
+            dashboardId={props.dashboardId ?? null}
           />
-        </Resizable>
-        <div
-          className={cx(
-            'main-explore-content',
-            isCollapsed ? 'col-sm-9' : 'col-sm-7',
-          )}
-        >
-          {renderChartContainer()}
-        </div>
-      </ExplorePanelContainer>
-      {props.isSaveModalVisible && (
-        <SaveModal
-          addDangerToast={props.addDangerToast}
-          actions={props.actions}
-          form_data={props.form_data}
-          sliceName={props.sliceName ?? undefined}
-          dashboardId={props.dashboardId ?? null}
-        />
-      )}
+        )}
+      </ExploreFullscreen>
     </ExploreContainer>
   );
 }
@@ -1168,10 +1183,22 @@ function mapStateToProps(state: ExploreRootState) {
   // exclude clientView from extra_form_data; keep other ownState pieces
   const ownStateForQuery = omit(dataMask[slice_id]?.ownState, ['clientView']);
 
+  // Native filters inherited from the dashboard Explore was opened from. Their
+  // applied values live in the data mask and are re-merged on every derive, so
+  // changing a value in the filter bar re-runs the query with the new value.
+  const nativeFiltersForChart = getNativeFiltersForChart(
+    explore.nativeFilterConfiguration,
+    explore.activeFilters,
+    slice_id,
+  );
+
   form_data.extra_form_data = mergeExtraFormData(
     { ...form_data.extra_form_data },
     {
       ...ownStateForQuery,
+      ...(nativeFiltersForChart.length
+        ? getExtraFormData(dataMask, nativeFiltersForChart)
+        : {}),
     },
   );
   const chart = charts[slice_id];

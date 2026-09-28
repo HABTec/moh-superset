@@ -240,7 +240,9 @@ export function getCbmpTypesFromDashboard(
     const extraFilters = mask?.extraFormData?.filters || [];
     if (extraFilters.length) {
       extraFilters.forEach(item => {
-        values.push(...collectStringValues(item.val));
+        if ('val' in item) {
+          values.push(...collectStringValues(item.val));
+        }
       });
       return;
     }

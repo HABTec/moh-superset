@@ -538,3 +538,34 @@ describe('getBreakPoints', () => {
     });
   });
 });
+
+test('getColorBreakpointsBuckets lists legend bands in ascending value order', () => {
+  // Stored out of order, as on the RHI Woreda Level Heatmap.
+  const colorBreakpoints: ColorBreakpointType[] = [
+    { minValue: 0, maxValue: 20, color: { r: 1, g: 0, b: 0, a: 1 } },
+    { minValue: 41, maxValue: 60, color: { r: 3, g: 0, b: 0, a: 1 } },
+    { minValue: 61, maxValue: 80, color: { r: 4, g: 0, b: 0, a: 1 } },
+    { minValue: 21, maxValue: 40, color: { r: 2, g: 0, b: 0, a: 1 } },
+    { minValue: 81, maxValue: 100, color: { r: 5, g: 0, b: 0, a: 1 } },
+    { minValue: -999, maxValue: -1, color: { r: 9, g: 9, b: 9, a: 1 } },
+  ];
+
+  const result = getColorBreakpointsBuckets(colorBreakpoints, {
+    r: 200,
+    g: 200,
+    b: 200,
+    a: 1,
+  });
+
+  expect(Object.keys(result)).toEqual([
+    '0 - 20',
+    '21 - 40',
+    '41 - 60',
+    '61 - 80',
+    '81 - 100',
+    'Above 100 or below 0',
+    'No data',
+  ]);
+  expect(result['21 - 40'].color).toEqual([2, 0, 0]);
+  expect(colorBreakpoints[1].minValue).toBe(41);
+});

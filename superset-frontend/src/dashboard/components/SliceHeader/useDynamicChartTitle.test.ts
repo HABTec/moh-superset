@@ -25,7 +25,7 @@ import { NativeFilterType } from '@superset-ui/core';
 import type { NativeFilterScope } from '@superset-ui/core';
 import { CHART_TYPE } from 'src/dashboard/util/componentTypes';
 import { DASHBOARD_ROOT_ID } from 'src/dashboard/util/constants';
-import { useDynamicChartTitle } from './useDynamicChartTitle';
+import { formatYearLabels, useDynamicChartTitle } from './useDynamicChartTitle';
 
 const mockStore = configureStore([]);
 
@@ -360,4 +360,37 @@ test('ignores filters that explicitly exclude the chart', () => {
   );
 
   expect(result.current).toBe('Malaria cases');
+});
+
+test('sorts selected years chronologically and collapses runs into ranges', () => {
+  const wrapper = buildWrapper(
+    { YR: buildFilter('YR', 'Year') },
+    buildDataMask('YR', ['2018', '2015', '2016', '2012', '2017']),
+    buildLayout(1),
+  );
+  const { result } = renderHook(() => useDynamicChartTitle(1, 'Coverage'), {
+    wrapper,
+  });
+
+  expect(result.current).toBe('Coverage — 2012, 2015–2018');
+});
+
+test('keeps selection order for values that are not all years', () => {
+  const wrapper = buildWrapper(
+    { YR: buildFilter('YR', 'Year') },
+    buildDataMask('YR', ['2018', '2015 EFY']),
+    buildLayout(1),
+  );
+  const { result } = renderHook(() => useDynamicChartTitle(1, 'Coverage'), {
+    wrapper,
+  });
+
+  expect(result.current).toBe('Coverage — 2018, 2015 EFY');
+});
+
+test('formatYearLabels drops duplicates and keeps single years apart', () => {
+  expect(formatYearLabels(['2014', '2012', '2014', '2016'])).toBe(
+    '2012, 2014, 2016',
+  );
+  expect(formatYearLabels(['2011', '2010'])).toBe('2010–2011');
 });

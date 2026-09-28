@@ -52,6 +52,7 @@ import { Slice } from 'src/types/Chart';
 import { ReportObject } from 'src/features/reports/types';
 import { User } from 'src/types/bootstrapTypes';
 import { useExploreAdditionalActionsMenu } from '../useExploreAdditionalActionsMenu';
+import { useExploreFullscreen } from '../ExploreFullscreen';
 import { useExploreMetadataBar } from './useExploreMetadataBar';
 
 interface ExploreActions {
@@ -98,6 +99,13 @@ const additionalItemsStyles = (theme: SupersetTheme) => css`
   & > span {
     margin-right: ${theme.sizeUnit * 3}px;
   }
+`;
+
+const fullscreenButtonStyles = (theme: SupersetTheme) => css`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: ${theme.sizeUnit}px;
 `;
 
 const ExploreChartHeader: FC<ExploreChartHeaderProps> = ({
@@ -331,29 +339,71 @@ const ExploreChartHeader: FC<ExploreChartHeaderProps> = ({
     ],
   );
 
+  const {
+    isAvailable: isFullscreenAvailable,
+    isFullscreen,
+    toggle: toggleFullscreen,
+  } = useExploreFullscreen();
+
   const rightPanelAdditionalItems = useMemo(
     () => (
-      <Tooltip
-        title={
-          saveDisabled ? t('Add required control values to save chart') : null
-        }
+      <div
+        css={css`
+          display: flex;
+          align-items: center;
+        `}
       >
-        {/* needed to wrap button in a div - antd tooltip doesn't work with disabled button */}
-        <div>
-          <Button
-            buttonStyle="secondary"
-            onClick={showModal}
-            disabled={saveDisabled}
-            data-test="query-save-button"
-            css={saveButtonStyles}
-            icon={<Icons.SaveOutlined />}
+        {isFullscreenAvailable && (
+          <Tooltip
+            title={isFullscreen ? t('Exit fullscreen') : t('View fullscreen')}
           >
-            {t('Save')}
-          </Button>
-        </div>
-      </Tooltip>
+            <div css={fullscreenButtonStyles}>
+              <Button
+                buttonStyle="link"
+                onClick={toggleFullscreen}
+                aria-label={
+                  isFullscreen ? t('Exit fullscreen') : t('View fullscreen')
+                }
+                data-test="explore-fullscreen-toggle"
+                icon={
+                  isFullscreen ? (
+                    <Icons.FullscreenExitOutlined />
+                  ) : (
+                    <Icons.FullscreenOutlined />
+                  )
+                }
+              />
+            </div>
+          </Tooltip>
+        )}
+        <Tooltip
+          title={
+            saveDisabled ? t('Add required control values to save chart') : null
+          }
+        >
+          {/* needed to wrap button in a div - antd tooltip doesn't work with disabled button */}
+          <div>
+            <Button
+              buttonStyle="secondary"
+              onClick={showModal}
+              disabled={saveDisabled}
+              data-test="query-save-button"
+              css={saveButtonStyles}
+              icon={<Icons.SaveOutlined />}
+            >
+              {t('Save')}
+            </Button>
+          </div>
+        </Tooltip>
+      </div>
     ),
-    [saveDisabled, showModal],
+    [
+      saveDisabled,
+      showModal,
+      isFullscreenAvailable,
+      isFullscreen,
+      toggleFullscreen,
+    ],
   );
 
   const menuDropdownProps = useMemo(

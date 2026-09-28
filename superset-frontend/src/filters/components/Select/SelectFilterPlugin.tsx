@@ -135,8 +135,6 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
     unsetFocusedFilter,
     setFilterActive,
     appSection,
-    showOverflow,
-    parentRef,
     inputRef,
     filterBarOrientation,
     clearAllTrigger,

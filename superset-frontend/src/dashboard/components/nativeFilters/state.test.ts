@@ -27,6 +27,7 @@ import {
   type ChartCustomization,
 } from '@superset-ui/core';
 import {
+  selectFilterConfiguration,
   useChartCustomizationConfiguration,
   useIsFilterInScope,
   useSelectFiltersInScope,
@@ -600,4 +601,42 @@ test('useChartCustomizationConfiguration ignores undefined items in metadata', (
   expect(result.current[0]).toEqual(
     expect.objectContaining({ id: 'CHART_CUSTOMIZATION-1' }),
   );
+});
+
+const NATIVE_FILTER = {
+  id: 'NATIVE_FILTER-region',
+  name: 'Region',
+  filterType: 'filter_select',
+} as unknown as Filter;
+
+const nativeFilters = [NATIVE_FILTER];
+
+test('selectFilterConfiguration reads the dashboard metadata', () => {
+  const state = {
+    dashboardInfo: { metadata: { native_filter_configuration: nativeFilters } },
+  } as never;
+
+  expect(selectFilterConfiguration(state)).toEqual(nativeFilters);
+});
+
+test('selectFilterConfiguration falls back to the explore state', () => {
+  // Explore has no dashboardInfo; the parent's filters arrive on explore state.
+  const state = { explore: { nativeFilterConfiguration: nativeFilters } } as never;
+
+  expect(selectFilterConfiguration(state)).toEqual(nativeFilters);
+});
+
+test('selectFilterConfiguration prefers the dashboard over explore', () => {
+  // Both populated should never happen, but the dashboard must win so the
+  // dashboard path cannot be changed by a stale explore value.
+  const state = {
+    dashboardInfo: { metadata: { native_filter_configuration: nativeFilters } },
+    explore: { nativeFilterConfiguration: [] },
+  } as never;
+
+  expect(selectFilterConfiguration(state)).toEqual(nativeFilters);
+});
+
+test('selectFilterConfiguration returns an empty list when neither has filters', () => {
+  expect(selectFilterConfiguration({} as never)).toEqual([]);
 });

@@ -21,6 +21,8 @@ import {
   QueryFormData,
   AnnotationData,
   AdhocMetric,
+  Divider,
+  Filter,
   JsonObject,
   LatestQueryFormData,
 } from '@superset-ui/core';
@@ -32,6 +34,7 @@ import {
 import { DatabaseObject } from 'src/views/CRUD/types';
 import { UserWithPermissionsAndRoles } from 'src/types/bootstrapTypes';
 import { Slice } from 'src/types/Chart';
+import { ActiveFilters } from 'src/dashboard/types';
 
 export type SaveActionType = 'overwrite' | 'saveas';
 
@@ -97,6 +100,11 @@ export interface ExplorePageInitialData {
     }[];
   };
   saveAction?: SaveActionType | null;
+  /**
+   * Native filter configuration of the dashboard this Explore session was
+   * opened from. Present only when one was requested and the user can read it.
+   */
+  native_filter_configuration?: (Filter | Divider)[];
 }
 
 export interface ExploreResponsePayload {
@@ -136,6 +144,14 @@ export interface ExplorePageState {
     compatibleMetrics?: string[] | null;
     compatibleDimensions?: string[] | null;
     compatibilityLoading?: boolean;
+    /**
+     * Native filter configuration inherited from the dashboard Explore was
+     * opened from. Undefined when the chart was opened directly, in which case
+     * Explore renders no filter bar.
+     */
+    nativeFilterConfiguration?: (Filter | Divider)[];
+    /** Scope of each inherited native filter, keyed by filter id. */
+    activeFilters?: ActiveFilters;
   };
   sliceEntities?: JsonObject; // propagated from Dashboard view
 }

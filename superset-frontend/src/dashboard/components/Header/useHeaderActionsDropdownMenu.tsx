@@ -196,6 +196,7 @@ export const useHeaderActionsMenu = ({
     disabled: isLoading,
     logEvent,
     userCanExport,
+    userCanEdit,
     canExportImage,
   });
 

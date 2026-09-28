@@ -25,3 +25,6 @@ class CommandParameters:
     datasource_id: Optional[int]
     datasource_type: Optional[str]
     slice_id: Optional[int]
+    # Dashboard the Explore session was opened from. When set, the parent's
+    # native filter configuration is returned so Explore can render it.
+    dashboard_id: Optional[int] = None

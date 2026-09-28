@@ -19,6 +19,7 @@
 import {
   CategoricalColorNamespace,
   getColumnLabel,
+  getContrastingColor,
   getMetricLabel,
   getNumberFormatter,
   getTimeFormatter,
@@ -174,6 +175,15 @@ export default function transformProps(
   const labelProps = {
     color: theme.colorText,
   };
+  // Pick black or white per block so labels stay readable on both light and
+  // dark fills (WCAG 1.4.3); a single theme text colour fails on dark blocks.
+  const getLabelColorForFill = (fill: string): string => {
+    try {
+      return getContrastingColor(fill);
+    } catch {
+      return theme.colorText;
+    }
+  };
   const traverse = (treeNodes: TreeNode[], path: string[]) =>
     treeNodes.map(treeNode => {
       const { name: nodeName, value, groupBy } = treeNode;
@@ -184,16 +194,20 @@ export default function transformProps(
         }),
       });
       const newPath = path.concat(name);
+      const fill = colorFn(name, sliceId);
+      const labelColor = getLabelColorForFill(fill);
       let item: TreemapSeriesNodeItemOption = {
         name,
         value,
         colorSaturation: COLOR_SATURATION,
         itemStyle: {
           borderColor: BORDER_COLOR,
-          color: colorFn(name, sliceId),
+          color: fill,
           borderWidth: BORDER_WIDTH,
           gapWidth: GAP_WIDTH,
         },
+        label: { color: labelColor },
+        upperLabel: { color: labelColor },
       };
       if (treeNode.children?.length) {
         item = {

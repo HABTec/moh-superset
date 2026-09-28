@@ -163,6 +163,7 @@ const FilterBar: FC<FiltersBarProps> = ({
   verticalConfig,
   hidden = false,
   mobile = false,
+  waitForCharts = true,
 }) => {
   const history = useHistory();
   const dataMaskApplied: DataMaskStateWithId = useAllAppliedDataMask();
@@ -599,7 +600,7 @@ const FilterBar: FC<FiltersBarProps> = ({
       !hasClearedChartCustomizations) ||
     hasMissingRequiredChartCustomization;
 
-  const isInitialized = useInitialization();
+  const isInitialized = useInitialization(waitForCharts);
 
   const actions = useMemo(
     () => (

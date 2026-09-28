@@ -113,3 +113,41 @@ export const focusStyle = (theme: SupersetTheme) => css`
     }
   }
 `;
+
+/**
+ * Print layout for briefing handouts: drop interactive chrome (navigation,
+ * filter rail, tab strip, chart controls, ASK AI) and keep charts whole on a
+ * page. The context strip and chart titles are kept so the printout still
+ * states its period, org unit and data-as-of.
+ */
+export const printStyles = (theme: SupersetTheme) => css`
+  @media print {
+    @page {
+      margin: 12mm;
+    }
+
+    html,
+    body,
+    #app {
+      background: ${theme.colorBgBase} !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    #main-menu,
+    [data-test='dashboard-filters-panel'],
+    .dashboard-component-tabs .ant-tabs-nav,
+    .right-button-panel,
+    [data-test='slice-header'] .header-controls,
+    .moh-ai-overlay {
+      display: none !important;
+    }
+
+    .dashboard-component-chart-holder,
+    [data-test='chart-grid-component'] {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      box-shadow: none !important;
+    }
+  }
+`;

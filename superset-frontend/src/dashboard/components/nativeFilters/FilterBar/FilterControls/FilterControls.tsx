@@ -157,14 +157,14 @@ const StyledIcon = styled(Icons.UpOutlined)<{ isOpen: boolean }>`
   color: ${({ theme }) => theme.colorTextSecondary};
 `;
 
-const SubsectionTitle = styled.div`
-  ${({ theme }) => css`
+const SubsectionTitle = styled.div<{ $primary?: boolean }>`
+  ${({ theme, $primary }) => css`
     font-size: ${theme.fontSizeSM}px;
     font-weight: ${theme.fontWeightStrong};
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: ${theme.colorTextSecondary};
-    padding: ${theme.sizeUnit}px 0 ${theme.sizeUnit * 2}px;
+    color: ${$primary ? theme.colorPrimaryText : theme.colorTextSecondary};
+    padding: ${$primary ? 0 : `${theme.sizeUnit}px 0 ${theme.sizeUnit * 2}px`};
   `}
 `;
 
@@ -178,11 +178,6 @@ const GlobalFiltersBox = styled.div<{ $isHidden: boolean }>`
     background: ${theme.colorPrimaryBg};
     border: 1px solid ${theme.colorPrimaryBorder};
     border-radius: ${theme.borderRadiusLG}px;
-
-    & > ${SubsectionTitle} {
-      padding: 0;
-      color: ${theme.colorPrimaryText};
-    }
   `}
 `;
 
@@ -564,7 +559,9 @@ const FilterControls: FC<FilterControlsProps> = ({
               {(layoutPeriodFilters.length > 0 ||
                 layoutGroups.orgUnitFilters.length > 0) && (
                 <GlobalFiltersBox data-test="global-filters" $isHidden={false}>
-                  <SubsectionTitle>{t('Global filters')}</SubsectionTitle>
+                  <SubsectionTitle $primary>
+                    {t('Global filters')}
+                  </SubsectionTitle>
                   {layoutPeriodFilters.length > 0 && (
                     <PeriodCard
                       data-test="period-card"

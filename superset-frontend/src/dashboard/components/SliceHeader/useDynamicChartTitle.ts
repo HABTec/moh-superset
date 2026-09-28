@@ -32,6 +32,34 @@ const TITLE_FILTER_KEYWORDS = [
 ];
 const TITLE_JOIN_SEPARATOR = ' — ';
 
+const YEAR_PATTERN = /^\d{4}$/;
+const YEAR_RANGE_SEPARATOR = '–';
+
+/**
+ * Sort years chronologically and collapse consecutive runs into ranges, so a
+ * selection clicked as 2018, 2015, 2016, 2017 reads "2015–2018" rather than
+ * echoing the click order.
+ */
+export const formatYearLabels = (years: string[]): string => {
+  const sorted = Array.from(new Set(years.map(Number))).sort((a, b) => a - b);
+  const runs: number[][] = [];
+  sorted.forEach(year => {
+    const run = runs[runs.length - 1];
+    if (run && year === run[run.length - 1] + 1) {
+      run.push(year);
+    } else {
+      runs.push([year]);
+    }
+  });
+  return runs
+    .map(run =>
+      run.length > 1
+        ? `${run[0]}${YEAR_RANGE_SEPARATOR}${run[run.length - 1]}`
+        : String(run[0]),
+    )
+    .join(', ');
+};
+
 const formatFilterValue = (value: unknown): string | null => {
   if (value == null) return null;
   const parts = Array.isArray(value) ? value : [value];
@@ -39,6 +67,9 @@ const formatFilterValue = (value: unknown): string | null => {
     .map(part => (part == null ? '' : String(part).trim()))
     .filter(Boolean);
   if (labels.length === 0) return null;
+  if (labels.every(label => YEAR_PATTERN.test(label))) {
+    return formatYearLabels(labels);
+  }
   return labels.join(', ');
 };
 

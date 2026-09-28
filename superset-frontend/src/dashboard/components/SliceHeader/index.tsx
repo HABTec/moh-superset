@@ -26,7 +26,13 @@ import {
   useState,
 } from 'react';
 import { t } from '@apache-superset/core/translation';
-import { getExtensionsRegistry, QueryData, VizType } from '@superset-ui/core';
+import {
+  getExtensionsRegistry,
+  getNumberFormatter,
+  QueryData,
+  VizType,
+} from '@superset-ui/core';
+import { Alert } from '@apache-superset/core/components';
 import {
   css,
   styled,
@@ -78,6 +84,18 @@ const CrossFilterIcon = styled(Icons.ApartmentOutlined)`
     cursor: default;
     color: ${theme.colorPrimary};
     line-height: 1.8;
+  `}
+`;
+
+// Takes a full row under the title so truncation is visible without
+// hovering the warning icon (hover does not exist on touch screens).
+const RowLimitBanner = styled(Alert)`
+  ${({ theme }) => css`
+    flex: 0 0 100%;
+    margin-top: ${theme.sizeUnit}px;
+    padding: ${theme.sizeUnit}px ${theme.sizeUnit * 2}px;
+    font-size: ${theme.fontSizeSM}px;
+    font-weight: ${theme.fontWeightNormal};
   `}
 `;
 
@@ -410,6 +428,17 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
         </div>
         {!editMode && !uiConfig.hideChartControls && (
           <ChartContextChip chartId={slice.slice_id} />
+        )}
+        {!editMode && showRowLimitWarning && (
+          <RowLimitBanner
+            data-test="row-limit-banner"
+            type="warning"
+            showIcon
+            message={t(
+              'Showing the first %s rows only. Some data is not displayed.',
+              getNumberFormatter()(rowLimit),
+            )}
+          />
         )}
       </ChartHeaderStyles>
     );

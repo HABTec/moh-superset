@@ -39,8 +39,11 @@ import {
   QueryFormData,
   SuperChart,
   ClientErrorObject,
+  DataRecordValue,
+  ExtraFormData,
   getClientErrorObject,
   isChartCustomization,
+  QueryObjectFilterClause,
 } from '@superset-ui/core';
 import { styled, useTheme } from '@apache-superset/core/theme';
 import { useDispatch, useSelector } from 'react-redux';
@@ -238,7 +241,7 @@ const FilterValue: FC<FilterValueProps> = ({
     if (filterType !== 'filter_org_unit_tree' || !allNativeFilters) {
       return undefined;
     }
-    const filters: Array<{ col: string; op: string; val: unknown }> = [];
+    const filters: QueryObjectFilterClause[] = [];
     Object.values(allNativeFilters).forEach(candidate => {
       if (
         !candidate ||
@@ -267,11 +270,7 @@ const FilterValue: FC<FilterValueProps> = ({
       if (fromExtra.length) {
         fromExtra.forEach(item => {
           // Normalize to cbmp_type so OrgUnitTree recognizes the values.
-          filters.push({
-            col: 'cbmp_type',
-            op: String(item.op || 'IN'),
-            val: item.val,
-          });
+          filters.push({ ...item, col: 'cbmp_type' });
         });
         return;
       }
@@ -279,7 +278,11 @@ const FilterValue: FC<FilterValueProps> = ({
       if (value == null || (Array.isArray(value) && value.length === 0)) {
         return;
       }
-      filters.push({ col: 'cbmp_type', op: 'IN', val: value });
+      filters.push({
+        col: 'cbmp_type',
+        op: 'IN',
+        val: (Array.isArray(value) ? value : [value]) as DataRecordValue[],
+      });
     });
     return filters.length ? { filters } : { filters: [] };
   }, [filterType, allNativeFilters, dataMaskSelected, id]);
@@ -356,8 +359,8 @@ const FilterValue: FC<FilterValueProps> = ({
     // reloads as soon as CBMP changes (no cascade-parent config / Apply needed).
     if (cbmpLiveExtra) {
       const existing =
-        (newFormData.extra_form_data as { filters?: unknown[] } | undefined)
-          ?.filters || [];
+        (newFormData.extra_form_data as ExtraFormData | undefined)?.filters ||
+        [];
       newFormData.extra_form_data = {
         ...((newFormData.extra_form_data as object) || {}),
         filters: [...existing, ...(cbmpLiveExtra.filters || [])],
