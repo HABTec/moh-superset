@@ -50,9 +50,13 @@ def hpc_monitoring_dashboard_page() -> FlaskResponse:
     iframe_url = current_app.config.get("PHC_MONITORING_DASHBOARD_IFRAME_URL", "")
     if not iframe_url:
         iframe_url = current_app.config.get("HPC_MONITORING_DASHBOARD_IFRAME_URL", "")
+    # ?embedded=1 drops the page header so the PHC view can fill a frame on
+    # the Health Intelligence "PHC" dashboard tab.
+    embedded = request.args.get("embedded") == "1"
     resp = make_response(render_template(
         "superset/hpc.html",
         iframe_url=iframe_url,
+        embedded=embedded,
     ))
 
     # Override Superset's default CSP for this page only — without this
@@ -68,7 +72,9 @@ def hpc_monitoring_dashboard_page() -> FlaskResponse:
                 f"style-src 'self' 'unsafe-inline'; "
                 f"script-src 'self'; "
                 f"frame-src 'self' {target_origin}; "
-                f"connect-src 'self' {target_origin}"
+                f"connect-src 'self' {target_origin}; "
+                # Only portal pages may frame this page (the PHC dashboard tab).
+                f"frame-ancestors 'self'"
             )
     # Some upstream layers add X-Frame-Options: it would refuse to render
     # OUR page in a frame (doesn't apply here — we're the parent, not the

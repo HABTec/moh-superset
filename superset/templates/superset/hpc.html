@@ -65,6 +65,11 @@
       height: calc(100vh - 60px);
     }
 
+    /* Embedded in the dashboard PHC tab: no header, frame fills the page. */
+    body.embedded .iframe-container {
+      height: 100vh;
+    }
+
     @media (max-width: 640px) {
       header.topbar { padding: 10px 14px; height: 52px; }
       header.topbar img.logo { height: 28px; }
@@ -75,13 +80,15 @@
     }
   </style>
 </head>
-<body>
+<body{% if embedded %} class="embedded"{% endif %}>
 
+{% if not embedded %}
 <header class="topbar">
   <img class="logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
   <span class="title">Primery Health Care Status Dashboard</span>
   <a class="back" href="https://mohss.habtechsolution.com/superset/dashboard/8/">← Back to portal</a>
 </header>
+{% endif %}
 
 {% if iframe_url %}
 <div class="iframe-container">

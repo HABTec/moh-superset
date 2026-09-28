@@ -15,10 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
 
 from superset.moh_assets import (
     _render_tv_page,
     _tv_page_payload,
+    _tv_slide_payload,
+    DEFAULT_TV_EMPTY_MARKERS,
     default_tv_theme,
     tv_embed_url,
     tv_slide_accent,
@@ -146,16 +153,21 @@ def test_rendered_page_has_yengwe_chrome_and_hides_ask_ai() -> None:
     assert "bounceToParentLogin" in html
 
 
-def test_same_window_player_has_no_iframe() -> None:
-    from pathlib import Path
+PLAYER_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "superset"
+    / "templates"
+    / "superset"
+    / "moh_tv_player.js"
+)
 
-    player = (
-        Path(__file__).resolve().parents[2]
-        / "superset"
-        / "templates"
-        / "superset"
-        / "moh_tv_player.js"
-    ).read_text(encoding="utf-8")
+
+def _player() -> str:
+    return PLAYER_PATH.read_text(encoding="utf-8")
+
+
+def test_same_window_player_has_no_iframe() -> None:
+    player = _player()
 
     assert "mohTvPanel" in player
     assert "tv-config/" in player
@@ -167,3 +179,136 @@ def test_same_window_player_has_no_iframe() -> None:
     assert "applyYear" in player
     assert "mohTvGregorian" not in player
     assert "G.C." not in player
+
+
+def test_default_tv_theme_still_ships_24px_chart_text() -> None:
+    theme = default_tv_theme(None)
+
+    assert theme["echartsOptionsOverrides"]["legend"]["textStyle"]["fontSize"] == 24
+    assert theme["echartsOptionsOverrides"]["yAxis"]["axisLabel"]["fontSize"] == 24
+
+
+def test_default_empty_markers_cover_the_null_fallbacks() -> None:
+    for marker in (
+        "No results were returned for this query",
+        "No data",
+        "NULL",
+        "No data after filtering",
+        "Not available",
+    ):
+        assert marker in DEFAULT_TV_EMPTY_MARKERS
+
+
+def test_slide_annotation_is_passed_through_only_when_set() -> None:
+    bare = _tv_slide_payload({"path": ["A"], "label": "NCD"})
+    noted = _tv_slide_payload(
+        {"path": ["A"], "label": "NCD", "annotation": "  One sentence.  "}
+    )
+
+    assert "annotation" not in bare
+    assert noted["annotation"] == "One sentence."
+
+
+def test_player_reloads_once_so_the_theme_reaches_echarts() -> None:
+    player = _player()
+
+    assert "mohTvThemeApplied" in player
+    assert "reloadKeepingTheme" in player
+    assert "if (applyTheme(CFG.theme))" in player
+
+
+def test_player_raises_chrome_roles_to_the_floor() -> None:
+    player = _player()
+
+    assert ".moh-tv-strip-k{font-size:22px;" in player
+    assert "#mohTvMast .w2{font-size:22px;" in player
+    assert "setImp(title, 'font-size', '24px')" in player
+    assert "font-size:22px!important;font-weight:600" not in player
+    assert "body.moh-tv-active.idle #mohTvControls{display:none!important;}" in player
+
+
+def test_player_period_follows_the_cards_not_freshness() -> None:
+    player = _player()
+    fresh = player[player.index("function loadFreshness") :]
+    fresh = fresh[: fresh.index("function setImp")]
+
+    assert "yearFromCards" in player
+    assert "applyYear" not in fresh
+
+
+def test_player_skips_a_slide_whose_every_card_is_empty() -> None:
+    player = _player()
+
+    assert "dead === state.total" in player
+    assert "skipStreak < CFG.slides.length - 1" in player
+
+
+def _run_player_fn(fn_start: str, fn_end: str, call: str, prelude: str = "") -> str:
+    """Run a slice of the player in node and return what ``call`` prints."""
+    node = shutil.which("node") or ""
+    if not node:
+        pytest.skip("node is not installed")
+    src = _player()
+    body = src[src.index(fn_start) : src.index(fn_end)]
+    result = subprocess.run(  # noqa: S603
+        [node, "-e", prelude + "\n" + body + "\n" + call],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    return result.stdout.strip()
+
+
+def test_glyph_text_names_the_module_not_two_initials() -> None:
+    labels = [
+        "NCD - Screenings",
+        "NCD",
+        "HIV",
+        "TB",
+        "Health Equity - Simple Measures",
+        "Malaria",
+        "PHEM",
+        "Nutrition",
+        "",
+    ]
+    out = _run_player_fn(
+        "  var MODULE_CODES",
+        "  var clipped",
+        f"console.log(JSON.stringify({json.dumps(labels)}.map(glyphText)))",
+    )
+
+    assert json.loads(out) == [
+        "NCD",
+        "NCD",
+        "HIV",
+        "TB",
+        "HE",
+        "MAL",
+        "PHEM",
+        "NUT",
+        "TV",
+    ]
+
+
+def test_year_from_cards_prefers_efy_then_the_most_common_year() -> None:
+    prelude = (
+        "var TITLES = [];"
+        "function isVisible() { return true; }"
+        "var document = { querySelectorAll: function () {"
+        " return TITLES.map(function (t) { return { textContent: t }; }); } };"
+    )
+    cases = [
+        ["Cases 2018", "Deaths 2018", "Coverage 2017"],
+        ["Cases 2017 EFY/ 2024", "Deaths 2024", "Trend 2024"],
+        ["Trend by month", "Per 1000 population"],
+    ]
+    out = _run_player_fn(
+        "  var CARD_TITLE_SELECTOR",
+        "  function paintChrome",
+        f"console.log(JSON.stringify({json.dumps(cases)}.map(function (c) {{"
+        " TITLES = c; return yearFromCards(); })));",
+        prelude,
+    )
+
+    assert json.loads(out) == ["2018 EFY", "2017 EFY", ""]

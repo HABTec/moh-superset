@@ -222,6 +222,12 @@ table.regional td.value { text-align: right; font-weight: 700; color: var(--moh-
 }
 .export-row a.export-btn:hover { border-color: var(--moh-blue); color: var(--moh-blue); }
 
+.empty-note.period-unavailable {
+  color: #8F5D00;
+  border-style: solid;
+  border-color: #E5C07B;
+  background: #FFF8E6;
+}
 .empty-note {
   padding: 24px;
   text-align: center;
@@ -324,20 +330,24 @@ body.print-mode .layout { grid-template-columns: 1fr; }
     return node;
   }
 
+  // Label in bold, value as plain text: values come from the request and
+  // the database, so they must never be parsed as HTML.
+  function statusItem(label, value) {
+    var item = el('span', 'item');
+    item.appendChild(el('strong', null, label));
+    item.appendChild(document.createTextNode(' ' + value));
+    return item;
+  }
+
   function renderStatusLine(report) {
     var line = document.getElementById('statusLine');
     line.innerHTML = '';
-    var period = el('span', 'item');
-    period.innerHTML = '<strong>Period:</strong> ' + fmt(report.period);
-    line.appendChild(period);
-
-    var org = el('span', 'item');
-    org.innerHTML = '<strong>Org Unit:</strong> ' + fmt(report.orgUnit && report.orgUnit.name);
-    line.appendChild(org);
-
-    var asOf = el('span', 'item');
-    asOf.innerHTML = '<strong>Data as of:</strong> ' + (report.dataAsOf ? report.dataAsOf.slice(0, 10) : 'Not available');
-    line.appendChild(asOf);
+    line.appendChild(statusItem('Period:', fmt(report.period)));
+    line.appendChild(statusItem('Org Unit:', fmt(report.orgUnit && report.orgUnit.name)));
+    line.appendChild(statusItem(
+      'Data as of:',
+      report.dataAsOf ? report.dataAsOf.slice(0, 10) : 'Not available'
+    ));
 
     if (report.clamped) {
       var note = el('span', 'clamp-note', 'Scope limited to your assigned area');
@@ -470,6 +480,26 @@ body.print-mode .layout { grid-template-columns: 1fr; }
       container.appendChild(
         el('div', 'empty-note', 'No data is available yet for this report and organisation unit.')
       );
+      return;
+    }
+    if (report.periodUnavailable) {
+      var notice = el('div', 'empty-note period-unavailable');
+      notice.setAttribute('role', 'alert');
+      notice.appendChild(el(
+        'strong',
+        null,
+        'No data for period ' + report.period + ' and ' + fmt(report.orgUnit && report.orgUnit.name) + '.'
+      ));
+      if (report.latestPeriod) {
+        notice.appendChild(document.createTextNode(' '));
+        var latestQuery = new URLSearchParams();
+        latestQuery.set('period', report.latestPeriod);
+        if (report.orgUnit && report.orgUnit.id) latestQuery.set('org_unit', report.orgUnit.id);
+        var latestLink = el('a', null, 'View the latest period with data (' + report.latestPeriod + ')');
+        latestLink.href = EXPORT_BASE + '?' + latestQuery.toString();
+        notice.appendChild(latestLink);
+      }
+      container.appendChild(notice);
       return;
     }
     if (!report.kpis || !report.kpis.length) {

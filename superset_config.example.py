@@ -98,6 +98,23 @@ HTTP_HEADERS = {"X-Frame-Options": "ALLOWALL"}
 ENABLE_CSS_TEMPLATES = True
 
 # -----------------------------------------------------------------------------
+# MARKDOWN / HTML SANITIZATION
+# -----------------------------------------------------------------------------
+HTML_SANITIZATION = True  # keep sanitization on, but extend what's allowed
+HTML_SANITIZATION_SCHEMA_EXTENSIONS = {
+    "attributes": {
+        "*": ["style", "className", "src", "width", "height", "frameborder",
+              "marginwidth", "marginheight", "scrolling"],
+        "iframe": ["src", "width", "height", "frameborder",
+                   "marginwidth", "marginheight", "scrolling"],
+        # Lets Markdown links open outside the portal (target="_blank"
+        # rel="noopener noreferrer"); without these the sanitizer strips them.
+        "a": ["target", "rel"],
+    },
+    "tagNames": ["iframe"]
+}
+
+# -----------------------------------------------------------------------------
 # BRANDING & IDENTITY
 # -----------------------------------------------------------------------------
 VERSION_STRING = "MoH 6.0"
@@ -332,25 +349,38 @@ MOH_TV_SLIDES = []
 # MOH_TV_CANVAS_WIDTH = 1920
 # MOH_TV_CANVAS_HEIGHT = 1080
 #
-# A slide is skipped when at least this share of its charts are empty or
-# failed, or when it renders nothing. The dwell timer starts once the slide's
-# charts have loaded, waiting at most this many seconds.
+# A slide is skipped when every visible chart is empty or failed, when at
+# least this share of them are, or when it renders nothing. The dwell timer
+# starts once the slide's charts have loaded, waiting at most this many seconds.
 # MOH_TV_SKIP_EMPTY_RATIO = 0.8
 # MOH_TV_READY_TIMEOUT_SECONDS = 25
 # Yengwe identity / context strip (no database edit). Defaults are used if omitted.
 # MOH_TV_MASTHEAD_TITLE = "Ministry of Health"
 # MOH_TV_WORDMARK = "Service Delivery"
 # MOH_TV_GEOGRAPHY = "National · Ethiopia"
-# Period on the mast is the latest fiscal year from /data-freshness, not a
-# fixed 2018 / Gregorian pair.
+# Period on the mast and strip is the EFY year the visible chart titles name
+# (blank when none does). /data-freshness only feeds the "Data as of" chip.
 # MOH_TV_PERIOD = "2018 EFY"
 # Default when a slide does not name its own source. Service-delivery slides
 # use this; Health Equity / PHEM / Blood / financing / etc. are mapped in code.
 # A slide may also set "source": "EDHS · Survey" in MOH_TV_SLIDES / MOH_TV_GROUPS.
 # MOH_TV_SOURCE = "DHIS2 · Routine"
 #
-# Text that marks a chart as empty (Superset's no-results message).
-# MOH_TV_EMPTY_MARKERS = ["No results were returned for this query", "No data"]
+# Text that marks a chart as empty. The default covers Superset's no-results
+# message, the Big Number NULL fallbacks and "Not available". Setting this key
+# replaces the whole list, so keep the defaults and append any extras.
+# MOH_TV_EMPTY_MARKERS = [
+#     "No results were returned for this query",
+#     "No data",
+#     "NULL",
+#     "No data after filtering",
+#     "Try applying different filters",
+#     "Not available",
+# ]
+#
+# A slide in MOH_TV_SLIDES / MOH_TV_GROUPS may set "annotation": one sentence,
+# written by the indicator owner, shown at 26 px under the slide title. Leave
+# it out until the owner supplies the copy.
 
 # -----------------------------------------------------------------------------
 # REDIS

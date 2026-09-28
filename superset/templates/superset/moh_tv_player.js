@@ -38,6 +38,13 @@
   }
 
   var THEME_KEY = 'superset-dev-theme-override';
+  var THEME_APPLIED_KEY = 'mohTvThemeApplied';
+  // ThemeController reads THEME_KEY once, when the app boots. Record what it
+  // saw so the player knows whether one reload is needed to pick up the theme.
+  var bootTheme = null;
+  try { bootTheme = localStorage.getItem(THEME_KEY); } catch (err) { /* blocked */ }
+  // True while the player itself reloads the page: the theme must survive.
+  var keepTheme = false;
   var CFG = {
     canvas: { width: 1920, height: 1080 },
     skipEmptyRatio: 0.8,
@@ -74,6 +81,7 @@
       'html.moh-tv-active,body.moh-tv-active{margin:0;height:100%;' +
       'background:var(--tv-letterbox);overflow:hidden;}' +
       'body.moh-tv-active.idle{cursor:none;}' +
+      'body.moh-tv-active.idle #mohTvControls{display:none!important;}' +
       '#mohTvPanel{position:fixed;inset:0;background:var(--tv-letterbox);' +
       'overflow:hidden;z-index:40;}' +
       '#mohTvScreen{position:absolute;left:0;top:0;width:1920px;height:1080px;' +
@@ -83,7 +91,7 @@
       'display:flex;align-items:center;gap:20px;padding:0 40px;color:#fff;}' +
       '#mohTvMast img{width:52px;height:52px;object-fit:contain;flex:none;}' +
       '#mohTvMast .w1{font-size:27px;font-weight:700;letter-spacing:-.01em;}' +
-      '#mohTvMast .w2{font-size:19px;font-weight:500;color:rgba(255,255,255,.72);}' +
+      '#mohTvMast .w2{font-size:22px;font-weight:500;color:rgba(255,255,255,.72);}' +
       '#mohTvMast .cal{margin-left:auto;text-align:right;}' +
       '#mohTvMast .c1{font-size:23px;font-weight:600;}' +
       '#mohTvMast .c2{font-size:17px;color:rgba(255,255,255,.62);}' +
@@ -91,7 +99,7 @@
       'border-bottom:2px solid var(--tv-rule);display:flex;align-items:center;' +
       'gap:20px;padding:0 40px;}' +
       '.moh-tv-strip-item{display:flex;flex-direction:column;gap:2px;min-width:0;}' +
-      '.moh-tv-strip-k{font-size:18px;font-weight:600;letter-spacing:.1em;' +
+      '.moh-tv-strip-k{font-size:22px;font-weight:600;letter-spacing:.1em;' +
       'text-transform:uppercase;color:var(--tv-ink-3);}' +
       '.moh-tv-strip-v{font-size:24px;font-weight:600;white-space:nowrap;}' +
       '.moh-tv-strip-sep{width:1px;align-self:stretch;background:var(--tv-rule);' +
@@ -107,7 +115,12 @@
       '#mohTvGlyph{min-width:54px;height:54px;padding:0 12px;border-radius:11px;' +
       'background:var(--tv-mod);color:#fff;display:flex;align-items:center;' +
       'justify-content:center;font-size:22px;font-weight:700;}' +
+      '#mohTvHead.has-note{height:auto;min-height:var(--tv-head-h);padding:8px 40px;}' +
+      '#mohTvSlideText{display:flex;flex-direction:column;min-width:0;}' +
       '#mohTvSlideTitle{font-size:44px;font-weight:700;letter-spacing:-.015em;line-height:1.1;}' +
+      '#mohTvSlideNote{display:none;font-size:26px;font-weight:500;line-height:1.25;' +
+      'color:var(--tv-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '#mohTvHead.has-note #mohTvSlideNote{display:block;}' +
       '#mohTvStage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:#fff;}' +
       '#mohTvStage #app{height:100%;overflow:hidden;}' +
       '#mohTvLabel{position:absolute;left:16px;bottom:10px;z-index:10;' +
@@ -166,7 +179,10 @@
         '</div>' +
         '<div id="mohTvHead">' +
           '<div id="mohTvGlyph">TV</div>' +
-          '<div id="mohTvSlideTitle"></div>' +
+          '<div id="mohTvSlideText">' +
+            '<div id="mohTvSlideTitle"></div>' +
+            '<div id="mohTvSlideNote"></div>' +
+          '</div>' +
         '</div>' +
         '<div id="mohTvStage"><div id="mohTvLabel"></div></div>' +
       '</div>';
@@ -239,33 +255,73 @@
     fsBtn.textContent = full ? '⛶ Exit' : '⛶ Fullscreen';
   }
 
+  function reloadKeepingTheme() {
+    keepTheme = true;
+    window.location.reload();
+  }
+
+  /**
+   * Hand the TV theme to ThemeController. It only reads the override while the
+   * app boots, which is before this player has its config, so the first visit
+   * stores the theme and reloads once. Returns true when a reload is underway.
+   * The session flag caps it at one reload, even if storage silently fails.
+   */
   function applyTheme(theme) {
     if (!theme) {
-      return;
+      return false;
     }
     try {
-      localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+      var json = JSON.stringify(theme);
+      localStorage.setItem(THEME_KEY, json);
       window.addEventListener('pagehide', function () {
-        try { localStorage.removeItem(THEME_KEY); } catch (err) { /* ignore */ }
+        if (keepTheme) {
+          return;
+        }
+        try {
+          localStorage.removeItem(THEME_KEY);
+          sessionStorage.removeItem(THEME_APPLIED_KEY);
+        } catch (err) { /* ignore */ }
       });
+      if (bootTheme !== json && !sessionStorage.getItem(THEME_APPLIED_KEY)) {
+        sessionStorage.setItem(THEME_APPLIED_KEY, '1');
+        reloadKeepingTheme();
+        return true;
+      }
     } catch (err) { /* storage blocked */ }
+    return false;
   }
 
   function setAccent(color) {
     document.documentElement.style.setProperty('--tv-mod', color || '#0374B8');
   }
 
+  var MODULE_CODES = ['NCD', 'HIV', 'TB', 'PHEM', 'PHC', 'HE', 'MAL'];
+  var MODULE_NAMES = [
+    [/^health\s+equity\b/i, 'HE'],
+    [/^malaria\b/i, 'MAL'],
+  ];
+
+  // Chip text: a module code where there is one, never the first letters of
+  // two words ("NCD - Screenings" must read NCD, not N-).
   function glyphText(title) {
-    var words = String(title || '').trim().split(/\s+/).filter(Boolean);
+    var text = String(title || '').trim();
+    for (var m = 0; m < MODULE_NAMES.length; m += 1) {
+      if (MODULE_NAMES[m][0].test(text)) {
+        return MODULE_NAMES[m][1];
+      }
+    }
+    var head = text.split(/\s+[-–—]\s+/)[0];
+    var words = head.split(/\s+/).filter(function (word) {
+      return /[A-Za-z0-9]/.test(word);
+    });
     if (!words.length) {
       return 'TV';
     }
-    if (words.length === 1) {
-      return words[0].slice(0, 3).toUpperCase();
+    var first = words[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (MODULE_CODES.indexOf(first) !== -1) {
+      return first;
     }
-    return words.slice(0, 2).map(function (word) {
-      return word[0];
-    }).join('').toUpperCase();
+    return first.slice(0, 3);
   }
 
   var clipped = false;
@@ -274,7 +330,7 @@
   var liveYear = '';
 
   function applyYear(year) {
-    if (year) {
+    if (year !== undefined) {
       liveYear = year;
     }
     var shown = liveYear || '';
@@ -286,12 +342,40 @@
     }
   }
 
-  function yearFromPeriod(period) {
-    if (!period || period.fiscalYear == null) {
-      return '';
-    }
-    var fy = String(period.fiscalYear);
-    return /^\d{4}$/.test(fy) ? fy + ' EFY' : fy;
+  var CARD_TITLE_SELECTOR =
+    '.dashboard-component-chart-holder .header-title,' +
+    '.dashboard-component-chart-holder [data-test="editable-title"]';
+
+  /**
+   * The year the visible cards report, as "{year} EFY". Years the title marks
+   * as EFY win over bare ones (so "2017 EFY/ 2024" reads 2017); otherwise the
+   * most common year, the latest on a tie. Empty when no card names a year:
+   * the strip stays blank rather than inventing one.
+   */
+  function yearFromCards() {
+    var tagged = {};
+    var bare = {};
+    document.querySelectorAll(CARD_TITLE_SELECTOR).forEach(function (el) {
+      if (!isVisible(el)) {
+        return;
+      }
+      var text = el.textContent || '';
+      var re = /\b((?:19|20)\d{2})\b(\s*E\.?F\.?Y)?/gi;
+      var hit;
+      while ((hit = re.exec(text))) {
+        var bucket = hit[2] ? tagged : bare;
+        bucket[hit[1]] = (bucket[hit[1]] || 0) + 1;
+      }
+    });
+    var counts = Object.keys(tagged).length ? tagged : bare;
+    var best = '';
+    Object.keys(counts).forEach(function (year) {
+      if (!best || counts[year] > counts[best]
+          || (counts[year] === counts[best] && year > best)) {
+        best = year;
+      }
+    });
+    return best ? best + ' EFY' : '';
   }
 
   function paintChrome(n) {
@@ -301,7 +385,7 @@
     setAccent(slide.accent || '#0374B8');
     if ($('mohTvTitle')) $('mohTvTitle').textContent = chrome.title || 'Ministry of Health';
     if ($('mohTvWord')) $('mohTvWord').textContent = chrome.wordmark || '';
-    applyYear(liveYear);
+    applyYear();
     if ($('mohTvLogo') && chrome.logoUrl) $('mohTvLogo').src = chrome.logoUrl;
     if ($('mohTvGeo')) $('mohTvGeo').textContent = chrome.geography || '';
     if ($('mohTvSource')) {
@@ -309,6 +393,8 @@
         sourcesFromChartTitles() || slide.source || chrome.source || '';
     }
     if ($('mohTvSlideTitle')) $('mohTvSlideTitle').textContent = title;
+    if ($('mohTvSlideNote')) $('mohTvSlideNote').textContent = slide.annotation || '';
+    if ($('mohTvHead')) $('mohTvHead').classList.toggle('has-note', !!slide.annotation);
     if ($('mohTvGlyph')) $('mohTvGlyph').textContent = glyphText(title);
     var label = $('mohTvLabel');
     if (label) {
@@ -385,7 +471,6 @@
         var period =
           (data.sources && data.sources.routine && data.sources.routine.monthly)
           || (data.sources && data.sources.routine && data.sources.routine.quarterly);
-        applyYear(yearFromPeriod(period));
         var asOf = formatFreshness(period);
         if (asOf) {
           text.textContent = 'Data as of ' + asOf;
@@ -444,7 +529,7 @@
       setImp(title, 'min-width', '0');
       setImp(title, 'height', '40px');
       setImp(title, 'line-height', '40px');
-      setImp(title, 'font-size', '22px');
+      setImp(title, 'font-size', '24px');
       setImp(title, 'font-weight', '600');
       setImp(title, 'white-space', 'nowrap');
       setImp(title, 'overflow', 'hidden');
@@ -452,6 +537,72 @@
       setImp(title, '-webkit-line-clamp', '1');
       setImp(title, '-webkit-box-orient', 'unset');
     });
+  }
+
+  var FLOOR_PX = 22;
+  // DOM text the ECharts theme cannot reach: table cells, Handlebars cards and
+  // the deck.gl HTML legend (its styled root carries the class "dupa").
+  var DOM_TEXT_SELECTOR =
+    '.dashboard-component-chart-holder td,' +
+    '.dashboard-component-chart-holder th,' +
+    '.dashboard-component-chart-holder .handlebars *,' +
+    '.dashboard-component-chart-holder .dupa *';
+
+  // Raise DOM chart text below the floor. Larger text (a Handlebars headline
+  // number, for example) keeps its own size, which a blanket CSS rule would not.
+  function floorDomText() {
+    var stage = $('mohTvStage');
+    if (!stage) {
+      return;
+    }
+    stage.querySelectorAll(DOM_TEXT_SELECTOR).forEach(function (el) {
+      var size = parseFloat(window.getComputedStyle(el).fontSize);
+      if (size && size < FLOOR_PX) {
+        setImp(el, 'font-size', FLOOR_PX + 'px');
+      }
+    });
+  }
+
+  var EMPTY_ATTR = 'data-moh-tv-empty';
+  // Superset's Big Number fallbacks (BigNumberViz.tsx), which leak NULL and
+  // filter jargon onto the wall.
+  var NULL_SENTENCE =
+    /No data after filtering|data is NULL|latest time record|Try applying different filters/i;
+
+  /**
+   * Swap Superset's NULL fallbacks for plain words on the TV only (the desktop
+   * dashboard keeps its own wording). A card that was swapped is flagged so
+   * slideState() still counts it as empty.
+   */
+  function replaceNullText() {
+    var year = liveYear || yearFromCards();
+    var sentence = year
+      ? 'No case data was returned for ' + year + '.'
+      : 'No case data was returned.';
+    document.querySelectorAll('[data-test="dashboard-component-chart-holder"]')
+      .forEach(function (holder) {
+        if (!isVisible(holder)) {
+          return;
+        }
+        var walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT);
+        var node;
+        while ((node = walker.nextNode())) {
+          var text = node.nodeValue || '';
+          if (NULL_SENTENCE.test(text)
+              || (/^No case data was returned/.test(text) && text !== sentence)) {
+            node.nodeValue = sentence;
+          } else if (text.trim() === 'NULL') {
+            node.nodeValue = '—';
+          }
+        }
+        // Re-derived on every pass so a card that later renders data is not
+        // left flagged as empty.
+        if ((holder.textContent || '').indexOf('No case data was returned') !== -1) {
+          holder.setAttribute(EMPTY_ATTR, '1');
+        } else {
+          holder.removeAttribute(EMPTY_ATTR);
+        }
+      });
   }
 
   function unlockScroll() {
@@ -493,9 +644,12 @@
       'html.moh-tv-active .dashboard-component-chart-holder [data-test="editable-title"]' +
       '{display:block!important;flex:1 1 auto!important;width:100%!important;' +
       'max-width:100%!important;min-width:0!important;height:40px!important;' +
-      'line-height:40px!important;font-size:22px!important;font-weight:600!important;' +
+      'line-height:40px!important;font-size:24px!important;font-weight:600!important;' +
       'white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;' +
-      '-webkit-line-clamp:1!important;}';
+      '-webkit-line-clamp:1!important;}' +
+      // An unattended panel cannot scroll: show every deck.gl legend band.
+      '#mohTvStage .dashboard-component-chart-holder .dupa' +
+      '{overflow:visible!important;max-height:none!important;}';
     alignChartTitles();
   }
 
@@ -541,6 +695,12 @@
     unlockScroll();
     hideTabBars();
     alignChartTitles();
+    floorDomText();
+    var year = yearFromCards();
+    if (year) {
+      liveYear = year;
+    }
+    replaceNullText();
     wireResizeObserver();
     var stage = $('mohTvStage');
     var stageH = (stage && stage.clientHeight) || CFG.canvas.height;
@@ -613,6 +773,8 @@
           st.loading += 1;
         } else if (holder.querySelector('.ant-alert-error,[data-test="error-message"]')) {
           st.error += 1;
+        } else if (holder.hasAttribute(EMPTY_ATTR)) {
+          st.empty += 1;
         } else {
           var text = holder.textContent || '';
           if (CFG.emptyMarkers.some(function (marker) {
@@ -663,8 +825,9 @@
     fit();
     var state = slideState();
     var blank = state.total === 0 && contentHeight() < 120;
+    var dead = state.empty + state.error;
     var unusable = state.total > 0
-      && (state.empty + state.error) / state.total >= CFG.skipEmptyRatio;
+      && (dead === state.total || dead / state.total >= CFG.skipEmptyRatio);
     if ((blank || unusable) && CFG.slides.length > 1
         && skipStreak < CFG.slides.length - 1) {
       skipStreak += 1;
@@ -694,6 +857,7 @@
   async function run(n) {
     var my = ++token;
     clipped = false;
+    liveYear = '';
     paintChrome(n);
     stopTimer();
     if (!(await waitForGrid(my)) || my !== token) {
@@ -782,9 +946,7 @@
     }
     next();
     if (CFG.reloadMinutes > 0) {
-      setInterval(function () {
-        window.location.reload();
-      }, CFG.reloadMinutes * 60000);
+      setInterval(reloadKeepingTheme, CFG.reloadMinutes * 60000);
     }
   }
 
@@ -796,7 +958,9 @@
     CFG.emptyMarkers = CFG.emptyMarkers || [];
     CFG.chrome = CFG.chrome || {};
     CFG.slides = CFG.slides || [];
-    applyTheme(CFG.theme);
+    if (applyTheme(CFG.theme)) {
+      return;
+    }
     startPlayer();
   }
 

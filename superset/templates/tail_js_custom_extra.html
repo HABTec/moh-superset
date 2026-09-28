@@ -24,6 +24,221 @@
     scripts to initialize google analytics, intercom, segment, etc.
   #}
 
+  {#
+    Portal shell for readers: every signed-in non-admin sees the MoH portal
+    bar instead of Superset's own navigation (Home / Dashboards / Charts /
+    Settings). Admins keep the Superset navbar so they can still build and
+    edit. Anonymous and embedded (guest-token) sessions are left alone.
+  #}
+  {% set moh_portal_shell = current_user is defined
+       and current_user.is_authenticated
+       and not appbuilder.sm.is_admin() %}
+  {% if moh_portal_shell %}
+  <style>
+    body.moh-portal-shell #main-menu {
+      display: none !important;
+    }
+
+    .moh-portal-bar {
+      display: none;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 24px;
+      background: #ffffff;
+      border-bottom: 1px solid #d6e3ff;
+      color: #0a2540;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      position: relative;
+      z-index: 1000;
+    }
+
+    body.moh-portal-shell .moh-portal-bar {
+      display: flex;
+    }
+
+    .moh-portal-bar .moh-portal-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .moh-portal-bar .moh-portal-logo {
+      height: 40px;
+      width: auto;
+      display: block;
+    }
+
+    .moh-portal-bar .moh-portal-title {
+      padding-left: 14px;
+      border-left: 1px solid #d6e3ff;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #6b7c93;
+    }
+
+    .moh-portal-bar nav {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-left: auto;
+    }
+
+    .moh-portal-bar nav a,
+    .moh-portal-bar nav .moh-portal-user {
+      color: #0a2540;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 4px 0;
+      border-bottom: 2px solid transparent;
+    }
+
+    .moh-portal-bar nav a:hover,
+    .moh-portal-bar nav a:focus-visible {
+      color: #1a5cff;
+      border-bottom-color: #1a5cff;
+    }
+
+    .moh-portal-bar nav .moh-portal-user {
+      font-weight: 500;
+      color: #6b7c93;
+    }
+
+    .moh-portal-bar nav a.moh-portal-logout {
+      color: #6b7c93;
+      font-weight: 500;
+    }
+
+    .moh-portal-menu-toggle {
+      display: none;
+      margin-left: auto;
+      background: none;
+      border: none;
+      padding: 8px;
+      cursor: pointer;
+      color: #0a2540;
+    }
+
+    @media (max-width: 760px) {
+      .moh-portal-bar {
+        padding: 8px 12px;
+      }
+      .moh-portal-bar .moh-portal-logo {
+        height: 34px;
+      }
+      .moh-portal-bar .moh-portal-title {
+        display: none;
+      }
+      .moh-portal-menu-toggle {
+        display: block;
+      }
+      .moh-portal-bar nav {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        background: #ffffff;
+        border-bottom: 1px solid #d6e3ff;
+        box-shadow: 0 12px 24px rgba(10, 37, 64, 0.12);
+      }
+      .moh-portal-bar nav.open {
+        display: flex;
+      }
+      .moh-portal-bar nav a,
+      .moh-portal-bar nav .moh-portal-user {
+        padding: 14px 16px;
+        border-bottom: 1px solid #eef4ff;
+      }
+    }
+
+    @media print {
+      .moh-portal-bar {
+        display: none !important;
+      }
+    }
+  </style>
+
+  <header class="moh-portal-bar" id="mohPortalBar">
+    <a class="moh-portal-brand" href="/" aria-label="MOH Analytics Portal home">
+      <img class="moh-portal-logo" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+      <span class="moh-portal-title">MOH ANALYTICS PORTAL</span>
+    </a>
+    <button class="moh-portal-menu-toggle" id="mohPortalMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="mohPortalNav">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <nav id="mohPortalNav" aria-label="Portal">
+      <a href="/">Home</a>
+      <a href="/reports/">Reports</a>
+      <a href="/guide/">User Guide</a>
+      <a href="/feedback/">Feedback</a>
+      <span class="moh-portal-user">{{ current_user.first_name or current_user.username }}</span>
+      <a class="moh-portal-logout" href="/logout/">Sign out</a>
+    </nav>
+  </header>
+
+  <script nonce="{{ macros.get_nonce() }}">
+    (function() {
+      var bar = document.getElementById('mohPortalBar');
+      if (!bar) {
+        return;
+      }
+      // TV and embedded (iframe) views never show navigation.
+      if (window.self !== window.top
+          || /[?&](_tv|moh_tv)=/.test(window.location.search || '')) {
+        bar.parentNode.removeChild(bar);
+        return;
+      }
+      var app = document.getElementById('app');
+      document.body.insertBefore(bar, app || document.body.firstChild);
+
+      // Standalone/fullscreen is toggled in place (history.replaceState),
+      // so re-check on every URL change, not only on load.
+      function syncShell() {
+        var standalone = /[?&]standalone=/.test(window.location.search || '');
+        document.body.classList.toggle('moh-portal-shell', !standalone);
+      }
+      ['pushState', 'replaceState'].forEach(function(method) {
+        var original = window.history[method];
+        window.history[method] = function() {
+          var result = original.apply(this, arguments);
+          syncShell();
+          return result;
+        };
+      });
+      window.addEventListener('popstate', syncShell);
+      syncShell();
+
+      var toggle = document.getElementById('mohPortalMenuToggle');
+      var nav = document.getElementById('mohPortalNav');
+      if (toggle && nav) {
+        toggle.addEventListener('click', function(event) {
+          event.stopPropagation();
+          var open = nav.classList.toggle('open');
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        document.addEventListener('click', function(event) {
+          if (!bar.contains(event.target)) {
+            nav.classList.remove('open');
+            toggle.setAttribute('aria-expanded', 'false');
+          }
+        });
+      }
+    })();
+  </script>
+  {% endif %}
+
   <style>
     .moh-ai-overlay {
       position: fixed;
@@ -55,6 +270,63 @@
       box-shadow: 0 20px 36px rgba(0, 0, 0, 0.24);
     }
 
+    /* Draggable launcher: touch-action none so a finger drag moves the
+       button instead of scrolling the page. */
+    .moh-ai-toggle {
+      touch-action: none;
+    }
+
+    .moh-ai-overlay.dragging .moh-ai-toggle {
+      cursor: grabbing;
+      transform: none;
+    }
+
+    .moh-ai-overlay.dismissed {
+      display: none;
+    }
+
+    .moh-ai-dismiss {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      background: #ffffff;
+      color: #1f2933;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .moh-ai-overlay:hover .moh-ai-dismiss,
+    .moh-ai-overlay:focus-within .moh-ai-dismiss {
+      opacity: 1;
+    }
+
+    /* No hover on touch screens: keep the dismiss control visible. */
+    @media (hover: none) {
+      .moh-ai-dismiss {
+        opacity: 1;
+      }
+    }
+
+    /* Open the panel toward the side of the screen that has room once the
+       launcher has been dragged into the left or top half. */
+    .moh-ai-overlay.anchor-left .moh-ai-panel {
+      right: auto;
+      left: 0;
+    }
+
+    .moh-ai-overlay.anchor-top .moh-ai-panel {
+      bottom: auto;
+      top: 76px;
+    }
+
     .moh-ai-panel {
       position: absolute;
       right: 0;
@@ -62,6 +334,8 @@
       width: 620px;
       max-width: calc(100vw - 32px);
       height: 720px;
+      /* Keep the panel on screen on short viewports (launcher + gap = 96px). */
+      max-height: calc(100vh - 96px);
       background: #ffffff;
       border-radius: 18px;
       border: 1px solid rgba(15, 23, 42, 0.08);
@@ -108,6 +382,12 @@
       background: #f7f9fc;
     }
 
+    @media print {
+      .moh-ai-overlay {
+        display: none !important;
+      }
+    }
+
     @media (max-width: 640px) {
       .moh-ai-overlay {
         right: 12px;
@@ -129,9 +409,10 @@
   </style>
 
   <div class="moh-ai-overlay" id="mohAiOverlay">
-    <button class="moh-ai-toggle" id="mohAiToggle" aria-expanded="false" aria-label="Open ASK AI Assistant">
+    <button class="moh-ai-toggle" id="mohAiToggle" aria-expanded="false" aria-label="Open ASK AI Assistant" title="Open ASK AI (drag to move)">
       ASK AI
     </button>
+    <button class="moh-ai-dismiss" id="mohAiDismiss" aria-label="Hide ASK AI for this session" title="Hide for this session">×</button>
 
     <div class="moh-ai-panel" id="mohAiPanel" role="dialog" aria-label="ASK AI Assistant">
       <header>
@@ -183,7 +464,7 @@
         }
         if (tvQuery.qs.indexOf('moh_tv=') !== -1) {
           var player = document.createElement('script');
-          player.src = '/moh-static/moh_tv_player.js?v=year-dyn-1';
+          player.src = '/moh-static/moh_tv_player.js?v=yengwe-slice1-1';
           var nonce = document.currentScript && document.currentScript.nonce;
           if (nonce) {
             player.nonce = nonce;
@@ -192,6 +473,160 @@
         }
         return;
       }
+
+      var overlay = document.getElementById('mohAiOverlay');
+      var dismissButton = document.getElementById('mohAiDismiss');
+      var POSITION_KEY = 'mohAiLauncherPosition';
+      var DISMISSED_KEY = 'mohAiLauncherDismissed';
+      var DRAG_THRESHOLD_PX = 5;
+      var EDGE_GAP_PX = 8;
+
+      // sessionStorage can throw (private mode, blocked site data); the
+      // launcher must still work, just without remembering anything.
+      function readSession(key) {
+        try {
+          return window.sessionStorage.getItem(key);
+        } catch (err) {
+          return null;
+        }
+      }
+
+      function writeSession(key, value) {
+        try {
+          window.sessionStorage.setItem(key, value);
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      if (readSession(DISMISSED_KEY) === '1') {
+        overlay.classList.add('dismissed');
+        return;
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), Math.max(min, max));
+      }
+
+      // The panel sits 20px beyond the launcher (bottom/top: 76px on a 56px
+      // button); keep it inside the viewport on whichever side it opens.
+      var PANEL_GAP_PX = 20;
+      var PANEL_MIN_HEIGHT_PX = 240;
+
+      function updateAnchors() {
+        var rect = toggle.getBoundingClientRect();
+        var anchorTop = rect.top + rect.height / 2 < window.innerHeight / 2;
+        overlay.classList.toggle(
+          'anchor-left',
+          rect.left + rect.width / 2 < window.innerWidth / 2,
+        );
+        overlay.classList.toggle('anchor-top', anchorTop);
+        var available = anchorTop
+          ? window.innerHeight - rect.bottom - PANEL_GAP_PX - EDGE_GAP_PX
+          : rect.top - PANEL_GAP_PX - EDGE_GAP_PX;
+        panel.style.maxHeight = Math.max(PANEL_MIN_HEIGHT_PX, available) + 'px';
+      }
+
+      // Position is stored as right/bottom offsets so the launcher keeps its
+      // corner relationship when the window is resized.
+      function placeOverlay(right, bottom) {
+        var width = toggle.offsetWidth;
+        var height = toggle.offsetHeight;
+        var safeRight = clamp(right, EDGE_GAP_PX, window.innerWidth - width - EDGE_GAP_PX);
+        var safeBottom = clamp(bottom, EDGE_GAP_PX, window.innerHeight - height - EDGE_GAP_PX);
+        overlay.style.right = safeRight + 'px';
+        overlay.style.bottom = safeBottom + 'px';
+        updateAnchors();
+        return { right: safeRight, bottom: safeBottom };
+      }
+
+      var savedPosition = readSession(POSITION_KEY);
+      if (savedPosition) {
+        try {
+          var parsed = JSON.parse(savedPosition);
+          if (typeof parsed.right === 'number' && typeof parsed.bottom === 'number') {
+            placeOverlay(parsed.right, parsed.bottom);
+          }
+        } catch (err) {
+          // ignore a malformed value
+        }
+      }
+
+      var drag = null;
+      var suppressNextClick = false;
+
+      toggle.addEventListener('pointerdown', function(event) {
+        if (event.button !== undefined && event.button !== 0) {
+          return;
+        }
+        var rect = overlay.getBoundingClientRect();
+        drag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          startRight: window.innerWidth - rect.right,
+          startBottom: window.innerHeight - rect.bottom,
+          moved: false,
+        };
+      });
+
+      // Listen on window: the pointer leaves the 56px button almost as soon
+      // as a drag starts, so button-level move events would stop arriving.
+      window.addEventListener('pointermove', function(event) {
+        if (!drag || event.pointerId !== drag.pointerId) {
+          return;
+        }
+        var dx = event.clientX - drag.startX;
+        var dy = event.clientY - drag.startY;
+        if (!drag.moved && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD_PX) {
+          return;
+        }
+        if (!drag.moved) {
+          drag.moved = true;
+          overlay.classList.add('dragging');
+        }
+        placeOverlay(drag.startRight - dx, drag.startBottom - dy);
+      });
+
+      function endDrag(event) {
+        if (!drag || event.pointerId !== drag.pointerId) {
+          return;
+        }
+        if (drag.moved) {
+          // A drag released over the button still fires a click there; do
+          // not let it open the panel.
+          suppressNextClick = toggle.contains(event.target)
+            || toggle === document.elementFromPoint(event.clientX, event.clientY);
+          overlay.classList.remove('dragging');
+          var rect = overlay.getBoundingClientRect();
+          writeSession(
+            POSITION_KEY,
+            JSON.stringify({
+              right: window.innerWidth - rect.right,
+              bottom: window.innerHeight - rect.bottom,
+            }),
+          );
+        }
+        drag = null;
+      }
+
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
+
+      window.addEventListener('resize', function() {
+        var rect = overlay.getBoundingClientRect();
+        placeOverlay(window.innerWidth - rect.right, window.innerHeight - rect.bottom);
+      });
+
+      if (dismissButton) {
+        dismissButton.addEventListener('click', function(event) {
+          event.stopPropagation();
+          writeSession(DISMISSED_KEY, '1');
+          overlay.classList.add('dismissed');
+        });
+      }
+
+      updateAnchors();
 
       function openPanel() {
         panel.classList.add('open');
@@ -213,6 +648,10 @@
 
       toggle.addEventListener('click', function(event) {
         event.stopPropagation();
+        if (suppressNextClick) {
+          suppressNextClick = false;
+          return;
+        }
         togglePanel();
       });
 

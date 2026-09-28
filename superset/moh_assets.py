@@ -25,15 +25,15 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import (
-    Blueprint,
-    Response,
     abort,
+    Blueprint,
     current_app,
     jsonify,
     make_response,
     redirect,
     render_template,
     request,
+    Response,
     send_from_directory,
 )
 from flask_login import current_user
@@ -47,9 +47,7 @@ moh_assets_bp = Blueprint(
 # Add new files here to expose them. The directory below is git-tracked and
 # never touched by webpack, so files placed here are durable across builds
 # and deployments.
-_BRAND_ASSET_DIR = os.path.join(
-    os.path.dirname(__file__), "templates", "superset"
-)
+_BRAND_ASSET_DIR = os.path.join(os.path.dirname(__file__), "templates", "superset")
 _ALLOWED_FILES: set[str] = {
     "logomohnewww.png",
     "moh_icon.png",
@@ -191,6 +189,7 @@ _TV_PAGE = """<!doctype html>
   }
   html, body { margin: 0; height: 100%; background: var(--tv-letterbox); overflow: hidden; }
   body.idle { cursor: none; }
+  body.idle #controls { display: none; }
   #panel { position: fixed; inset: 0; background: var(--tv-letterbox); overflow: hidden; }
   #screen {
     position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
@@ -204,7 +203,7 @@ _TV_PAGE = """<!doctype html>
   }
   #mast img { width: 52px; height: 52px; object-fit: contain; flex: none; }
   #mast .w1 { font-size: 27px; font-weight: 700; letter-spacing: -.01em; }
-  #mast .w2 { font-size: 19px; font-weight: 500; color: rgba(255,255,255,.72); }
+  #mast .w2 { font-size: 22px; font-weight: 500; color: rgba(255,255,255,.72); }
   #mast .cal { margin-left: auto; text-align: right; }
   #mast .c1 { font-size: 23px; font-weight: 600; }
   #mast .c2 { font-size: 17px; color: rgba(255,255,255,.62); }
@@ -215,7 +214,7 @@ _TV_PAGE = """<!doctype html>
   }
   .strip-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .strip-k {
-    font-size: 18px; font-weight: 600; letter-spacing: .1em;
+    font-size: 22px; font-weight: 600; letter-spacing: .1em;
     text-transform: uppercase; color: var(--tv-ink-3);
   }
   .strip-v { font-size: 24px; font-weight: 600; white-space: nowrap; }
@@ -449,11 +448,18 @@ _TV_PAGE = """<!doctype html>
         document.documentElement.style.setProperty('--tv-mod', color || '#0374B8');
       }
 
+      // Same rule as glyphText() in moh_tv_player.js.
+      const MODULE_CODES = ['NCD', 'HIV', 'TB', 'PHEM', 'PHC', 'HE', 'MAL'];
+      const MODULE_NAMES = [[/^health\\s+equity\\b/i, 'HE'], [/^malaria\\b/i, 'MAL']];
       function glyphText(title) {
-        const words = String(title || '').trim().split(/\s+/).filter(Boolean);
+        const text = String(title || '').trim();
+        const named = MODULE_NAMES.find(([re]) => re.test(text));
+        if (named) return named[1];
+        const words = text.split(/\\s+[-–—]\\s+/)[0].split(/\\s+/)
+          .filter(w => /[A-Za-z0-9]/.test(w));
         if (!words.length) return 'TV';
-        if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-        return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+        const first = words[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        return MODULE_CODES.includes(first) ? first : first.slice(0, 3);
       }
 
       function paintChrome(n) {
@@ -487,7 +493,7 @@ _TV_PAGE = """<!doctype html>
       function formatFreshness(period) {
         if (!period || period.fiscalYear == null) return null;
         const fy = String(period.fiscalYear);
-        const year = /^\d{4}$/.test(fy) ? fy + ' EFY' : fy;
+        const year = /^\\d{4}$/.test(fy) ? fy + ' EFY' : fy;
         const extra = period.monthName || (period.quarter != null ? ('Q' + period.quarter) : '');
         return extra ? year + ' · ' + extra : year;
       }
@@ -677,8 +683,9 @@ _TV_PAGE = """<!doctype html>
         const doc = safeDoc();
         const st = slideState(doc);
         const blank = st.total === 0 && contentHeight(doc) < 120;
+        const dead = st.empty + st.error;
         const unusable = st.total > 0 &&
-          (st.empty + st.error) / st.total >= CFG.skipEmptyRatio;
+          (dead === st.total || dead / st.total >= CFG.skipEmptyRatio);
         if ((blank || unusable) && CFG.slides.length > 1
             && skipStreak < CFG.slides.length - 1) {
           skipStreak++;
@@ -827,6 +834,19 @@ def default_tv_theme(tokens: dict[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
+# Text that marks a chart as empty on the wall TV: Superset's no-results
+# message, the Big Number NULL fallbacks (BigNumberViz.tsx) and the
+# "Not available" KPI wording.
+DEFAULT_TV_EMPTY_MARKERS: tuple[str, ...] = (
+    "No results were returned for this query",
+    "No data",
+    "NULL",
+    "No data after filtering",
+    "Try applying different filters",
+    "Not available",
+)
+
+
 def _tv_options(wordmark: str | None = None) -> dict[str, Any]:
     """Shell behaviour settings, read from config with safe defaults."""
     config = current_app.config
@@ -842,19 +862,14 @@ def _tv_options(wordmark: str | None = None) -> dict[str, Any]:
         "skipEmptyRatio": float(config.get("MOH_TV_SKIP_EMPTY_RATIO", 0.8)),
         "readyTimeoutMs": int(config.get("MOH_TV_READY_TIMEOUT_SECONDS", 25)) * 1000,
         "emptyMarkers": list(
-            config.get(
-                "MOH_TV_EMPTY_MARKERS",
-                ["No results were returned for this query", "No data"],
-            )
+            config.get("MOH_TV_EMPTY_MARKERS", DEFAULT_TV_EMPTY_MARKERS)
         ),
         "chrome": {
             "title": str(config.get("MOH_TV_MASTHEAD_TITLE") or "Ministry of Health"),
             "wordmark": str(
                 config.get("MOH_TV_WORDMARK") or wordmark or "Service Delivery"
             ),
-            "geography": str(
-                config.get("MOH_TV_GEOGRAPHY") or "National · Ethiopia"
-            ),
+            "geography": str(config.get("MOH_TV_GEOGRAPHY") or "National · Ethiopia"),
             "period": str(config.get("MOH_TV_PERIOD") or ""),
             "source": str(config.get("MOH_TV_SOURCE") or "DHIS2 · Routine"),
             "logoUrl": str(
@@ -869,7 +884,7 @@ def _tv_slide_payload(slide: dict) -> dict[str, Any]:
     path = [str(part) for part in slide.get("path", [])]
     label = str(slide.get("label", "") or "")
     explicit = slide.get("source")
-    return {
+    payload: dict[str, Any] = {
         "path": path,
         "label": label,
         "accent": tv_slide_accent(label, path),
@@ -879,6 +894,11 @@ def _tv_slide_payload(slide: dict) -> dict[str, Any]:
             str(explicit) if explicit is not None else None,
         ),
     }
+    # One owner-written sentence under the slide title. Omitted unless set, so
+    # the TV shows no annotation line until the indicator owner supplies one.
+    if annotation := str(slide.get("annotation") or "").strip():
+        payload["annotation"] = annotation
+    return payload
 
 
 def _tv_page_payload(
@@ -901,9 +921,7 @@ def _tv_page_payload(
     return {
         "url": str(slides_cfg.get("dashboard", "") or ""),
         "slides": [
-            _tv_slide_payload(s)
-            for s in slides_cfg.get("slides", [])
-            if s.get("path")
+            _tv_slide_payload(s) for s in slides_cfg.get("slides", []) if s.get("path")
         ],
         "intervalMs": int(interval_seconds) * 1000,
         "reloadMinutes": int(reload_minutes),
@@ -931,9 +949,7 @@ def _tv_response(
     reload_minutes = int(current_app.config.get("MOH_TV_RELOAD_MINUTES", 120) or 120)
     return Response(
         _render_tv_page(
-            _tv_page_payload(
-                cfg, interval, reload_minutes, _tv_options(wordmark)
-            )
+            _tv_page_payload(cfg, interval, reload_minutes, _tv_options(wordmark))
         ),
         mimetype="text/html",
     )
@@ -984,8 +1000,7 @@ def _require_tv_login() -> Response | None:
 @moh_assets_bp.route("/tv")
 def tv_slideshow():
     """Send the wall TV to dashboard 8 in this window (one login)."""
-    gate = _require_tv_login()
-    if gate is not None:
+    if (gate := _require_tv_login()) is not None:
         return gate
     resolved = _resolve_tv_preset("main")
     assert resolved is not None
@@ -996,8 +1011,7 @@ def tv_slideshow():
 @moh_assets_bp.route("/tv-perf")
 def tv_slideshow_perf():
     """Send the wall TV to dashboard 3 in this window (one login)."""
-    gate = _require_tv_login()
-    if gate is not None:
+    if (gate := _require_tv_login()) is not None:
         return gate
     resolved = _resolve_tv_preset("perf")
     assert resolved is not None
@@ -1008,8 +1022,7 @@ def tv_slideshow_perf():
 @moh_assets_bp.route("/tv/group/<slug>")
 def tv_group_slideshow(slug: str):
     """Send one dashboard-8 group to the wall TV in this window."""
-    gate = _require_tv_login()
-    if gate is not None:
+    if (gate := _require_tv_login()) is not None:
         return gate
     resolved = _resolve_tv_preset(f"group-{slug}")
     if resolved is None:
@@ -1034,9 +1047,7 @@ def tv_config(preset: str) -> Response:
         )
     reload_minutes = int(current_app.config.get("MOH_TV_RELOAD_MINUTES", 120) or 120)
     return jsonify(
-        _tv_page_payload(
-            slides_cfg, interval, reload_minutes, _tv_options(wordmark)
-        )
+        _tv_page_payload(slides_cfg, interval, reload_minutes, _tv_options(wordmark))
     )
 
 
