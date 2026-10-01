@@ -20,9 +20,11 @@ import { getMetricLabel, QueryFormMetric } from '@superset-ui/core';
 
 // Words that mark a label as a percentage (coverage, "(%)", "_pct", ...).
 const PERCENT_PATTERN = /%|percent|coverage|\bpct\b|_pct\b/i;
-// Achievement against target may exceed 100% legitimately; it is not a
-// denominator effect, so it never triggers the note.
-const EXCLUDED_PATTERN = /achievement/i;
+// Measures that may exceed 100% legitimately, for reasons other than a
+// population estimate (target achievement, spending against plan, bed
+// occupancy, service use), never trigger the denominator note.
+const EXCLUDED_PATTERN =
+  /achievement|disburs|budget|fund|expenditure|spend|occupancy|utili[sz]ation/i;
 // Columns that hold counts even on a percentage-titled chart
 // (e.g. "Woredas with CBHI" on "CBHI Coverage by region").
 const COUNT_PATTERN =
@@ -81,6 +83,9 @@ export function findPercentOverHundred({
   queriesResponse,
 }: PercentCheckInput): boolean {
   const titleIsPercent = classify(sliceName ?? '') === 'percent';
+  if (EXCLUDED_PATTERN.test(sliceName ?? '')) {
+    return false;
+  }
 
   const metricLabels = [
     ...asArray(formData.metrics),

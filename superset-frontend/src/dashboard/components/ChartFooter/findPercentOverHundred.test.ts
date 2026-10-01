@@ -150,3 +150,20 @@ test('skips map payloads and empty responses', () => {
     }),
   ).toBe(false);
 });
+
+test('never flags finance or operational rates, where >100% is not a denominator effect', () => {
+  [
+    ['SDG Disbursement Rate(%)', 'Disbursement Rate'],
+    ['Health Budget Share (%)', 'Total Budget'],
+    ['Bed Occupancy Rate (%)', 'Performance'],
+    ['Cumulative Bed Occupancy Rate to Date(%)', 'Performance'],
+  ].forEach(([sliceName, metric]) =>
+    expect(
+      findPercentOverHundred({
+        sliceName,
+        formData: { metrics: [metric], x_axis: 'region' },
+        queriesResponse: rows([{ region: 'Oromia', [metric]: 135 }]),
+      }),
+    ).toBe(false),
+  );
+});

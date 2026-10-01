@@ -32,6 +32,22 @@ const TITLE_FILTER_KEYWORDS = [
 ];
 const TITLE_JOIN_SEPARATOR = ' — ';
 
+/**
+ * Add the org unit the user picked to a chart title ("Performance — Amhara
+ * Region") so exported images and file names state their geography. Titles
+ * that already name that org unit are left alone.
+ */
+export const appendOrgUnitToTitle = (
+  title: string,
+  orgUnit: string | null | undefined,
+): string => {
+  const label = orgUnit?.trim();
+  if (!label || title.toLowerCase().includes(label.toLowerCase())) {
+    return title;
+  }
+  return `${title}${TITLE_JOIN_SEPARATOR}${label}`;
+};
+
 const YEAR_PATTERN = /^\d{4}$/;
 const YEAR_RANGE_SEPARATOR = '–';
 

@@ -188,3 +188,32 @@ test('finds an org unit filter that has no targets', () => {
   );
   expect(hasOrgUnitFilter({ facility } as Record<string, Filter>)).toBe(false);
 });
+
+test('reports the explicitly picked org unit, not the scope fallback', () => {
+  expect(
+    getGlobalContext({
+      ...args,
+      dataMask: {
+        org: {
+          id: 'org',
+          filterState: { value: ['Amhara'], label: 'Amhara Region' },
+        },
+      },
+    }).selectedOrgUnit,
+  ).toBe('Amhara Region');
+  expect(
+    getGlobalContext({
+      ...args,
+      dataMask: { org: { id: 'org', filterState: { value: undefined } } },
+    }).selectedOrgUnit,
+  ).toBeNull();
+  expect(
+    getGlobalContext({
+      ...args,
+      isRelevant: filter => filter.id !== 'org',
+      dataMask: {
+        org: { id: 'org', filterState: { value: ['Amhara'], label: 'Amhara' } },
+      },
+    }).selectedOrgUnit,
+  ).toBeNull();
+});

@@ -33,7 +33,10 @@ function mapStateToProps({ dashboardState, dashboardInfo }: RootState) {
     editMode: dashboardState.editMode,
     canEdit: dashboardInfo.dash_edit_perm,
     dashboardId: dashboardInfo.id,
-    responsiveDashboardEnabled: isResponsiveDashboardEnabled(dashboardInfo),
+    // Editing uses the standard grid: responsive sizing would override the
+    // widths being dragged and cover the resize handles.
+    responsiveDashboardEnabled:
+      isResponsiveDashboardEnabled(dashboardInfo) && !dashboardState.editMode,
   };
 }
 

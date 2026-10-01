@@ -25,7 +25,11 @@ import { NativeFilterType } from '@superset-ui/core';
 import type { NativeFilterScope } from '@superset-ui/core';
 import { CHART_TYPE } from 'src/dashboard/util/componentTypes';
 import { DASHBOARD_ROOT_ID } from 'src/dashboard/util/constants';
-import { formatYearLabels, useDynamicChartTitle } from './useDynamicChartTitle';
+import {
+  appendOrgUnitToTitle,
+  formatYearLabels,
+  useDynamicChartTitle,
+} from './useDynamicChartTitle';
 
 const mockStore = configureStore([]);
 
@@ -393,4 +397,18 @@ test('formatYearLabels drops duplicates and keeps single years apart', () => {
     '2012, 2014, 2016',
   );
   expect(formatYearLabels(['2011', '2010'])).toBe('2010–2011');
+});
+
+test('appendOrgUnitToTitle adds the picked org unit to the title', () => {
+  expect(appendOrgUnitToTitle('Performance', 'Amhara Region')).toBe(
+    'Performance — Amhara Region',
+  );
+});
+
+test('appendOrgUnitToTitle leaves titles without a pick or already naming it', () => {
+  expect(appendOrgUnitToTitle('Performance', null)).toBe('Performance');
+  expect(appendOrgUnitToTitle('Performance', '  ')).toBe('Performance');
+  expect(appendOrgUnitToTitle('Amhara Region coverage', 'amhara region')).toBe(
+    'Amhara Region coverage',
+  );
 });

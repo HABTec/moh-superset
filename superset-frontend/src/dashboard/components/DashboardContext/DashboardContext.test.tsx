@@ -439,3 +439,46 @@ test('strip is hidden while editing the dashboard', () => {
     screen.queryByTestId('dashboard-context-strip'),
   ).not.toBeInTheDocument();
 });
+
+test('chart chip adds the data source and data-as-of for a chart under a known source', async () => {
+  renderWithState(<ChartContextChip chartId={10} />);
+  await waitFor(() =>
+    expect(screen.getByTestId('chart-context-chip')).toHaveTextContent(
+      '2018 EFY | Oromia Region | DHIS2 · data as of 2019 EFY · Meskerem',
+    ),
+  );
+  expect(screen.getByTestId('chart-context-chip')).toHaveAttribute(
+    'title',
+    '2018 EFY | Oromia Region | DHIS2 · data as of 2019 EFY · Meskerem',
+  );
+});
+
+test('chart chip names no source for a tab without an agreed data source', async () => {
+  // Chart 600 is on Multi Source but a Year filter reaches it: period only,
+  // and no source/data-as-of because that tab has no agreed update time.
+  renderWithState(<ChartContextChip chartId={600} />, {
+    ...state,
+    dashboardInfo: {
+      ...state.dashboardInfo,
+      metadata: {
+        ...state.dashboardInfo.metadata,
+        native_filter_configuration: [{ ...year, chartsInScope: [600] }, org],
+      },
+    },
+    dashboardLayout: {
+      ...state.dashboardLayout,
+      present: {
+        ...state.dashboardLayout.present,
+        'CHART-600': chart('CHART-600', 600, 'TAB-4'),
+      },
+    },
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId('chart-context-chip')).toHaveTextContent(
+      '2018 EFY',
+    ),
+  );
+  expect(screen.getByTestId('chart-context-chip')).not.toHaveTextContent(
+    'DHIS2',
+  );
+});

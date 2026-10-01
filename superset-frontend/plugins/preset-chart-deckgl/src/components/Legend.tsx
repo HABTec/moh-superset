@@ -105,8 +105,19 @@ const Legend = ({
   }
 
   const categories = Object.entries(categoriesObject).map(([k, v]) => {
-    const style = { color: `rgba(${v.color?.join(', ')})` };
-    const icon = v.enabled ? '\u25FC' : '\u25FB';
+    // A CSS swatch rather than a "\u25FC" glyph: U+25FC has an emoji
+    // presentation, and colour emoji fonts ignore CSS `color`, which made
+    // every swatch render black on some platforms.
+    const swatchColor = `rgb(${v.color?.slice(0, 3).join(', ')})`;
+    const style = {
+      display: 'inline-block',
+      flexShrink: 0,
+      width: '0.8em',
+      height: '0.8em',
+      alignSelf: 'center',
+      border: `1px solid ${swatchColor}`,
+      backgroundColor: v.enabled ? swatchColor : 'transparent',
+    };
 
     return (
       <li key={k}>
@@ -122,7 +133,7 @@ const Legend = ({
             showSingleCategory(k);
           }}
         >
-          <span style={style}>{icon}</span> {formatCategoryLabel(k)}
+          <span style={style} /> {formatCategoryLabel(k)}
         </a>
       </li>
     );

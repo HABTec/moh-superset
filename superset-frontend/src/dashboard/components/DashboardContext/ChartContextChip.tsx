@@ -17,7 +17,8 @@
  * under the License.
  */
 import { css, styled } from '@apache-superset/core/theme';
-import { useGlobalContext } from './useGlobalContext';
+import { t } from '@apache-superset/core/translation';
+import { useChartSourceContext, useGlobalContext } from './useGlobalContext';
 
 const Chip = styled.div`
   ${({ theme }) => css`
@@ -41,12 +42,15 @@ const Chip = styled.div`
 `;
 
 /**
- * Shows the Period and Organisation unit a chart is filtered by. Renders
- * nothing when neither filter reaches this chart — that source has no
- * period or org unit dimension to report.
+ * Shows the Period and Organisation unit a chart is filtered by, followed by
+ * its data source and data-as-of when the chart's tab has a known source.
+ * The chip sits inside the chart box, so image exports carry it too.
+ * Renders nothing when neither filter reaches this chart — that source has
+ * no period or org unit dimension to report.
  */
 const ChartContextChip = ({ chartId }: { chartId: number }) => {
   const { period, orgUnit } = useGlobalContext(chartId);
+  const { source, dataAsOf } = useChartSourceContext(chartId);
 
   const parts = [period, orgUnit].filter((part): part is string =>
     Boolean(part),
@@ -54,8 +58,17 @@ const ChartContextChip = ({ chartId }: { chartId: number }) => {
   if (parts.length === 0) {
     return null;
   }
+  if (source) {
+    parts.push(dataAsOf ? t('%s · data as of %s', source, dataAsOf) : source);
+  }
+  const text = parts.join(' | ');
 
-  return <Chip data-test="chart-context-chip">{parts.join(' | ')}</Chip>;
+  // The chip truncates on narrow charts; the tooltip keeps the full text.
+  return (
+    <Chip data-test="chart-context-chip" title={text}>
+      {text}
+    </Chip>
+  );
 };
 
 export default ChartContextChip;

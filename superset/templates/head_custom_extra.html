@@ -368,28 +368,36 @@ _moh_roles %}
       max-width: calc(100% - 16px) !important;
     }
 
-    .dashboard-grid .grid-row,
-    .dashboard-grid .dragdroppable-row {
+    /* Viewing only: stacking rows in edit mode fights the editor's column
+       sizing and its row-height measurement, which loops until React
+       aborts ("Maximum update depth exceeded"). */
+    .dashboard:not(.dashboard--editing) .dashboard-grid .grid-row,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .dragdroppable-row {
       flex-direction: column !important;
       flex-wrap: nowrap !important;
     }
-    .dashboard-grid .grid-row > :not(:last-child):not(.hover-menu) {
+    .dashboard:not(.dashboard--editing)
+      .dashboard-grid
+      .grid-row
+      > :not(:last-child):not(.hover-menu) {
       margin-right: 0 !important;
       margin-bottom: 12px !important;
     }
-    .dashboard-grid .grid-column,
-    .dashboard-grid .dragdroppable-column,
-    .dashboard-grid .resizable-container,
-    .dashboard-grid .dashboard-component-chart-holder {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .grid-column,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .dragdroppable-column,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .resizable-container,
+    .dashboard:not(.dashboard--editing)
+      .dashboard-grid
+      .dashboard-component-chart-holder {
       width: 100% !important;
       min-width: 0 !important;
       max-width: 100% !important;
     }
-    .dashboard-grid .empty-droptarget {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .empty-droptarget {
       min-width: 0 !important;
     }
 
-    .dashboard-grid .resizable-container {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .resizable-container {
       width: 100% !important;
     }
     .dashboard-component-chart-holder [data-test="chart-container"],

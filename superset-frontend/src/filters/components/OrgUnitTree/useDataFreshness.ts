@@ -58,12 +58,17 @@ function fetchDataFreshness(apiBaseUrl: string): Promise<DataFreshness | null> {
  */
 export function useDataFreshness(
   apiBaseUrl = DEFAULT_API_BASE_URL,
+  enabled = true,
 ): DataFreshness | null | undefined {
   const [freshness, setFreshness] = useState<
     DataFreshness | null | undefined
   >();
 
   useEffect(() => {
+    // Callers that have no data source to report skip the request entirely.
+    if (!enabled) {
+      return undefined;
+    }
     let cancelled = false;
     fetchDataFreshness(apiBaseUrl).then(result => {
       if (!cancelled) {
@@ -73,7 +78,7 @@ export function useDataFreshness(
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, enabled]);
 
   return freshness;
 }

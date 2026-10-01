@@ -48,6 +48,12 @@ export type GlobalContext = {
   orgUnit: string | null;
   /** Every relevant global filter holds its configured default value. */
   isDefault: boolean;
+  /**
+   * The org unit the user explicitly picked in a filter that reaches this
+   * scope; null when nothing is picked (the scope-label fallback is not a
+   * choice) or no org unit filter applies.
+   */
+  selectedOrgUnit: string | null;
 };
 
 type GlobalContextArgs = {
@@ -170,6 +176,7 @@ export function getGlobalContext({
   return {
     period: periodText,
     orgUnit: orgUnitText,
+    selectedOrgUnit: orgUnit.length ? labels(orgUnit).join(', ') || null : null,
     isDefault: [...period, ...orgUnit].every(filter =>
       hasDefaultSelection(filter, dataMask),
     ),

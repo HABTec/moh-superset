@@ -50,7 +50,11 @@ import ChartContextChip from 'src/dashboard/components/DashboardContext/ChartCon
 import CustomizationsBadge from 'src/dashboard/components/CustomizationsBadge';
 import { RootState } from 'src/dashboard/types';
 import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip';
-import { useDynamicChartTitle } from 'src/dashboard/components/SliceHeader/useDynamicChartTitle';
+import {
+  appendOrgUnitToTitle,
+  useDynamicChartTitle,
+} from 'src/dashboard/components/SliceHeader/useDynamicChartTitle';
+import { useGlobalContext } from 'src/dashboard/components/DashboardContext/useGlobalContext';
 import { DashboardPageIdContext } from 'src/dashboard/containers/DashboardPage';
 import RowCountLabel from 'src/components/RowCountLabel';
 import { Link } from 'react-router-dom';
@@ -236,7 +240,11 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
 
     const theme = useTheme();
 
-    const dynamicTitle = useDynamicChartTitle(slice.slice_id, sliceName ?? '');
+    const { selectedOrgUnit } = useGlobalContext(slice.slice_id);
+    const dynamicTitle = appendOrgUnitToTitle(
+      useDynamicChartTitle(slice.slice_id, sliceName ?? ''),
+      selectedOrgUnit,
+    );
 
     const rowLimit = Number(formData.row_limit ?? 0);
 

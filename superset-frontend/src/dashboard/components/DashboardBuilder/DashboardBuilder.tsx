@@ -933,14 +933,16 @@ const DashboardBuilder = () => {
     state => state.dashboardInfo,
   );
   const dashboardId = `${dashboardInfo.id}`;
-  const responsiveDashboardEnabled =
-    isResponsiveDashboardEnabled(dashboardInfo);
   const dashboardLayout = useSelector<RootState, DashboardLayout>(
     state => state.dashboardLayout.present,
   );
   const editMode = useSelector<RootState, boolean>(
     state => state.dashboardState.editMode,
   );
+  // Responsive sizing is for viewing only. In edit mode it would override the
+  // grid widths being dragged and lift charts above their resize handles.
+  const responsiveDashboardEnabled =
+    isResponsiveDashboardEnabled(dashboardInfo) && !editMode;
   const canEdit = useSelector<RootState, boolean>(
     ({ dashboardInfo }) => dashboardInfo.dash_edit_perm,
   );

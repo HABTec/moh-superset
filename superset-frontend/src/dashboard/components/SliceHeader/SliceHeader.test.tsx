@@ -102,6 +102,20 @@ jest.mock('src/dashboard/components/FiltersBadge', () => ({
   ),
 }));
 
+let mockSelectedOrgUnit: string | null = null;
+jest.mock('src/dashboard/components/DashboardContext/useGlobalContext', () => {
+  const actual = jest.requireActual(
+    'src/dashboard/components/DashboardContext/useGlobalContext',
+  );
+  return {
+    ...actual,
+    useGlobalContext: (chartId?: number) => ({
+      ...actual.useGlobalContext(chartId),
+      selectedOrgUnit: mockSelectedOrgUnit,
+    }),
+  };
+});
+
 jest.mock('src/dashboard/util/isEmbedded', () => ({
   isEmbedded: jest.fn().mockReturnValue(false),
 }));
@@ -943,4 +957,28 @@ test('Should NOT show row count warning for table chart with server pagination w
   expect(screen.queryByTestId('warning')).not.toBeInTheDocument();
 
   mockUseUiConfig.mockRestore();
+});
+
+test('Should add the picked org unit to the chart title', () => {
+  mockSelectedOrgUnit = 'Amhara Region';
+  (useUiConfig as jest.MockedFunction<typeof useUiConfig>).mockReturnValue({
+    hideTitle: false,
+    hideTab: false,
+    hideNav: false,
+    hideChartControls: false,
+    emitDataMasks: false,
+    showRowLimitWarning: false,
+  });
+  try {
+    render(<SliceHeader {...createProps()} />, {
+      useRedux: true,
+      useRouter: true,
+      initialState,
+    });
+    expect(
+      screen.getByText('Vaccine Candidates per Phase — Amhara Region'),
+    ).toBeInTheDocument();
+  } finally {
+    mockSelectedOrgUnit = null;
+  }
 });
