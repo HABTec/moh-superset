@@ -134,7 +134,9 @@ def _timeout() -> int:
 
 
 def _cache_ttl() -> int:
-    return _int_config("MOH_AI_INSIGHTS_CACHE_TTL", 300)
+    # Keep generated chart insights warm for at least 2 weeks so dashboard
+    # re-renders and repeated visits do not trigger repeated LLM calls.
+    return _int_config("MOH_AI_INSIGHTS_CACHE_TTL", 14 * 24 * 60 * 60)
 
 
 def _insights_enabled() -> bool:
@@ -171,7 +173,7 @@ def _direction_word(direction: str) -> str:
 def _generate_demo_insight(
     summary: dict[str, Any], sample_rows: list[Any]
 ) -> dict[str, Any]:
-    """Build a deterministic insight: a 1-2 sentence summary + short bullets."""
+    """Build a deterministic insight: a headline summary, one action sentence, and short bullets."""
     columns = summary.get("columns") or []
     row_count = summary.get("row_count")
     numeric_stats = summary.get("numeric_stats") or []
@@ -213,6 +215,7 @@ def _generate_demo_insight(
             f"from {start} to {end}{period_txt}."
         )
 
+    recommendation = "Recommendation: continue monitoring this pattern and act only if the recent trend changes materially."
     for top in top_values[:1]:
         values = top.get("values") or []
         if values:
@@ -226,6 +229,26 @@ def _generate_demo_insight(
                 f"The leading {top.get('column', 'category')} is {leader.get('value')} "
                 f"with {leader.get('count')} records{pct}."
             )
+            recommendation = (
+                f"Recommendation: focus follow-up on {leader.get('value')} and the leading "
+                f"{top.get('column', 'category')} segment to sustain the strongest current performance."
+            )
+
+    if trend.get("direction") == "decreasing":
+        recommendation = (
+            "Recommendation: investigate the recent decline and prioritize corrective action "
+            "before it affects service delivery or target attainment."
+        )
+    elif trend.get("direction") == "increasing":
+        recommendation = (
+            "Recommendation: keep the current operating focus and consider channeling additional "
+            "resources to the strongest recent periods to sustain the upward trend."
+        )
+    elif trend.get("direction") == "stable":
+        recommendation = (
+            "Recommendation: maintain the current approach while monitoring for early volatility "
+            "so the stable pattern does not slip into decline."
+        )
 
     summary_text = " ".join(summary_lines[:2])
     if not summary_text and bullets:
@@ -235,7 +258,11 @@ def _generate_demo_insight(
             "This chart returned no data. Check the active filters or refresh the dashboard."
         )
 
-    return {"summary": summary_text, "bullets": bullets[:4]}
+    return {
+        "summary": summary_text,
+        "recommendation": recommendation,
+        "bullets": bullets[:4],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +290,7 @@ def _build_llm_prompt(
         "extra text):\n"
         '{\n'
         '  "summary": "1 short sentence giving the headline takeaway",\n'
+        '  "recommendation": "1 short sentence with one concrete action based on the data",\n'
         '  "bullets": [\n'
         '    "short insight 1",\n'
         '    "short insight 2",\n'
@@ -271,6 +299,7 @@ def _build_llm_prompt(
         "}\n"
         "Rules:\n"
         "- summary: 1 short sentence only, plain takeaway for decision-makers.\n"
+        "- recommendation: 1 short sentence with one clear recommendation or action for the team.\n"
         "- bullets: 3 very concise, one-line insights on the most notable patterns, "
         "outliers, and implications for health decision-makers.\n"
         "- Use plain text only inside the strings; no markdown, no headings, no "
@@ -361,12 +390,12 @@ def _ask_llm(
 
 
 def _parse_llm_insight(text: str) -> dict[str, Any] | None:
-    """Extract {summary, bullets} from an LLM JSON response.
+    """Extract {summary, recommendation, bullets} from an LLM JSON response.
 
     The LLM is asked to return a JSON object shaped
-    {"summary": str, "bullets": [str, ...]}. Tolerates stray markdown code
-    fences and returns None if the text can't be parsed into that shape so the
-    caller can fall back to the demo generator.
+    {"summary": str, "recommendation": str, "bullets": [str, ...]}.
+    Tolerates stray markdown code fences and returns None if the text can't be
+    parsed into that shape so the caller can fall back to the demo generator.
     """
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -379,6 +408,7 @@ def _parse_llm_insight(text: str) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
     summary = data.get("summary")
+    recommendation = data.get("recommendation")
     raw_bullets = data.get("bullets")
     if not isinstance(summary, str) or not summary.strip():
         return None
@@ -389,7 +419,13 @@ def _parse_llm_insight(text: str) -> dict[str, Any] | None:
         for item in raw_bullets
         if isinstance(item, str) and item.strip()
     ]
-    return {"summary": summary.strip(), "bullets": bullets[:4]}
+    recommendation_text = (
+        recommendation.strip() if isinstance(recommendation, str) and recommendation.strip() else None
+    )
+    parsed = {"summary": summary.strip(), "bullets": bullets[:4]}
+    if recommendation_text:
+        parsed["recommendation"] = recommendation_text
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +446,7 @@ def _generate_insight(
     summary: dict[str, Any],
     sample_rows: list[Any],
 ) -> dict[str, Any]:
-    """Return {summary, bullets, provider} — LLM when configured, else demo."""
+    """Return {summary, recommendation, bullets, provider} — LLM when configured, else demo."""
     demo = _generate_demo_insight(summary, sample_rows)
     provider = _provider()
     api_key = _api_key()
@@ -537,6 +573,7 @@ def generate_chart_insight(chart_id: int) -> FlaskResponse:
         "chart_name": chart_name,
         "dashboard_id": dashboard_id,
         "summary": result["summary"],
+        "recommendation": result.get("recommendation"),
         "bullets": result["bullets"],
         "provider": result["provider"],
         "generated_at": generated_at,

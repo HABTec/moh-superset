@@ -469,6 +469,15 @@ describe('ChartHolder', () => {
     expect(setFullSizeChartId).toHaveBeenCalledWith(null);
   });
 
+  test('starts the AI insight panel expanded by default in responsive dashboards', async () => {
+    renderWrapper(createMockStore(), {
+      fullSizeChartId: null,
+      responsiveDashboardEnabled: true,
+    });
+
+    expect(screen.getByLabelText('Collapse AI insight panel')).toBeInTheDocument();
+  });
+
   test('does not render the popup when not popped out', async () => {
     renderWrapper(createMockStore(), { fullSizeChartId: null });
 

@@ -67,6 +67,7 @@ test('posts the summarized query data and renders the insight', async () => {
   mockPost.mockResolvedValue({
     json: {
       summary: 'Visits grew steadily over the reported period.',
+      recommendation: 'Recommendation: prioritize additional outreach in February and March to sustain the upward trend.',
       bullets: [
         'Values increased from 10 to 30.',
         'February saw the largest single jump.',
@@ -93,6 +94,9 @@ test('posts the summarized query data and renders the insight', async () => {
   ).toBeInTheDocument();
   expect(
     screen.getByText(/Daily average sits at 20 visits/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/prioritize additional outreach in February and March/i),
   ).toBeInTheDocument();
   expect(mockPost).toHaveBeenCalledWith(
     expect.objectContaining({

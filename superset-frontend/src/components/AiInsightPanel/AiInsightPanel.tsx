@@ -42,6 +42,7 @@ const MOH_AI_INSIGHTS_FLAG = 'MOH_AI_INSIGHTS' as FeatureFlag;
 
 interface InsightResponse {
   summary: string;
+  recommendation?: string;
   bullets: string[];
   provider: string;
   generated_at: string;
@@ -263,6 +264,12 @@ export const AiInsightPanel = memo(
               )}
             />
           ) : null}
+          {insight?.recommendation && (
+            <Typography.Paragraph className="ai-insight-text">
+              <strong>{t('Recommendation')}:</strong>{' '}
+              {insight.recommendation}
+            </Typography.Paragraph>
+          )}
           {insight?.generated_at && (
             <Typography.Text
               type="secondary"

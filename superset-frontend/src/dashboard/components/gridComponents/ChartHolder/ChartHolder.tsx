@@ -177,12 +177,9 @@ const ChartHolder = ({
   );
   const aiInsightsEnabled = !AI_INSIGHT_EXCLUDED_VIZ_TYPES.has(vizType ?? '');
 
-  // AI insight sidebar collapse state lives per chart. On responsive/mobile
-  // layouts the chart starts collapsed so the slim strip does not crowd the
-  // chart; on desktop it starts expanded.
-  const [aiInsightCollapsed, setAiInsightCollapsed] = useState(
-    () => responsiveLayout || responsiveDashboardActive,
-  );
+  // AI insight panels default to an expanded view so the summary is visible
+  // when the chart loads. Users can still collapse it manually as needed.
+  const [aiInsightCollapsed, setAiInsightCollapsed] = useState(false);
   const handleToggleAiInsightCollapsed = useCallback(() => {
     setAiInsightCollapsed(prev => !prev);
   }, []);
