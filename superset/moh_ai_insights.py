@@ -289,7 +289,7 @@ def _build_llm_prompt(
         'Return ONLY a JSON object with exactly this shape (no markdown, no '
         "extra text):\n"
         '{\n'
-        '  "summary": "1 short sentence giving the headline takeaway",\n'
+        '  "summary": "1 short sentence describing what the chart is about and the data it shows",\n'
         '  "recommendation": "1 short sentence with one concrete action based on the data",\n'
         '  "bullets": [\n'
         '    "short insight 1",\n'
@@ -298,7 +298,7 @@ def _build_llm_prompt(
         '  ]\n'
         "}\n"
         "Rules:\n"
-        "- summary: 1 short sentence only, plain takeaway for decision-makers.\n"
+        "- summary: 1 short sentence explaining what the chart is about and what kind of data it provides, including the main metric, group, or trend it represents.\n"
         "- recommendation: 1 short sentence with one clear recommendation or action for the team.\n"
         "- bullets: 3 very concise, one-line insights on the most notable patterns, "
         "outliers, and implications for health decision-makers.\n"
