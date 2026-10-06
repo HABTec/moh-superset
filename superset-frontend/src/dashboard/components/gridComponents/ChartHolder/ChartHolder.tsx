@@ -29,7 +29,8 @@ import {
 import { ResizeCallback, ResizeStartCallback } from 're-resizable';
 import cx from 'classnames';
 import { useSelector } from 'react-redux';
-import { css, useTheme } from '@apache-superset/core/theme';
+import { createPortal } from 'react-dom';
+import { useTheme } from '@apache-superset/core/theme';
 import { LayoutItem, RootState } from 'src/dashboard/types';
 import AnchorLink from 'src/dashboard/components/AnchorLink';
 import Chart from 'src/dashboard/components/gridComponents/Chart';
@@ -41,6 +42,13 @@ import ResizableContainer from 'src/dashboard/components/resizable/ResizableCont
 import getChartAndLabelComponentIdFromPath from 'src/dashboard/util/getChartAndLabelComponentIdFromPath';
 import useFilterFocusHighlightStyles from 'src/dashboard/util/useFilterFocusHighlightStyles';
 import { AntdThemeProvider } from '@superset-ui/core/components';
+import { FeatureFlag, isFeatureEnabled } from '@superset-ui/core';
+import {
+  AI_INSIGHT_PANEL_COLLAPSED_WIDTH,
+  AI_INSIGHT_PANEL_GUTTER,
+  AI_INSIGHT_PANEL_WIDTH,
+  AiInsightPanel,
+} from 'src/components/AiInsightPanel';
 import { COLUMN_TYPE, ROW_TYPE } from 'src/dashboard/util/componentTypes';
 import {
   GRID_BASE_UNIT,
@@ -63,10 +71,25 @@ const CHART_INTERACTION_HOLDER_CLASS =
   'dashboard-component-chart-holder--interaction-active';
 const CHART_INTERACTION_LAYOUT_CLASS =
   'dashboard-component-chart-layout--interaction-active';
+// Popup (chart + AI insight) dimensions as a fraction of the viewport, capped
+// so the floating card stays comfortably readable on large screens.
+export const AI_POPUP_WIDTH_FRACTION = 0.9;
+export const AI_POPUP_MAX_WIDTH = 1400;
+export const AI_POPUP_HEIGHT_FRACTION = 0.85;
+export const AI_POPUP_MAX_HEIGHT = 900;
 const RESPONSIVE_KPI_CARD_CLASS =
   'dashboard-component-chart-holder--compact-kpi';
 const RESPONSIVE_KPI_SELECTOR =
   '.superset-legacy-chart-big-number.no-trendline';
+const MOH_AI_INSIGHTS_FLAG = 'MOH_AI_INSIGHTS' as FeatureFlag;
+// Chart types that render a single number/trend card (KPI "card" and
+// "slider" cards) or a custom template with no narrative to summarize —
+// AI insights are skipped for these.
+const AI_INSIGHT_EXCLUDED_VIZ_TYPES = new Set([
+  'big_number',
+  'big_number_total',
+  'handlebars',
+]);
 
 export interface ChartHolderProps {
   id: string;
@@ -125,21 +148,10 @@ const ChartHolder = ({
   responsiveLayout = false,
 }: ChartHolderProps) => {
   const theme = useTheme();
-  const fullSizeStyle = css`
-    && {
-      position: fixed !important;
-      z-index: 3000;
-      left: 0;
-      top: 0;
-      right: 0;
-      width: 100%;
-      height: 100%;
-      padding: ${theme.sizeUnit * 4}px;
-    }
-  `;
   const { chartId } = component.meta;
   const isFullSize = fullSizeChartId === chartId;
   const chartHolderRef = useRef<HTMLDivElement | null>(null);
+  const popupCardRef = useRef<HTMLDivElement | null>(null);
   const [responsiveChartWidth, setResponsiveChartWidth] = useState<
     number | undefined
   >();
@@ -148,6 +160,55 @@ const ChartHolder = ({
     responsiveDashboardEnabled ||
     (typeof document !== 'undefined' &&
       document.body.classList.contains(RESPONSIVE_DASHBOARD_BODY_CLASS));
+
+  // AI insight panel sits to the right of each chart. Disabled while editing,
+  // while maximized, and on responsive/mobile layouts where a fixed side
+  // column would crowd the chart.
+  // const aiInsightsEnabled =
+  //   !editMode &&
+  //   !isFullSize &&
+  //   !responsiveLayout &&
+  //   !responsiveDashboardActive &&
+  //   chartId != null &&
+  //   isFeatureEnabled(MOH_AI_INSIGHTS_FLAG);
+
+  const vizType = useSelector((state: RootState) =>
+    chartId != null ? state.sliceEntities.slices[chartId]?.viz_type : undefined,
+  );
+  const aiInsightsEnabled = !AI_INSIGHT_EXCLUDED_VIZ_TYPES.has(vizType ?? '');
+
+  // AI insight panels default to an expanded view so the summary is visible
+  // when the chart loads. Users can still collapse it manually as needed.
+  const [aiInsightCollapsed, setAiInsightCollapsed] = useState(false);
+  const handleToggleAiInsightCollapsed = useCallback(() => {
+    setAiInsightCollapsed(prev => !prev);
+  }, []);
+  const aiInsightPanelWidth = aiInsightCollapsed
+    ? AI_INSIGHT_PANEL_COLLAPSED_WIDTH
+    : AI_INSIGHT_PANEL_WIDTH;
+  // While popped out (full-size overlay) the insight panel is always shown
+  // expanded so the chart and its insight are visible side by side.
+  const effectiveAiPanelWidth = isFullSize
+    ? AI_INSIGHT_PANEL_WIDTH
+    : aiInsightPanelWidth;
+
+  const popupSize = useMemo(
+    () => ({
+      width: Math.floor(
+        Math.min(
+          window.innerWidth * AI_POPUP_WIDTH_FRACTION,
+          AI_POPUP_MAX_WIDTH,
+        ),
+      ),
+      height: Math.floor(
+        Math.min(
+          window.innerHeight * AI_POPUP_HEIGHT_FRACTION,
+          AI_POPUP_MAX_HEIGHT,
+        ),
+      ),
+    }),
+    [],
+  );
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -298,7 +359,7 @@ const ChartHolder = ({
   const detectResponsiveKpiCard = useCallback(() => {
     const nextResponsiveKpiCard = Boolean(
       responsiveLayout &&
-        chartHolderRef.current?.querySelector(RESPONSIVE_KPI_SELECTOR),
+      chartHolderRef.current?.querySelector(RESPONSIVE_KPI_SELECTOR),
     );
 
     setResponsiveKpiCard(current =>
@@ -336,14 +397,26 @@ const ChartHolder = ({
     let heightMultiple = component.meta.height ?? GRID_MIN_ROW_UNITS;
 
     if (isFullSize) {
-      width = window.innerWidth - CHART_MARGIN;
-      height = window.innerHeight - CHART_MARGIN;
+      width = aiInsightsEnabled
+        ? Math.max(
+            popupSize.width -
+              CHART_MARGIN -
+              effectiveAiPanelWidth -
+              AI_INSIGHT_PANEL_GUTTER,
+            0,
+          )
+        : popupSize.width - CHART_MARGIN;
+      height = popupSize.height - CHART_MARGIN;
     } else {
       width = Math.floor(
         effectiveWidthMultiple * columnWidth +
           (effectiveWidthMultiple - 1) * GRID_GUTTER_SIZE -
           CHART_MARGIN,
       );
+      if (aiInsightsEnabled) {
+        const aiPanelOffset = effectiveAiPanelWidth + AI_INSIGHT_PANEL_GUTTER;
+        width = Math.max(width - aiPanelOffset, 0);
+      }
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
       );
@@ -381,6 +454,9 @@ const ChartHolder = ({
       effectiveHeightMultiple: heightMultiple,
     };
   }, [
+    aiInsightsEnabled,
+    effectiveAiPanelWidth,
+    popupSize,
     columnWidth,
     component.meta.height,
     chartId,
@@ -486,7 +562,6 @@ const ChartHolder = ({
           }}
           data-test="dashboard-component-chart-holder"
           style={focusHighlightStyles}
-          css={isFullSize ? fullSizeStyle : undefined}
           onMouseEnter={() => setChartInteractionLayer(true)}
           onMouseLeave={() => setChartInteractionLayer(false)}
           onFocus={() => setChartInteractionLayer(true)}
@@ -531,31 +606,166 @@ const ChartHolder = ({
                     }`}
               </style>
             )}
-            {shouldRenderChart && (
-              <Chart
-                componentId={component.id}
-                id={component.meta.chartId ?? 0}
-                dashboardId={dashboardId}
-                width={chartWidth}
-                height={chartHeight}
-                sliceName={
-                  component.meta.sliceNameOverride ||
-                  component.meta.sliceName ||
-                  ''
-                }
-                updateSliceName={(_sliceId: number, name: string) =>
-                  handleUpdateSliceName(name)
-                }
-                isComponentVisible={isComponentVisible}
-                handleToggleFullSize={handleToggleFullSize}
-                isFullSize={isFullSize}
-                setControlValue={handleExtraControl}
-                extraControls={extraControls}
-                isInView={isInView}
-                chartHolderRef={chartHolderRef}
-                responsiveLayout={responsiveLayout}
-              />
+            {shouldRenderChart && aiInsightsEnabled && !isFullSize ? (
+              <div
+                data-test="chart-with-ai-insight"
+                style={{
+                  display: 'flex',
+                  gap: AI_INSIGHT_PANEL_GUTTER,
+                  height: '100%',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Chart
+                    componentId={component.id}
+                    id={component.meta.chartId ?? 0}
+                    dashboardId={dashboardId}
+                    width={chartWidth}
+                    height={chartHeight}
+                    sliceName={
+                      component.meta.sliceNameOverride ||
+                      component.meta.sliceName ||
+                      ''
+                    }
+                    updateSliceName={(_sliceId: number, name: string) =>
+                      handleUpdateSliceName(name)
+                    }
+                    isComponentVisible={isComponentVisible}
+                    handleToggleFullSize={handleToggleFullSize}
+                    isFullSize={isFullSize}
+                    setControlValue={handleExtraControl}
+                    extraControls={extraControls}
+                    isInView={isInView}
+                    chartHolderRef={chartHolderRef}
+                    responsiveLayout={responsiveLayout}
+                  />
+                </div>
+                <AiInsightPanel
+                  chartId={chartId ?? 0}
+                  dashboardId={dashboardId}
+                  sliceName={
+                    component.meta.sliceNameOverride ||
+                    component.meta.sliceName ||
+                    ''
+                  }
+                  width={effectiveAiPanelWidth}
+                  height={chartHeight}
+                  inView={isComponentVisible && isInView}
+                  collapsed={aiInsightCollapsed}
+                  onToggleCollapsed={handleToggleAiInsightCollapsed}
+                  onOpenPopup={handleToggleFullSize}
+                />
+              </div>
+            ) : (
+              shouldRenderChart &&
+              !isFullSize && (
+                <Chart
+                  componentId={component.id}
+                  id={component.meta.chartId ?? 0}
+                  dashboardId={dashboardId}
+                  width={chartWidth}
+                  height={chartHeight}
+                  sliceName={
+                    component.meta.sliceNameOverride ||
+                    component.meta.sliceName ||
+                    ''
+                  }
+                  updateSliceName={(_sliceId: number, name: string) =>
+                    handleUpdateSliceName(name)
+                  }
+                  isComponentVisible={isComponentVisible}
+                  handleToggleFullSize={handleToggleFullSize}
+                  isFullSize={isFullSize}
+                  setControlValue={handleExtraControl}
+                  extraControls={extraControls}
+                  isInView={isInView}
+                  chartHolderRef={chartHolderRef}
+                  responsiveLayout={responsiveLayout}
+                />
+              )
             )}
+            {isFullSize &&
+              createPortal(
+                <div
+                  data-test="full-size-popup"
+                  onClick={handleToggleFullSize}
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 3000,
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: theme.sizeUnit * 4,
+                  }}
+                >
+                  <div
+                    ref={popupCardRef}
+                    onClick={event => event.stopPropagation()}
+                    style={{
+                      display: 'flex',
+                      gap: AI_INSIGHT_PANEL_GUTTER,
+                      background: theme.colorBgContainer,
+                      border: `1px solid ${theme.colorBorderSecondary}`,
+                      borderRadius: theme.borderRadiusLG,
+                      boxShadow: theme.boxShadowSecondary,
+                      padding: theme.sizeUnit * 4,
+                      width: popupSize.width,
+                      height: popupSize.height,
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      overflow: 'auto',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Chart
+                        componentId={component.id}
+                        id={component.meta.chartId ?? 0}
+                        dashboardId={dashboardId}
+                        width={chartWidth}
+                        height={chartHeight}
+                        sliceName={
+                          component.meta.sliceNameOverride ||
+                          component.meta.sliceName ||
+                          ''
+                        }
+                        updateSliceName={(_sliceId: number, name: string) =>
+                          handleUpdateSliceName(name)
+                        }
+                        isComponentVisible={isComponentVisible}
+                        handleToggleFullSize={handleToggleFullSize}
+                        isFullSize={isFullSize}
+                        setControlValue={handleExtraControl}
+                        extraControls={extraControls}
+                        isInView={isInView}
+                        chartHolderRef={popupCardRef}
+                        responsiveLayout={responsiveLayout}
+                      />
+                    </div>
+                    <AiInsightPanel
+                      chartId={chartId ?? 0}
+                      dashboardId={dashboardId}
+                      sliceName={
+                        component.meta.sliceNameOverride ||
+                        component.meta.sliceName ||
+                        ''
+                      }
+                      width={effectiveAiPanelWidth}
+                      height={chartHeight}
+                      inView={isComponentVisible && isInView}
+                      collapsed={false}
+                      onToggleCollapsed={handleToggleAiInsightCollapsed}
+                      onClose={handleToggleFullSize}
+                      showCollapseToggle={false}
+                    />
+                  </div>
+                </div>,
+                document.body,
+              )}
             {editMode && (
               <HoverMenu position="top">
                 <div data-test="dashboard-delete-component-button">
@@ -568,6 +778,9 @@ const ChartHolder = ({
       </ResizableContainer>
     ),
     [
+      effectiveAiPanelWidth,
+      aiInsightCollapsed,
+      aiInsightsEnabled,
       component.id,
       component.meta.height,
       component.meta.chartId,
@@ -584,13 +797,14 @@ const ChartHolder = ({
       editMode,
       focusHighlightStyles,
       isFullSize,
-      fullSizeStyle,
       chartId,
       outlinedComponentId,
       outlinedColumnName,
       dashboardId,
       chartWidth,
       chartHeight,
+      popupSize,
+      popupCardRef,
       effectiveHeightMultiple,
       handleUpdateSliceName,
       isComponentVisible,
@@ -599,6 +813,7 @@ const ChartHolder = ({
       extraControls,
       isInView,
       responsiveLayout,
+      handleToggleAiInsightCollapsed,
       setChartInteractionLayer,
       shouldRenderChart,
       handleDeleteComponent,

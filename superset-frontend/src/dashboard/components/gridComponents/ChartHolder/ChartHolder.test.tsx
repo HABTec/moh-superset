@@ -39,7 +39,15 @@ import {
   COLUMN_TYPE,
   ROW_TYPE,
 } from '../../../util/componentTypes';
-import ChartHolder, { CHART_MARGIN } from './ChartHolder';
+import ChartHolder, {
+  AI_POPUP_MAX_WIDTH,
+  AI_POPUP_WIDTH_FRACTION,
+  CHART_MARGIN,
+} from './ChartHolder';
+import {
+  AI_INSIGHT_PANEL_GUTTER,
+  AI_INSIGHT_PANEL_WIDTH,
+} from 'src/components/AiInsightPanel';
 import { GRID_BASE_UNIT, GRID_GUTTER_SIZE } from '../../../util/constants';
 
 const DEFAULT_HEADER_HEIGHT = 22;
@@ -313,7 +321,9 @@ describe('ChartHolder', () => {
     const expectedWidth = Math.floor(
       widthMultiple * columnWidth +
         (widthMultiple - 1) * GRID_GUTTER_SIZE -
-        CHART_MARGIN,
+        CHART_MARGIN -
+        AI_INSIGHT_PANEL_WIDTH -
+        AI_INSIGHT_PANEL_GUTTER,
     );
 
     expect(computedWidth).toEqual(expectedWidth);
@@ -340,7 +350,15 @@ describe('ChartHolder', () => {
     const container = screen.getByTestId('chart-container');
 
     const computedWidth = parseInt(container.getAttribute('width') || '0', 10);
-    const expectedWidth = window.innerWidth - CHART_MARGIN;
+    const popupWidth = Math.min(
+      window.innerWidth * AI_POPUP_WIDTH_FRACTION,
+      AI_POPUP_MAX_WIDTH,
+    );
+    const expectedWidth =
+      Math.floor(popupWidth) -
+      CHART_MARGIN -
+      AI_INSIGHT_PANEL_WIDTH -
+      AI_INSIGHT_PANEL_GUTTER;
 
     expect(computedWidth).toEqual(expectedWidth);
   });
@@ -433,5 +451,37 @@ describe('ChartHolder', () => {
         .firstElementChild!,
     );
     expect(deleteComponent).toHaveBeenCalledTimes(1);
+  });
+
+  test('renders the chart and AI insight in a viewport-fixed popup when popped out', async () => {
+    const setFullSizeChartId = jest.fn();
+    renderWrapper(createMockStore(), {
+      fullSizeChartId: chartId,
+      setFullSizeChartId,
+    });
+
+    const popup = screen.getByTestId('full-size-popup');
+    expect(popup).toBeInTheDocument();
+    expect(popup.style.position).toBe('fixed');
+    expect(screen.getByTestId('chart-container')).toBeInTheDocument();
+
+    fireEvent.click(popup);
+    expect(setFullSizeChartId).toHaveBeenCalledWith(null);
+  });
+
+  test('starts the AI insight panel expanded by default in responsive dashboards', async () => {
+    renderWrapper(createMockStore(), {
+      fullSizeChartId: null,
+      responsiveDashboardEnabled: true,
+    });
+
+    expect(screen.getByLabelText('Collapse AI insight panel')).toBeInTheDocument();
+  });
+
+  test('does not render the popup when not popped out', async () => {
+    renderWrapper(createMockStore(), { fullSizeChartId: null });
+
+    expect(screen.queryByTestId('full-size-popup')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chart-container')).toBeInTheDocument();
   });
 });
