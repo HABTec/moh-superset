@@ -29,7 +29,6 @@ import {
   Icons,
   List,
   Loading,
-  Tag,
   Tooltip,
   Typography,
 } from '@superset-ui/core/components';
@@ -63,22 +62,6 @@ interface AiInsightPanelProps {
 }
 
 type InsightStatus = 'idle' | 'loading' | 'error' | 'no-data';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  demo: t('Demo'),
-  openai: 'OpenAI',
-  gemini: 'Gemini',
-  claude: 'Claude',
-  anthropic: 'Claude',
-};
-
-const PROVIDER_COLORS: Record<string, string> = {
-  demo: 'default',
-  openai: 'green',
-  gemini: 'geekblue',
-  claude: 'orange',
-  anthropic: 'orange',
-};
 
 // Chart types that render a single number/trend card (KPI "card" and
 // "slider" cards) or a custom template with no narrative to summarize —
@@ -163,10 +146,6 @@ export const AiInsightPanel = memo(
       }
       loadInsight();
     }, [inView, loadInsight, vizType]);
-
-    const provider = insight?.provider ?? '';
-    const providerLabel = PROVIDER_LABELS[provider] || provider || 'AI';
-    const providerColor = PROVIDER_COLORS[provider] || 'default';
 
     if (AI_INSIGHT_EXCLUDED_VIZ_TYPES.has(vizType)) {
       return null;
@@ -311,7 +290,6 @@ export const AiInsightPanel = memo(
               `}
             />
             <Typography.Text strong>{t('AI Insight')}</Typography.Text>
-            <Tag color={providerColor}>{providerLabel}</Tag>
           </Flex>
           <Flex align="center" gap={4}>
             {showCollapseToggle && (
