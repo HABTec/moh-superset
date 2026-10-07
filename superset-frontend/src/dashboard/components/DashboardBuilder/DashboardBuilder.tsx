@@ -49,7 +49,9 @@ import {
   deleteTopLevelTabs,
   handleComponentDrop,
   clearDashboardHistory,
+  updateComponents,
 } from 'src/dashboard/actions/dashboardLayout';
+import fitOverfullRows from 'src/dashboard/util/fitOverfullRows';
 import { DropResult } from 'src/dashboard/components/dnd/dragDroppableConfig';
 import {
   DASHBOARD_GRID_ID,
@@ -1062,6 +1064,18 @@ const DashboardBuilder = () => {
     },
     [dispatch],
   );
+
+  // A saved row can be wider than the grid (its widths add up to more than
+  // 12 columns). Viewing hides this by squeezing the row, but the editor's
+  // grid is fixed-width, so the overflow would sit under the builder panel
+  // with its resize handle out of reach. Fit such rows when editing starts.
+  useEffect(() => {
+    if (!editMode) return;
+    const fitted = fitOverfullRows(dashboardLayout);
+    if (Object.keys(fitted).length) {
+      dispatch(updateComponents(fitted));
+    }
+  }, [dashboardLayout, dispatch, editMode]);
 
   const handleDeleteTopLevelTabs = useCallback(() => {
     dispatch(deleteTopLevelTabs());

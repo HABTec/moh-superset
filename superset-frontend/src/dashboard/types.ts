@@ -127,6 +127,8 @@ export type DashboardState = {
   sliceIds: number[];
   directPathLastUpdated: number;
   nativeFiltersBarOpen?: boolean;
+  /** A chart's empty state asked the filter bar to clear and apply. */
+  filterBarClearRequested?: boolean;
   css?: string;
   focusedFilterField?: {
     chartId: number;

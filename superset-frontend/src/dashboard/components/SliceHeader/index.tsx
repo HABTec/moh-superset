@@ -241,10 +241,10 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
     const theme = useTheme();
 
     const { selectedOrgUnit } = useGlobalContext(slice.slice_id);
-    const dynamicTitle = appendOrgUnitToTitle(
-      useDynamicChartTitle(slice.slice_id, sliceName ?? ''),
-      selectedOrgUnit,
-    );
+    // The on-screen title leaves the org unit to the context chip below it;
+    // downloaded files still name it, since a file name has no chip.
+    const dynamicTitle = useDynamicChartTitle(slice.slice_id, sliceName ?? '');
+    const exportTitle = appendOrgUnitToTitle(dynamicTitle, selectedOrgUnit);
 
     const rowLimit = Number(formData.row_limit ?? 0);
 
@@ -398,7 +398,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
               {!uiConfig.hideChartControls && (
                 <SliceHeaderControls
                   slice={slice}
-                  dynamicTitle={dynamicTitle}
+                  dynamicTitle={exportTitle}
                   isCached={isCached}
                   isExpanded={isExpanded}
                   cachedDttm={cachedDttm}

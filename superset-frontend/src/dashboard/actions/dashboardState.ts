@@ -113,6 +113,30 @@ export function toggleNativeFiltersBar(
   return { type: TOGGLE_NATIVE_FILTERS_BAR, isOpen };
 }
 
+export const REQUEST_FILTER_BAR_CLEAR = 'REQUEST_FILTER_BAR_CLEAR';
+export const FILTER_BAR_CLEAR_HANDLED = 'FILTER_BAR_CLEAR_HANDLED';
+
+interface RequestFilterBarClearAction {
+  type: typeof REQUEST_FILTER_BAR_CLEAR;
+}
+
+interface FilterBarClearHandledAction {
+  type: typeof FILTER_BAR_CLEAR_HANDLED;
+}
+
+/**
+ * Asks the filter bar to clear its in-scope filters and apply the result,
+ * exactly as "Clear all filters" followed by "Apply filters" would. Lets a
+ * chart's empty state offer recovery without duplicating filter-bar logic.
+ */
+export function requestFilterBarClear(): RequestFilterBarClearAction {
+  return { type: REQUEST_FILTER_BAR_CLEAR };
+}
+
+export function filterBarClearHandled(): FilterBarClearHandledAction {
+  return { type: FILTER_BAR_CLEAR_HANDLED };
+}
+
 export const SET_UNSAVED_CHANGES = 'SET_UNSAVED_CHANGES';
 
 interface SetUnsavedChangesAction {

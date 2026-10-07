@@ -45,6 +45,7 @@ const categoricalSchemeRegistry = getCategoricalSchemeRegistry();
 const sequentialSchemeRegistry = getSequentialSchemeRegistry();
 
 export const DEFAULT_DECKGL_COLOR = { r: 158, g: 158, b: 158, a: 1 };
+export const DEFAULT_NO_DATA_COLOR = { r: 217, g: 217, b: 217, a: 1 };
 
 let deckglTiles: string[][];
 
@@ -716,6 +717,21 @@ export const breakpointsDefaultColor: CustomControlItem = {
       "The color used when a value doesn't match any defined breakpoints.",
     ),
     default: DEFAULT_DECKGL_COLOR,
+    renderTrigger: true,
+    visibility: ({ controls }) =>
+      isColorSchemeTypeVisible(controls, COLOR_SCHEME_TYPES.color_breakpoints),
+  },
+};
+
+export const breakpointsNoDataColor: CustomControlItem = {
+  name: 'no_data_color',
+  config: {
+    label: t('No data color'),
+    type: 'ColorPickerControl',
+    description: t(
+      'The color used for areas that have no value for the metric. Shown as a separate "No data" legend item.',
+    ),
+    default: DEFAULT_NO_DATA_COLOR,
     renderTrigger: true,
     visibility: ({ controls }) =>
       isColorSchemeTypeVisible(controls, COLOR_SCHEME_TYPES.color_breakpoints),

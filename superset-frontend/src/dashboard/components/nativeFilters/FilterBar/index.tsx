@@ -61,6 +61,7 @@ import { useTabId } from 'src/hooks/useTabId';
 import { logEvent } from 'src/logger/actions';
 import { LOG_ACTIONS_CHANGE_DASHBOARD_FILTER } from 'src/logger/LogUtils';
 import { FilterBarOrientation, RootState } from 'src/dashboard/types';
+import { filterBarClearHandled } from 'src/dashboard/actions/dashboardState';
 import { UserWithPermissionsAndRoles } from 'src/types/bootstrapTypes';
 import { isChartCustomization } from '../FiltersConfigModal/utils';
 import { checkIsApplyDisabled, getFiltersToApply } from './utils';
@@ -566,6 +567,43 @@ const FilterBar: FC<FiltersBarProps> = ({
       return newTriggers;
     });
   }, []);
+
+  // A chart's empty state can ask for "Clear filters". Clear and apply in
+  // one step: write the cleared value straight to each in-scope filter's
+  // applied state (the selection syncs from it) and reset the controls the
+  // way Clear all does. Required filters keep their value — clearing them
+  // would leave the charts with nothing they are allowed to query.
+  const filterBarClearRequested = useSelector<RootState, boolean>(state =>
+    Boolean(state.dashboardState.filterBarClearRequested),
+  );
+
+  useEffect(() => {
+    if (!filterBarClearRequested) return;
+    dispatch(filterBarClearHandled());
+    dispatch(logEvent(LOG_ACTIONS_CHANGE_DASHBOARD_FILTER, {}));
+    setUpdateKey(1);
+
+    const triggers: Record<string, boolean> = {};
+    nativeFilterValues.forEach(filter => {
+      if (
+        !inScopeFilterIds.has(filter.id) ||
+        filter.controlValues?.enableEmptyFilter
+      ) {
+        return;
+      }
+      dispatch(
+        updateDataMask(filter.id, {
+          filterState: {
+            value:
+              filter.filterType === 'filter_range' ? [null, null] : undefined,
+          },
+          extraFormData: {},
+        }),
+      );
+      triggers[filter.id] = true;
+    });
+    setClearAllTriggers(prev => ({ ...prev, ...triggers }));
+  }, [dispatch, filterBarClearRequested, inScopeFilterIds, nativeFilterValues]);
 
   useFilterUpdates(dataMaskSelected, setDataMaskSelected);
 

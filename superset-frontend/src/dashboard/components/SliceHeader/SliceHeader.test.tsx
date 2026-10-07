@@ -959,7 +959,7 @@ test('Should NOT show row count warning for table chart with server pagination w
   mockUseUiConfig.mockRestore();
 });
 
-test('Should add the picked org unit to the chart title', () => {
+test('Should leave the picked org unit to the context chip, not the title', () => {
   mockSelectedOrgUnit = 'Amhara Region';
   (useUiConfig as jest.MockedFunction<typeof useUiConfig>).mockReturnValue({
     hideTitle: false,
@@ -976,8 +976,11 @@ test('Should add the picked org unit to the chart title', () => {
       initialState,
     });
     expect(
-      screen.getByText('Vaccine Candidates per Phase — Amhara Region'),
+      screen.getByText('Vaccine Candidates per Phase'),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Vaccine Candidates per Phase — Amhara Region'),
+    ).not.toBeInTheDocument();
   } finally {
     mockSelectedOrgUnit = null;
   }

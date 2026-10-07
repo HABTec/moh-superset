@@ -51,6 +51,7 @@ import {
   deckGLLinearColorSchemeSelect,
   deckGLColorBreakpointsSelect,
   breakpointsDefaultColor,
+  breakpointsNoDataColor,
   tooltipContents,
   tooltipTemplate,
 } from '../../utilities/Shared_DeckGL';
@@ -129,6 +130,7 @@ const config: ControlPanelConfig = {
           fillColorPicker,
           deckGLLinearColorSchemeSelect,
           breakpointsDefaultColor,
+          breakpointsNoDataColor,
           deckGLColorBreakpointsSelect,
           strokeColorPicker,
         ],

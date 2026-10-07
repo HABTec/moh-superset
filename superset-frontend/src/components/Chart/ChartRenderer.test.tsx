@@ -57,6 +57,14 @@ jest.mock(
   () => () => <div data-test="mock-chart-context-menu" />,
 );
 
+jest.mock(
+  'src/dashboard/components/ChartNoDataState',
+  () =>
+    ({ chartId }: { chartId: number }) => (
+      <div data-test="mock-chart-no-data">{chartId}</div>
+    ),
+);
+
 interface MockActions {
   chartRenderingSucceeded: (chartId: number) => Dispatch;
   chartRenderingFailed: (
@@ -445,4 +453,34 @@ test('does not render chart during loading when last data has errors', () => {
 
   const { queryByTestId } = render(<ChartRenderer {...props} />);
   expect(queryByTestId('mock-super-chart')).not.toBeInTheDocument();
+});
+
+const allNullRiskProps = {
+  ...requiredProps,
+  vizType: VizType.BigNumberTotal,
+  chartIsStale: false,
+  formData: {
+    viz_type: VizType.BigNumberTotal,
+    metric: 'AVG(risk_index_final)',
+  } as unknown as ChartRendererProps['formData'],
+  queriesResponse: [{ data: [{ 'AVG(risk_index_final)': null }] }],
+};
+
+test('a dashboard chart whose measures are all NULL shows the shared empty state', () => {
+  const { getByTestId, queryByTestId } = render(
+    <ChartRenderer {...(allNullRiskProps as ChartRendererProps)} />,
+  );
+  expect(getByTestId('mock-chart-no-data')).toHaveTextContent('1');
+  expect(queryByTestId('mock-super-chart')).not.toBeInTheDocument();
+});
+
+test('Explore still draws an all-NULL result itself', () => {
+  const { getByTestId, queryByTestId } = render(
+    <ChartRenderer
+      {...(allNullRiskProps as ChartRendererProps)}
+      source={ChartSource.Explore}
+    />,
+  );
+  expect(getByTestId('mock-super-chart')).toBeInTheDocument();
+  expect(queryByTestId('mock-chart-no-data')).not.toBeInTheDocument();
 });

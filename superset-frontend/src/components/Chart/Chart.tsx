@@ -34,7 +34,7 @@ import {
 import { styled } from '@apache-superset/core/theme';
 import type { ChartState, Datasource, ChartStatus } from 'src/explore/types';
 import { PLACEHOLDER_DATASOURCE } from 'src/dashboard/constants';
-import { EmptyState, Loading } from '@superset-ui/core/components';
+import { Button, EmptyState, Loading } from '@superset-ui/core/components';
 import { ErrorBoundary } from 'src/components';
 import { Logger, LOG_ACTIONS_RENDER_CHART } from 'src/logger/LogUtils';
 import { URL_PARAMS } from 'src/constants';
@@ -181,6 +181,13 @@ const ErrorContainer = styled.div<{ height: number }>`
   overflow: auto;
 `;
 
+const RetryRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: ${({ theme }) => theme.sizeUnit * 4}px;
+`;
+
 const MessageSpan = styled.span`
   display: block;
   text-align: center;
@@ -199,6 +206,11 @@ class Chart extends PureComponent<ChartProps, {}> {
     this.renderStartTime = Logger.getTimestamp();
     this.handleRenderContainerFailure =
       this.handleRenderContainerFailure.bind(this);
+    this.handleRetry = this.handleRetry.bind(this);
+  }
+
+  handleRetry() {
+    this.runQuery();
   }
 
   componentDidMount() {
@@ -373,6 +385,20 @@ class Chart extends PureComponent<ChartProps, {}> {
         <ErrorContainer height={height}>
           {queriesResponse?.map(item =>
             this.renderErrorMessage(item as ChartErrorType),
+          )}
+          {this.props.dashboardId && (
+            // A failed request is not "no data": offer to try it again.
+            <RetryRow>
+              <MessageSpan>{t('Unable to load this visual.')}</MessageSpan>
+              <Button
+                buttonStyle="secondary"
+                buttonSize="small"
+                onClick={this.handleRetry}
+                data-test="chart-retry"
+              >
+                {t('Retry')}
+              </Button>
+            </RetryRow>
           )}
         </ErrorContainer>
       );

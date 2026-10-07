@@ -19,6 +19,7 @@
 import {
   getColorBreakpointsBuckets,
   getBreakPoints,
+  isMetricMissing,
   isMetricOutOfZeroToHundred,
   NO_DATA_LEGEND_LABEL,
   OUT_OF_RANGE_LEGEND_LABEL,
@@ -82,6 +83,18 @@ describe('getColorBreakpointsBuckets', () => {
       OUT_OF_RANGE_LEGEND_LABEL,
       NO_DATA_LEGEND_LABEL,
     ]);
+  });
+
+  test('uses the no-data color for the No data legend item when provided', () => {
+    const result = getColorBreakpointsBuckets(
+      [],
+      { r: 171, g: 164, b: 164 },
+      { r: 217, g: 217, b: 217 },
+    );
+    expect(result).toEqual({
+      [OUT_OF_RANGE_LEGEND_LABEL]: { color: [171, 164, 164], enabled: true },
+      [NO_DATA_LEGEND_LABEL]: { color: [217, 217, 217], enabled: true },
+    });
   });
 });
 
@@ -568,4 +581,14 @@ test('getColorBreakpointsBuckets lists legend bands in ascending value order', (
   ]);
   expect(result['21 - 40'].color).toEqual([2, 0, 0]);
   expect(colorBreakpoints[1].minValue).toBe(41);
+});
+
+test('isMetricMissing flags absent or non-finite values only', () => {
+  expect(isMetricMissing(null)).toBe(true);
+  expect(isMetricMissing(undefined)).toBe(true);
+  expect(isMetricMissing('')).toBe(true);
+  expect(isMetricMissing(NaN)).toBe(true);
+  expect(isMetricMissing(0)).toBe(false);
+  expect(isMetricMissing(488.8)).toBe(false);
+  expect(isMetricMissing('42')).toBe(false);
 });

@@ -21,7 +21,7 @@ import { render, screen } from '@testing-library/react';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import '@testing-library/jest-dom';
 import { supersetTheme, ThemeProvider } from '@apache-superset/core/theme';
-import DeckGLPolygon, { getPoints } from './Polygon';
+import DeckGLPolygon, { getLayer, getPoints } from './Polygon';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
 import * as utils from '../../utils';
 
@@ -262,12 +262,11 @@ describe('DeckGLPolygon Error Handling and Edge Cases', () => {
     renderWithTheme(<DeckGLPolygon {...propsWithMissingBreakpoints} />);
 
     // Should call getColorBreakpointsBuckets even with undefined breakpoints
-    expect(mockGetColorBreakpointsBuckets).toHaveBeenCalledWith(undefined, {
-      r: 158,
-      g: 158,
-      b: 158,
-      a: 1,
-    });
+    expect(mockGetColorBreakpointsBuckets).toHaveBeenCalledWith(
+      undefined,
+      { r: 158, g: 158, b: 158, a: 1 },
+      { r: 217, g: 217, b: 217, a: 1 },
+    );
     expect(mockGetBuckets).not.toHaveBeenCalled();
   });
 
@@ -357,4 +356,38 @@ describe('getPoints utility', () => {
     expect(points[0]).toEqual([0, 0]);
     expect(points[4]).toEqual([2, 2]);
   });
+});
+
+test('getLayer paints missing metric values with the no-data color', () => {
+  const polygon = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+  ];
+  const features = [
+    { population: null, polygon },
+    { population: 488.8, polygon },
+    { population: 50, polygon },
+  ];
+  const layer = getLayer({
+    formData: {
+      ...mockProps.formData,
+      color_scheme_type: COLOR_SCHEME_TYPES.color_breakpoints,
+      color_breakpoints: [
+        { minValue: 0, maxValue: 100, color: { r: 255, g: 0, b: 0, a: 1 } },
+      ],
+      default_breakpoint_color: { r: 10, g: 20, b: 30, a: 1 },
+      no_data_color: { r: 200, g: 210, b: 220, a: 1 },
+    },
+    payload: { data: { features } },
+    setTooltip: jest.fn(),
+    onContextMenu: jest.fn(),
+    emitCrossFilters: false,
+  } as any);
+  const polygonLayer = Array.isArray(layer) ? layer[0] : layer;
+  const getFillColor = (polygonLayer.props as any).getFillColor;
+
+  expect(getFillColor(features[0]).slice(0, 3)).toEqual([200, 210, 220]);
+  expect(getFillColor(features[1]).slice(0, 3)).toEqual([10, 20, 30]);
+  expect(getFillColor(features[2]).slice(0, 3)).toEqual([255, 0, 0]);
 });
