@@ -45,6 +45,18 @@ from flask_login import current_user
 from sqlalchemy import text
 
 from superset.moh_calendar import current_period_key
+from superset.moh_context import (
+    build_reporting_query,
+    ContextRequest,
+    DEFAULT_ACTIVE_FORM_MONTHS,
+    DEFAULT_COMPLETENESS_THRESHOLD,
+    DEFAULT_CONTEXT_SOURCES,
+    DEFAULT_CONTEXT_TABS,
+    parse_context_request,
+    resolve_tab_sources,
+    summarise_reporting,
+)
+from superset.utils import json
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +143,7 @@ def _cache_set(key: str, payload) -> None:
         logger.debug("org-unit cache write failed", exc_info=True)
 
 
-def _get_database():
+def _get_database() -> Any:
     """Look up the registered Superset Database row for our ClickHouse connection."""
     # Lazy imports — Superset's db extension isn't ready at config-load time.
     from superset import db as superset_db
@@ -710,6 +722,162 @@ def get_data_freshness() -> Response:
     sources = _query_data_freshness()
     _data_freshness_cache = (time.monotonic(), sources)
     return jsonify({"sources": sources})
+
+
+# ---------------------------------------------------------------------------
+# Tab context — source, data-as-of and reporting completeness for the
+# dashboard context strip. See superset/moh_context.py for the rules.
+# ---------------------------------------------------------------------------
+
+_TAB_CONTEXT_TTL_SECONDS = 600
+_TAB_CONTEXT_CACHE_MAX = 500
+_tab_context_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_source_value_cache: dict[str, tuple[float, str | None]] = {}
+_READ_ONLY_QUERY = re.compile(r"^\s*(SELECT|WITH)\b", re.IGNORECASE)
+
+
+def _context_sources() -> dict[str, dict[str, Any]]:
+    return {
+        **DEFAULT_CONTEXT_SOURCES,
+        **(current_app.config.get("MOH_CONTEXT_SOURCES") or {}),
+    }
+
+
+def _context_tabs() -> dict[Any, list[tuple[str, list[str]]]]:
+    return current_app.config.get("MOH_CONTEXT_TABS") or DEFAULT_CONTEXT_TABS
+
+
+def _query_source_value(key: str, query: str) -> str | None:
+    """One configured value (a year, a period label, a snapshot date)."""
+    cached = _source_value_cache.get(key)
+    if cached and time.monotonic() - cached[0] < _TAB_CONTEXT_TTL_SECONDS:
+        return cached[1]
+    if not _READ_ONLY_QUERY.match(query or ""):
+        logger.error("Tab context source %r has no SELECT query", key)
+        return None
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            row = conn.execute(text(query), {}).first()
+    value = None
+    if row is not None:
+        first = next(iter(row._mapping.values()), None)
+        if first not in (None, ""):
+            value = str(first).strip() or None
+    _source_value_cache[key] = (time.monotonic(), value)
+    return value
+
+
+def _query_reporting(context_request: ContextRequest) -> dict[str, Any] | None:
+    config = current_app.config
+    sql, params = build_reporting_query(
+        context_request,
+        schema=_schema(),
+        active_form_months=int(
+            config.get("MOH_ACTIVE_FORM_MONTHS", DEFAULT_ACTIVE_FORM_MONTHS)
+        ),
+        scope_unit=None if context_request.org_units else _scope_unit(),
+    )
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            rows = [dict(row._mapping) for row in conn.execute(text(sql), params).all()]
+    return summarise_reporting(
+        rows,
+        context_request,
+        float(
+            config.get(
+                "MOH_COMPLETENESS_THRESHOLD", DEFAULT_COMPLETENESS_THRESHOLD
+            )
+        ),
+    )
+
+
+def _build_tab_context(context_request: ContextRequest) -> dict[str, Any]:
+    keys = resolve_tab_sources(
+        _context_tabs(), context_request.dashboard_id, context_request.tab_path
+    )
+    specs = _context_sources()
+    sources: list[dict[str, Any]] = []
+    reporting: dict[str, Any] | None = None
+    for key in keys:
+        spec = specs.get(key)
+        if not spec:
+            continue
+        entry: dict[str, Any] = {
+            "key": key,
+            "label": spec.get("label", key),
+            "kind": spec.get("kind", "annual"),
+        }
+        try:
+            if entry["kind"] == "dhis2":
+                if context_request.has_reporting_basis:
+                    reporting = _query_reporting(context_request)
+                if reporting and reporting.get("latestComplete"):
+                    entry["latestPeriod"] = reporting["latestComplete"]
+                    entry["inProgress"] = reporting.get("inProgress")
+                else:
+                    # No indicators to judge completeness by: fall back to
+                    # the latest month with any routine data.
+                    entry["latestPeriod"] = _query_latest_monthly_period(
+                        current_app.config.get(
+                            "MOH_INDICATOR_VALUES_TABLE", "indicator_data_values"
+                        )
+                    )
+                    entry["basis"] = "latest_data"
+            else:
+                entry["latest"] = _query_source_value(key, spec.get("query", ""))
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Tab context lookup failed for source %r", key)
+        sources.append(entry)
+
+    completeness = reporting.get("completeness") if reporting else None
+    return {
+        "sources": sources,
+        "completeness": completeness,
+        "basis": (
+            {
+                "forms": reporting.get("forms"),
+                "expectedReports": reporting.get("expectedReports"),
+            }
+            if reporting
+            else None
+        ),
+    }
+
+
+@moh_orgunits_bp.route("/tab-context", methods=["GET"])
+def get_tab_context() -> Response:
+    """Source, data-as-of and reporting completeness for one dashboard tab.
+
+    ``q`` is JSON: ``dashboardId``, ``tabPath`` (tab titles, outermost
+    first), the tab's ``indicators`` / ``indicatorIds`` / ``dataElements`` /
+    ``dataSets``, the selected ``fiscalYears`` / ``quarters`` / ``months``,
+    and ``orgUnits`` (Org Unit tree selections by column). Read-only; cached
+    briefly per request and per user scope.
+    """
+    _require_authenticated()
+    try:
+        payload = json.loads(request.args.get("q") or "{}")
+    except ValueError:
+        abort(400, "q must be JSON")
+    context_request = parse_context_request(payload)
+
+    scope = None if context_request.org_units else _scope_unit()
+    cache_key = json.dumps(
+        [vars(context_request), scope.get("id") if scope else None],
+        sort_keys=True,
+        default=str,
+    )
+    cached = _tab_context_cache.get(cache_key)
+    if cached and time.monotonic() - cached[0] < _TAB_CONTEXT_TTL_SECONDS:
+        return jsonify(cached[1])
+
+    result = _build_tab_context(context_request)
+    if len(_tab_context_cache) >= _TAB_CONTEXT_CACHE_MAX:
+        _tab_context_cache.clear()
+    _tab_context_cache[cache_key] = (time.monotonic(), result)
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------------------

@@ -290,6 +290,41 @@ from superset.moh_security_manager import MoHSecurityManager
 CUSTOM_SECURITY_MANAGER = MoHSecurityManager
 
 # -----------------------------------------------------------------------------
+# CONTEXT STRIP — source, data as of and reporting completeness per tab
+# -----------------------------------------------------------------------------
+# Served by /api/v1/moh/dhis2/tab-context (superset/moh_context.py). The
+# defaults there cover dashboards 3 (Performance Monitoring) and 8 (Health
+# Intelligence) as they exist today; override only what differs.
+#
+# A DHIS2 month counts as complete — and becomes "Data as of" — once its
+# reporting completeness reaches this percentage. Newer months show as
+# "received so far".
+MOH_COMPLETENESS_THRESHOLD = 80
+# A reporting form counts toward completeness only if it was reported within
+# the latest N months with data; retired forms (e.g. "00 - Monthly common
+# dataset") then stop diluting the figure.
+MOH_ACTIVE_FORM_MONTHS = 3
+# Dashboard ids differ between environments. Map each dashboard's tabs (path
+# prefix, outermost tab first, " / " between levels; the longest match wins)
+# to source keys. Omit to use the defaults in superset/moh_context.py.
+# MOH_CONTEXT_TABS = {
+#     8: [
+#         ("Services Delivery", ["dhis2"]),
+#         ("Services Delivery / Maternal", ["dhis2", "edhs"]),
+#         ("PHEM", ["phem"]),
+#     ],
+# }
+# Add or override sources. "annual"/"snapshot" sources need a read-only
+# SELECT returning one value (a year, a period label, a date).
+# MOH_CONTEXT_SOURCES = {
+#     "phem": {
+#         "label": "PHEM surveillance",
+#         "kind": "annual",
+#         "query": "SELECT max(fiscal_year) FROM moh.disease_surveillance",
+#     },
+# }
+
+# -----------------------------------------------------------------------------
 # LANDING PAGE
 # -----------------------------------------------------------------------------
 MOH_FEATURED_DASHBOARD = os.environ.get("MOH_FEATURED_DASHBOARD") or None
