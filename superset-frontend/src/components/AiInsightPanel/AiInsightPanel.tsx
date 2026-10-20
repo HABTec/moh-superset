@@ -217,14 +217,26 @@ export const AiInsightPanel = memo(
           </Button>
         </Flex>
       ) : (
-        <Flex vertical gap={8}>
-          <Typography.Paragraph className="ai-insight-text">
+        <Flex vertical gap={4}>
+          <Typography.Paragraph
+            className="ai-insight-text"
+            css={css`
+              margin-bottom: 0;
+              line-height: 1.35;
+            `}
+          >
             {insight?.summary}
           </Typography.Paragraph>
           {insight?.bullets?.length ? (
             <List
               size="small"
               split={false}
+              css={css`
+                line-height: 1.35;
+                .ant-list-item {
+                  padding-block: 1px;
+                }
+              `}
               dataSource={insight.bullets}
               renderItem={(item: string) => (
                 <List.Item>
@@ -237,14 +249,26 @@ export const AiInsightPanel = memo(
                     >
                       •
                     </Typography.Text>
-                    <Typography.Text>{item}</Typography.Text>
+                    <Typography.Text
+                      css={css`
+                        line-height: 1.35;
+                      `}
+                    >
+                      {item}
+                    </Typography.Text>
                   </Flex>
                 </List.Item>
               )}
             />
           ) : null}
           {insight?.recommendation && (
-            <Typography.Paragraph className="ai-insight-text">
+            <Typography.Paragraph
+              className="ai-insight-text"
+              css={css`
+                margin-bottom: 0;
+                line-height: 1.35;
+              `}
+            >
               <strong>{t('Recommendation')}:</strong>{' '}
               {insight.recommendation}
             </Typography.Paragraph>

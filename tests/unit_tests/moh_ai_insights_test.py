@@ -8,6 +8,9 @@ from superset.moh_ai_insights import (
     _ask_llm,
     _bounded_summary,
     _cap_strings,
+    _cache_get,
+    _cache_key,
+    _cache_set,
     _generate_demo_insight,
     _generate_insight,
     _insights_enabled,
@@ -192,3 +195,32 @@ def test_insights_enabled_parses_strings(monkeypatch) -> None:
     assert _insights_enabled() is False
     monkeypatch.setenv("MOH_AI_INSIGHTS_ENABLED", "true")
     assert _insights_enabled() is True
+
+
+def test_insight_cache_uses_superset_cache_backend(mocker) -> None:
+    payload = {"summary": "cached insight"}
+    key = _cache_key(42, {"summary": {"rowCount": 3}})
+    mock_cache = mocker.patch(
+        "superset.extensions.cache_manager._filter_state_cache"
+    )
+    mocker.patch("superset.moh_ai_insights._cache_ttl", return_value=300)
+    mock_cache.get.return_value = payload
+
+    assert _cache_get(key) == payload
+    _cache_set(key, payload)
+
+    mock_cache.get.assert_called_once_with(key)
+    mock_cache.set.assert_called_once_with(key, payload, timeout=300)
+
+
+def test_insight_cache_key_ignores_sample_row_order() -> None:
+    payload = {
+        "summary": {"rowCount": 2},
+        "sample_rows": [{"period": "2025-02"}, {"period": "2025-01"}],
+    }
+    reordered_payload = {
+        "summary": {"rowCount": 2},
+        "sample_rows": list(reversed(payload["sample_rows"])),
+    }
+
+    assert _cache_key(42, payload) == _cache_key(42, reordered_payload)

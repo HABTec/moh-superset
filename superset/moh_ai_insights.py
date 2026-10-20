@@ -80,10 +80,6 @@ logger = logging.getLogger(__name__)
 
 ai_insights_bp = Blueprint("moh_ai_insights", __name__)
 
-# In-process cache: cache_key -> (expiry_ts, payload). Small enough for a
-# single-instance deploy; swap for Redis if the app is scaled horizontally.
-_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-
 _MAX_SAMPLE_ROWS = 40
 _MAX_LLM_TEXT_CHARS = 6000
 _DEFAULT_MODELS = {
@@ -137,6 +133,44 @@ def _cache_ttl() -> int:
     # Keep generated chart insights warm for at least 2 weeks so dashboard
     # re-renders and repeated visits do not trigger repeated LLM calls.
     return _int_config("MOH_AI_INSIGHTS_CACHE_TTL", 14 * 24 * 60 * 60)
+
+
+def _cache_get(key: str) -> dict[str, Any] | None:
+    """Read an insight from Superset's configured shared cache."""
+    if _cache_ttl() <= 0:
+        return None
+    try:
+        from superset.extensions import cache_manager
+
+        value = cache_manager.filter_state_cache.get(key)
+        if isinstance(value, dict):
+            logger.info("AI insights cache hit (%s)", key.rsplit(":", 1)[-1][:12])
+            return value
+        logger.info("AI insights cache miss (%s)", key.rsplit(":", 1)[-1][:12])
+        return None
+    except Exception:  # noqa: BLE001 - caching must not break insight generation
+        logger.warning("AI insights cache read failed", exc_info=True)
+        return None
+
+
+def _cache_set(key: str, value: dict[str, Any]) -> None:
+    """Store an insight in Superset's configured shared cache, best-effort."""
+    ttl = _cache_ttl()
+    if ttl <= 0:
+        return
+    try:
+        from superset.extensions import cache_manager
+
+        stored = cache_manager.filter_state_cache.set(key, value, timeout=ttl)
+        if stored is False:
+            logger.warning(
+                "AI insights cache write returned false (%s)",
+                key.rsplit(":", 1)[-1][:12],
+            )
+        else:
+            logger.info("AI insights cache stored (%s)", key.rsplit(":", 1)[-1][:12])
+    except Exception:  # noqa: BLE001 - caching must not break insight generation
+        logger.warning("AI insights cache write failed", exc_info=True)
 
 
 def _insights_enabled() -> bool:
@@ -433,8 +467,15 @@ def _parse_llm_insight(text: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 def _cache_key(chart_id: int, payload: dict[str, Any]) -> str:
+    cache_payload = dict(payload)
+    sample_rows = cache_payload.get("sample_rows")
+    if isinstance(sample_rows, list):
+        cache_payload["sample_rows"] = sorted(
+            sample_rows,
+            key=lambda row: json.dumps(row, sort_keys=True, default=str),
+        )
     digest = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        json.dumps(cache_payload, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()
     return f"moh_ai_insights:{chart_id}:{digest}"
 
@@ -554,11 +595,9 @@ def generate_chart_insight(chart_id: int) -> FlaskResponse:
         "sample_rows": sample_rows,
     }
     cache_key = _cache_key(chart_id, request_payload)
-    now = time.time()
-
-    cached = _CACHE.get(cache_key)
-    if cached and cached[0] > now:
-        return jsonify({**cached[1], "cached": True})
+    cached = _cache_get(cache_key)
+    if cached:
+        return jsonify({**cached, "cached": True})
 
     result = _generate_insight(
         chart_id,
@@ -579,5 +618,5 @@ def generate_chart_insight(chart_id: int) -> FlaskResponse:
         "generated_at": generated_at,
         "cached": False,
     }
-    _CACHE[cache_key] = (now + _cache_ttl(), response_payload)
+    _cache_set(cache_key, response_payload)
     return jsonify(response_payload)
