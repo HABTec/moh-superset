@@ -25,5 +25,6 @@ declare module 'brace/mode/yaml';
 declare module 'brace/mode/javascript';
 declare module 'brace/theme/textmate';
 declare module 'brace/theme/github';
+declare module 'brace/theme/tomorrow_night';
 declare module 'brace/ext/language_tools';
 declare module 'brace/ext/searchbox';

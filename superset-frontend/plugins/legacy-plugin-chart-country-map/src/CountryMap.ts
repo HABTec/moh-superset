@@ -65,6 +65,8 @@ interface CountryMapProps {
   formatter: ValueFormatter;
   colorScheme: string;
   sliceId: number;
+  /** Brighten instead of darken on hover, so dark regions stay visible */
+  isDarkMode?: boolean;
 }
 
 const maps: Record<string, GeoData> = {};
@@ -79,6 +81,7 @@ function CountryMap(element: HTMLElement, props: CountryMapProps) {
     formatter,
     colorScheme,
     sliceId,
+    isDarkMode = false,
   } = props;
 
   const container = element;
@@ -169,10 +172,11 @@ function CountryMap(element: HTMLElement, props: CountryMapProps) {
   };
 
   const mouseenter = function mouseenter(this: SVGPathElement, d: GeoFeature) {
-    // Darken color
+    // Highlight: darken on a light background, brighten on a dark one
     let c: string = colorFn(d);
     if (c !== 'none') {
-      c = d3.rgb(c).darker().toString();
+      const rgb = d3.rgb(c);
+      c = (isDarkMode ? rgb.brighter() : rgb.darker()).toString();
     }
     d3.select(this).style('fill', c);
     // Display information popup

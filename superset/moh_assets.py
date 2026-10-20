@@ -812,6 +812,8 @@ def default_tv_theme(tokens: dict[str, Any] | None = None) -> dict[str, Any]:
     title = int(tokens.get("tv_size_title", 30))
     axis_label = {"fontSize": chart, "hideOverlap": True}
     return {
+        # Wall TVs stay light whatever the TV box's own light/dark setting is
+        "forceMode": "light",
         "token": {
             "fontSize": floor,
             "fontSizeHeading3": title,

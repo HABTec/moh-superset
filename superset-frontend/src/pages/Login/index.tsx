@@ -79,8 +79,8 @@ const StyledCard = styled(Card)`
     max-width: 400px;
     width: 100%;
     margin-top: ${theme.marginXL}px;
-    color: ${theme.colorBgContainer};
-    background: ${theme.colorBgBase};
+    color: ${theme.colorText};
+    background: ${theme.colorBgContainer};
     .ant-form-item-label label {
       color: ${theme.colorPrimary};
     }

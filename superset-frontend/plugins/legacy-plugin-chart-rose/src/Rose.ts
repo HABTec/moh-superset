@@ -63,6 +63,8 @@ interface RoseProps {
   useRichTooltip: boolean;
   useAreaProportions: boolean;
   sliceId: number;
+  /** Label colour from the theme, so labels stay readable in dark mode */
+  textColor?: string;
 }
 
 const propTypes = {
@@ -84,6 +86,7 @@ const propTypes = {
   useRichTooltip: PropTypes.bool,
   useAreaProportions: PropTypes.bool,
   colorScheme: PropTypes.string,
+  textColor: PropTypes.string,
 };
 
 function copyArc(d: ArcDatum): ArcDatum {
@@ -114,6 +117,7 @@ function Rose(element: HTMLElement, props: RoseProps): void {
     useRichTooltip,
     useAreaProportions,
     sliceId,
+    textColor = 'currentColor',
   } = props;
 
   const div = d3.select(element);
@@ -399,7 +403,7 @@ function Rose(element: HTMLElement, props: RoseProps): void {
   labels
     .append('text')
     .style('text-anchor', 'middle')
-    .style('fill', '#000')
+    .style('fill', textColor)
     .text(d => timeFormat(d.time));
 
   const groupLabels = groupLabelsWrap
@@ -413,7 +417,7 @@ function Rose(element: HTMLElement, props: RoseProps): void {
     .attr('class', 'roseGroupLabels')
     .append('text')
     .style('text-anchor', 'middle')
-    .style('fill', '#000')
+    .style('fill', textColor)
     .text(d => d.name);
 
   const arcs = ae

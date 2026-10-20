@@ -42,7 +42,7 @@ const StyledContainer = styled.div`
   height: 100%;
 
   & .ant-splitter-panel:not(.sqllab-body):not(.queryPane) {
-    background-color: ${({ theme }) => theme.colorBgBase};
+    background-color: ${({ theme }) => theme.colorBgContainer};
   }
 
   & .sqllab-body {
@@ -57,7 +57,7 @@ const StyledSidebar = styled.div`
   margin: 0 ${({ theme }) => theme.sizeUnit * 2.5}px;
   flex: 1;
   height: 100%;
-  background-color: ${({ theme }) => theme.colorBgBase};
+  background-color: ${({ theme }) => theme.colorBgContainer};
 `;
 
 const ContentWrapper = styled.div`

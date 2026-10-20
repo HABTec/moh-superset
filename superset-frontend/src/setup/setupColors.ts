@@ -57,16 +57,41 @@ function registerColorSchemes<T extends ColorScheme>(
   registry.setDefaultKey(defaultKey);
 }
 
+/**
+ * A custom colour scheme from the server config may carry a second set of
+ * colours, "colorsDark", used while the app is in dark mode (for example
+ * ramps that run dim to bright instead of light to dark).
+ */
+type WithDarkColors<T> = T & { colorsDark?: string[] };
+
+/**
+ * Picks the colours for the current mode and drops colorsDark, which the
+ * scheme classes don't know about.
+ */
+function forMode<T extends { colors: string[] }>(
+  config: WithDarkColors<T>,
+  isDark: boolean,
+): T {
+  const { colorsDark, ...rest } = config;
+  return (
+    isDark && colorsDark?.length ? { ...rest, colors: colorsDark } : rest
+  ) as T;
+}
+
 export default function setupColors(
-  extraCategoricalColorSchemeConfigs: ColorSchemeConfig[] = [],
-  extraSequentialColorSchemeConfigs: SequentialSchemeConfig[] = [],
+  extraCategoricalColorSchemeConfigs: WithDarkColors<ColorSchemeConfig>[] = [],
+  extraSequentialColorSchemeConfigs: WithDarkColors<SequentialSchemeConfig>[] = [],
+  isDark = false,
 ) {
   const extraCategoricalColorSchemes = extraCategoricalColorSchemeConfigs.map(
     config =>
-      new CategoricalScheme({ ...config, group: ColorSchemeGroup.Custom }),
+      new CategoricalScheme({
+        ...forMode(config, isDark),
+        group: ColorSchemeGroup.Custom,
+      }),
   );
   const extraSequentialColorSchemes = extraSequentialColorSchemeConfigs.map(
-    config => new SequentialScheme(config),
+    config => new SequentialScheme(forMode(config, isDark)),
   );
   registerColorSchemes(
     getCategoricalSchemeRegistry(),

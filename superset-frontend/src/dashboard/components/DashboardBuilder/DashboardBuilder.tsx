@@ -90,8 +90,8 @@ import DashboardWrapper from './DashboardWrapper';
 
 // @z-index-above-dashboard-charts + 1 = 11
 const FiltersPanel = styled.div<{ width: number; hidden: boolean }>`
-  background-color: #e8f2fb;
-  border-right: 2px solid #2893b3;
+  background-color: ${({ theme }) => theme.colorPrimaryBg};
+  border-right: 2px solid ${({ theme }) => theme.colorPrimary};
   box-sizing: border-box;
   grid-column: 1;
   grid-row: 1 / span 2;

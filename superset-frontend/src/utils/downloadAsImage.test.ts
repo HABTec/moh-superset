@@ -21,6 +21,7 @@ import { addWarningToast } from 'src/components/MessageToasts/actions';
 import downloadAsImageOptimized, {
   waitForStableScrollHeight,
 } from './downloadAsImage';
+import { registerThemePreview } from 'src/theme/lightModeExport';
 
 jest.mock('dom-to-image-more', () => ({
   __esModule: true,
@@ -682,4 +683,80 @@ test('clone path falls back to white background when theme is absent', async () 
   );
 
   document.body.removeChild(container);
+});
+
+test('on a dark page, captures in the light theme and then restores the user theme', async () => {
+  jest.useFakeTimers();
+  document.documentElement.setAttribute('data-theme-mode', 'dark');
+  const restore = jest.fn();
+  const previewMode = jest.fn(() => restore);
+  registerThemePreview({
+    previewMode,
+    getTheme: () => ({ colorBgContainer: '#ffffff' }) as any,
+  });
+  let restoredBeforeCapture: boolean | null = null;
+  mockToJpeg.mockImplementation(async () => {
+    restoredBeforeCapture = restore.mock.calls.length > 0;
+    return 'data:image/jpeg;base64,test';
+  });
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  const darkTheme = { colorBgContainer: '#141414' } as any;
+  const exportPromise = downloadAsImageOptimized(
+    'div',
+    'Bar Chart',
+    false,
+    darkTheme,
+  )(syntheticEventFor(container));
+  await jest.runAllTimersAsync();
+  await exportPromise;
+
+  expect(previewMode).toHaveBeenCalledWith('default');
+  expect(restoredBeforeCapture).toBe(false);
+  expect(mockToJpeg).toHaveBeenCalledWith(
+    expect.any(HTMLElement),
+    expect.objectContaining({ bgcolor: '#ffffff' }),
+  );
+  expect(restore).toHaveBeenCalledTimes(1);
+
+  document.body.removeChild(container);
+  registerThemePreview(null);
+  document.documentElement.removeAttribute('data-theme-mode');
+});
+
+test('looks the element up again after switching to light, in case it re-rendered', async () => {
+  jest.useFakeTimers();
+  document.documentElement.setAttribute('data-theme-mode', 'dark');
+  const before = document.createElement('div');
+  before.className = 'export-target';
+  before.textContent = 'dark render';
+  document.body.appendChild(before);
+  const after = document.createElement('div');
+  after.className = 'export-target';
+  after.textContent = 'light render';
+  registerThemePreview({
+    // A dashboard with its own theme re-renders its charts on the switch
+    previewMode: () => {
+      before.replaceWith(after);
+      return () => {};
+    },
+    getTheme: () => ({ colorBgContainer: '#ffffff' }) as any,
+  });
+
+  const exportPromise = downloadAsImageOptimized(
+    '.export-target',
+    'Bar Chart',
+    true,
+  )({} as any);
+  await jest.runAllTimersAsync();
+  await exportPromise;
+
+  const captured = mockToJpeg.mock.calls[0][0] as HTMLElement;
+  expect(captured.textContent).toContain('light render');
+  expect(mockAddWarningToast).not.toHaveBeenCalled();
+
+  document.body.removeChild(after);
+  registerThemePreview(null);
+  document.documentElement.removeAttribute('data-theme-mode');
 });

@@ -983,8 +983,10 @@ THEME_DARK: Optional[Theme] = {
     },
     "algorithm": "dark",
 }
-# Set to None to disable dark mode and force light mode only
-THEME_DARK: Optional[Theme] = None
+
+# Mode for users who have not chosen one yet: "default" (light), "dark" or
+# "system" (follow the operating system). Only applies when THEME_DARK is set.
+THEME_DEFAULT_MODE: Literal["default", "dark", "system"] = "system"
 
 # Theme behavior and user preference settings
 # To force a single theme on all users, set THEME_DARK = None
@@ -2337,7 +2339,9 @@ GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (Literal["None", "Lax", "Strict
     None
 )
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
-GLOBAL_ASYNC_QUERIES_JWT_SECRET = "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = (
+    "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
+)
 GLOBAL_ASYNC_QUERIES_TRANSPORT: Literal["polling", "ws"] = "polling"
 GLOBAL_ASYNC_QUERIES_POLLING_DELAY = int(
     timedelta(milliseconds=500).total_seconds() * 1000

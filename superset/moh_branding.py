@@ -13,10 +13,7 @@ This module remains only so older imports do not crash. It re-exports branding
 constants for backward compatibility but does NOT register Flask blueprints.
 """
 
-from superset.config import (
-    THEME_DARK as _APACHE_THEME_DARK,
-    THEME_DEFAULT as _APACHE_THEME_DEFAULT,
-)
+from superset.config import THEME_DEFAULT as _APACHE_THEME_DEFAULT
 
 VERSION_STRING = "MoH 6.0"
 APP_NAME = "MoH Analytics Portal"
@@ -43,14 +40,8 @@ THEME_DEFAULT = {
     "token": {**_APACHE_THEME_DEFAULT["token"], **_MOH_BRAND_TOKENS},
 }
 
-THEME_DARK = (
-    {
-        **_APACHE_THEME_DARK,
-        "token": {**_APACHE_THEME_DARK["token"], **_MOH_BRAND_TOKENS},
-    }
-    if _APACHE_THEME_DARK
-    else None
-)
+# Dark mode is configured only in superset_config.py (MOH_DARK_MODE_ENABLED).
+THEME_DARK = None
 
 # Blueprints are registered only via superset_config.py BLUEPRINTS.
 BLUEPRINTS: list = []

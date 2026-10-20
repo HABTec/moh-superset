@@ -39,17 +39,35 @@
       display: none !important;
     }
 
+    /* Bar colours follow Superset's mode via <html data-theme-mode>. */
     .moh-portal-bar {
+      --moh-bar-bg: #ffffff;
+      --moh-bar-fg: #0a2540;
+      --moh-bar-line: #d6e3ff;
+      --moh-bar-line-soft: #eef4ff;
+      --moh-bar-muted: #6b7c93;
+      --moh-bar-accent: #1a5cff;
+      --moh-bar-shadow: rgba(10, 37, 64, 0.12);
       display: none;
       align-items: center;
       gap: 16px;
       padding: 8px 24px;
-      background: #ffffff;
-      border-bottom: 1px solid #d6e3ff;
-      color: #0a2540;
+      background: var(--moh-bar-bg);
+      border-bottom: 1px solid var(--moh-bar-line);
+      color: var(--moh-bar-fg);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       position: relative;
       z-index: 1000;
+    }
+
+    html[data-theme-mode="dark"] .moh-portal-bar {
+      --moh-bar-bg: #141414;
+      --moh-bar-fg: rgba(255, 255, 255, 0.85);
+      --moh-bar-line: #303030;
+      --moh-bar-line-soft: #262626;
+      --moh-bar-muted: rgba(255, 255, 255, 0.65);
+      --moh-bar-accent: #6b8fdc;
+      --moh-bar-shadow: rgba(0, 0, 0, 0.45);
     }
 
     body.moh-portal-shell .moh-portal-bar {
@@ -72,11 +90,11 @@
 
     .moh-portal-bar .moh-portal-title {
       padding-left: 14px;
-      border-left: 1px solid #d6e3ff;
+      border-left: 1px solid var(--moh-bar-line);
       font-size: 0.8rem;
       font-weight: 600;
       letter-spacing: 0.5px;
-      color: #6b7c93;
+      color: var(--moh-bar-muted);
     }
 
     .moh-portal-bar nav {
@@ -87,8 +105,9 @@
     }
 
     .moh-portal-bar nav a,
-    .moh-portal-bar nav .moh-portal-user {
-      color: #0a2540;
+    .moh-portal-bar nav .moh-portal-user,
+    .moh-portal-bar nav .moh-portal-mode {
+      color: var(--moh-bar-fg);
       text-decoration: none;
       font-weight: 600;
       font-size: 0.9rem;
@@ -97,18 +116,32 @@
     }
 
     .moh-portal-bar nav a:hover,
-    .moh-portal-bar nav a:focus-visible {
-      color: #1a5cff;
-      border-bottom-color: #1a5cff;
+    .moh-portal-bar nav a:focus-visible,
+    .moh-portal-bar nav .moh-portal-mode:hover,
+    .moh-portal-bar nav .moh-portal-mode:focus-visible {
+      color: var(--moh-bar-accent);
+      border-bottom-color: var(--moh-bar-accent);
+    }
+
+    .moh-portal-bar nav .moh-portal-mode {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 4px 0;
+      cursor: pointer;
+      text-align: left;
     }
 
     .moh-portal-bar nav .moh-portal-user {
       font-weight: 500;
-      color: #6b7c93;
+      color: var(--moh-bar-muted);
     }
 
     .moh-portal-bar nav a.moh-portal-logout {
-      color: #6b7c93;
+      color: var(--moh-bar-muted);
       font-weight: 500;
     }
 
@@ -119,7 +152,7 @@
       border: none;
       padding: 8px;
       cursor: pointer;
-      color: #0a2540;
+      color: var(--moh-bar-fg);
     }
 
     @media (max-width: 760px) {
@@ -145,17 +178,18 @@
         align-items: stretch;
         gap: 0;
         margin: 0;
-        background: #ffffff;
-        border-bottom: 1px solid #d6e3ff;
-        box-shadow: 0 12px 24px rgba(10, 37, 64, 0.12);
+        background: var(--moh-bar-bg);
+        border-bottom: 1px solid var(--moh-bar-line);
+        box-shadow: 0 12px 24px var(--moh-bar-shadow);
       }
       .moh-portal-bar nav.open {
         display: flex;
       }
       .moh-portal-bar nav a,
-      .moh-portal-bar nav .moh-portal-user {
+      .moh-portal-bar nav .moh-portal-user,
+      .moh-portal-bar nav .moh-portal-mode {
         padding: 14px 16px;
-        border-bottom: 1px solid #eef4ff;
+        border-bottom: 1px solid var(--moh-bar-line-soft);
       }
     }
 
@@ -183,6 +217,9 @@
       <a href="/reports/">Reports</a>
       <a href="/guide/">User Guide</a>
       <a href="/feedback/">Feedback</a>
+      {% if config['THEME_DARK'] %}
+      <button type="button" class="moh-portal-mode" id="mohPortalMode" aria-pressed="false">Dark mode</button>
+      {% endif %}
       <span class="moh-portal-user">{{ current_user.first_name or current_user.username }}</span>
       <a class="moh-portal-logout" href="/logout/">Sign out</a>
     </nav>
@@ -235,11 +272,55 @@
           }
         });
       }
+
+      // Light/Dark switch for readers, who don't see Superset's own menu.
+      // The template can't reach React's theme controller, so the choice is
+      // saved where the controller reads it and the page reloads.
+      var modeButton = document.getElementById('mohPortalMode');
+      if (modeButton) {
+        var root = document.documentElement;
+        var isDark = function() {
+          return root.getAttribute('data-theme-mode') === 'dark';
+        };
+        var syncModeLabel = function() {
+          modeButton.textContent = isDark() ? 'Light mode' : 'Dark mode';
+          modeButton.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
+        };
+        new MutationObserver(syncModeLabel).observe(root, {
+          attributes: true,
+          attributeFilter: ['data-theme-mode'],
+        });
+        syncModeLabel();
+        modeButton.addEventListener('click', function() {
+          try {
+            window.localStorage.setItem(
+              'superset-theme-mode',
+              isDark() ? 'default' : 'dark'
+            );
+          } catch (e) {
+            return;  // storage blocked: the mode can't be saved
+          }
+          window.location.reload();
+        });
+      }
     })();
   </script>
   {% endif %}
 
   <style>
+    /* Panel frame colours follow Superset's mode via <html data-theme-mode>. */
+    .moh-ai-overlay {
+      --moh-ai-surface: #ffffff;
+      --moh-ai-fg: #1f2933;
+      --moh-ai-border: rgba(15, 23, 42, 0.2);
+      --moh-ai-border-soft: rgba(15, 23, 42, 0.08);
+    }
+    html[data-theme-mode="dark"] .moh-ai-overlay {
+      --moh-ai-surface: #1f1f1f;
+      --moh-ai-fg: rgba(255, 255, 255, 0.85);
+      --moh-ai-border: rgba(255, 255, 255, 0.2);
+      --moh-ai-border-soft: rgba(255, 255, 255, 0.12);
+    }
     .moh-ai-overlay {
       position: fixed;
       right: 20px;
@@ -292,9 +373,9 @@
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      border: 1px solid rgba(15, 23, 42, 0.2);
-      background: #ffffff;
-      color: #1f2933;
+      border: 1px solid var(--moh-ai-border);
+      background: var(--moh-ai-surface);
+      color: var(--moh-ai-fg);
       font-size: 14px;
       line-height: 1;
       cursor: pointer;
@@ -336,9 +417,9 @@
       height: 720px;
       /* Keep the panel on screen on short viewports (launcher + gap = 96px). */
       max-height: calc(100vh - 96px);
-      background: #ffffff;
+      background: var(--moh-ai-surface);
       border-radius: 18px;
-      border: 1px solid rgba(15, 23, 42, 0.08);
+      border: 1px solid var(--moh-ai-border-soft);
       box-shadow: 0 20px 56px rgba(0, 0, 0, 0.2);
       overflow: hidden;
       display: none;

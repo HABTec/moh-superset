@@ -288,9 +288,9 @@ export const useColDefs = ({
         cellStyle: p => {
           const cellSurfaceColor =
             p.node?.rowPinned != null
-              ? theme.colorBgBase
+              ? theme.colorBgContainer
               : p.rowIndex % 2 === 0
-                ? theme.colorBgBase
+                ? theme.colorBgContainer
                 : theme.colorFillQuaternary;
           const hoverCellSurfaceColor =
             p.node?.rowPinned != null
@@ -423,7 +423,7 @@ export const useColDefs = ({
       allowRearrangeColumns,
       serverPagination,
       alignPositiveNegative,
-      theme.colorBgBase,
+      theme.colorBgContainer,
       theme.colorFillSecondary,
       theme.colorFillQuaternary,
     ],

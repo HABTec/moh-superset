@@ -23,6 +23,7 @@ import { Languages } from 'src/features/home/LanguagePicker';
 import {
   AnyThemeConfig,
   SerializableThemeConfig,
+  ThemeMode,
 } from '@apache-superset/core/theme';
 import type {
   ColorSchemeConfig,
@@ -154,6 +155,10 @@ export interface BootstrapThemeDataConfig {
   default: SerializableThemeConfig | {};
   dark: SerializableThemeConfig | {};
   enableUiThemeAdministration?: boolean;
+  /** False when the server has no dark theme (THEME_DARK = None) */
+  darkModeEnabled?: boolean;
+  /** Mode for users who have not chosen one (THEME_DEFAULT_MODE) */
+  defaultMode?: ThemeMode;
 }
 
 export interface CommonBootstrapData {

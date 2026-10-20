@@ -17,6 +17,7 @@
  * under the License.
  */
 import {
+  createStore,
   render,
   screen,
   userEvent,
@@ -25,6 +26,8 @@ import {
 import fetchMock from 'fetch-mock';
 import * as hooks from 'src/views/CRUD/hooks';
 import { useThemeContext } from 'src/theme/ThemeProvider';
+import messageToastReducer from 'src/components/MessageToasts/reducers';
+import { setSystemDarkTheme } from 'src/features/themes/api';
 import ThemesList from './index';
 
 // Mock the getBootstrapData function
@@ -358,6 +361,47 @@ test('shows set dark action for non-dark themes', async () => {
   const setDarkButtons = await screen.findAllByTestId('set-dark-action');
   // Should have set dark buttons for Light Theme and Custom Theme (not Dark Theme which is already dark)
   expect(setDarkButtons.length).toBe(2);
+});
+
+test("shows the server's reason when setting the system dark theme fails", async () => {
+  const reason =
+    'Only a theme that uses the dark algorithm can be the system dark theme.';
+  (setSystemDarkTheme as jest.Mock).mockImplementationOnce(() =>
+    Promise.reject(
+      new Response(JSON.stringify({ message: reason }), {
+        status: 422,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  );
+  // withToasts sends toasts to the Redux store, so read them from there
+  const store = createStore({}, { messageToasts: messageToastReducer });
+  render(
+    <ThemesList
+      user={mockUser}
+      addDangerToast={jest.fn()}
+      addSuccessToast={jest.fn()}
+    />,
+    {
+      useRedux: true,
+      store,
+      useRouter: true,
+      useQueryParams: true,
+      useTheme: true,
+    },
+  );
+
+  const [setDark] = await screen.findAllByTestId('set-dark-action');
+  await userEvent.click(setDark);
+  await userEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+
+  await waitFor(() =>
+    expect(
+      (
+        store.getState() as unknown as { messageToasts: { text: string }[] }
+      ).messageToasts.map(toast => toast.text),
+    ).toContain(`Failed to set system dark theme: ${reason}`),
+  );
 });
 
 test('shows unset dark action for system dark theme', async () => {

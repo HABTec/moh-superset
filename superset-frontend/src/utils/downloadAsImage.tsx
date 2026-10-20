@@ -22,6 +22,7 @@ import { kebabCase } from 'lodash';
 import { t } from '@apache-superset/core/translation';
 import { SupersetTheme } from '@apache-superset/core/theme';
 import { addWarningToast } from 'src/components/MessageToasts/actions';
+import { runInLightMode } from 'src/theme/lightModeExport';
 import type { AgGridContainerElement } from '@superset-ui/core/components';
 
 const IMAGE_DOWNLOAD_QUALITY = 0.95;
@@ -314,11 +315,10 @@ export default function downloadAsImageOptimized(
   isExactSelector = false,
   theme?: SupersetTheme,
 ) {
-  return async (event: SyntheticEvent) => {
-    const elementToPrint = isExactSelector
-      ? document.querySelector(selector)
-      : event.currentTarget.closest(selector);
-
+  const captureElement = async (
+    elementToPrint: Element | null,
+    exportTheme?: SupersetTheme,
+  ) => {
     if (!elementToPrint) {
       addWarningToast(
         t('Image download failed, please refresh and try again.'),
@@ -422,7 +422,7 @@ export default function downloadAsImageOptimized(
         const imageHeight = agRootWrapper.scrollHeight;
 
         const dataUrl = await domToImage.toJpeg(agRootWrapper, {
-          bgcolor: theme?.colorBgContainer,
+          bgcolor: exportTheme?.colorBgContainer,
           filter,
           quality: IMAGE_DOWNLOAD_QUALITY,
           height: imageHeight,
@@ -463,12 +463,12 @@ export default function downloadAsImageOptimized(
     try {
       const { clone, cleanup: cleanupFn } = createEnhancedClone(
         elementToPrint,
-        theme,
+        exportTheme,
       );
       cleanup = cleanupFn;
 
       const dataUrl = await domToImage.toJpeg(clone, {
-        bgcolor: theme?.colorBgContainer,
+        bgcolor: exportTheme?.colorBgContainer,
         filter,
         quality: IMAGE_DOWNLOAD_QUALITY,
         height: clone.scrollHeight,
@@ -491,5 +491,20 @@ export default function downloadAsImageOptimized(
     } finally {
       if (cleanup) cleanup();
     }
+  };
+
+  return async (event: SyntheticEvent) => {
+    // currentTarget is only set while the event is being dispatched
+    const { currentTarget } = event;
+    // Images are always light (see runInLightMode). The element is looked up
+    // after the switch, since a dashboard with its own theme re-renders then.
+    await runInLightMode(lightTheme =>
+      captureElement(
+        isExactSelector
+          ? document.querySelector(selector)
+          : currentTarget.closest(selector),
+        lightTheme ?? theme,
+      ),
+    );
   };
 }

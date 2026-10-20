@@ -259,6 +259,13 @@ module.exports = {
         selector: 'ImportNamespaceSpecifier[parent.source.value!=/^(\\.|src)/]',
         message: 'Wildcard imports are not allowed',
       },
+      {
+        // colorBgBase is #fff in light mode but #000 in dark mode; as a surface
+        // it shows up as black patches inside #141414 cards
+        selector: "MemberExpression[property.name='colorBgBase']",
+        message:
+          'colorBgBase is a seed colour, not a surface. Use colorBgContainer (cards, tables, panels), colorBgElevated (popups) or colorBgLayout (page background).',
+      },
     ],
   },
   overrides: [

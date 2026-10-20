@@ -312,3 +312,8 @@ def test_year_from_cards_prefers_efy_then_the_most_common_year() -> None:
     )
 
     assert json.loads(out) == ["2018 EFY", "2017 EFY", ""]
+
+
+def test_default_tv_theme_is_locked_to_light() -> None:
+    """Wall TVs stay light even when the TV box itself is set to dark."""
+    assert default_tv_theme()["forceMode"] == "light"

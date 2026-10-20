@@ -25,10 +25,8 @@ from urllib.parse import urlparse as _urlparse
 
 from cachelib.redis import RedisCache
 from celery.schedules import crontab
-from superset.config import (
-    THEME_DARK as _APACHE_THEME_DARK,
-    THEME_DEFAULT as _APACHE_THEME_DEFAULT,
-)
+
+from superset.config import THEME_DEFAULT as _APACHE_THEME_DEFAULT
 
 # -----------------------------------------------------------------------------
 # SECURITY
@@ -45,6 +43,11 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
     "SUPERSET_DATABASE_URI",
     "postgresql+psycopg2://superset:CHANGE_ME@localhost:5432/superset",
 )
+
+# Dashboard layout (position_json) size limit, in characters. Superset's
+# default of 65535 mirrors MySQL TEXT; the Postgres metadata DB stores it as
+# unbounded TEXT, so large multi-tab dashboards need a higher ceiling.
+SUPERSET_DASHBOARD_POSITION_DATA_LIMIT = 1_000_000
 
 # -----------------------------------------------------------------------------
 # EXTERNAL SERVICES
@@ -103,15 +106,31 @@ ENABLE_CSS_TEMPLATES = True
 HTML_SANITIZATION = True  # keep sanitization on, but extend what's allowed
 HTML_SANITIZATION_SCHEMA_EXTENSIONS = {
     "attributes": {
-        "*": ["style", "className", "src", "width", "height", "frameborder",
-              "marginwidth", "marginheight", "scrolling"],
-        "iframe": ["src", "width", "height", "frameborder",
-                   "marginwidth", "marginheight", "scrolling"],
+        "*": [
+            "style",
+            "className",
+            "src",
+            "width",
+            "height",
+            "frameborder",
+            "marginwidth",
+            "marginheight",
+            "scrolling",
+        ],
+        "iframe": [
+            "src",
+            "width",
+            "height",
+            "frameborder",
+            "marginwidth",
+            "marginheight",
+            "scrolling",
+        ],
         # Lets Markdown links open outside the portal (target="_blank"
         # rel="noopener noreferrer"); without these the sanitizer strips them.
         "a": ["target", "rel"],
     },
-    "tagNames": ["iframe"]
+    "tagNames": ["iframe"],
 }
 
 # -----------------------------------------------------------------------------
@@ -126,16 +145,45 @@ LOGO_TOOLTIP = "MoH Analytics Portal"
 LOGO_RIGHT_TEXT = ""
 FAVICONS = [{"href": "/moh-static/moh_icon.png"}]
 
-_MOH_BRAND_TOKENS = {
+# Brand settings shared by the light and dark themes
+_MOH_SHARED_BRAND_TOKENS = {
     "brandLogoUrl": APP_ICON,
     "brandLogoAlt": "Ministry of Health",
     "brandAppName": APP_NAME,
     "brandLogoHref": "/",
     "brandLogoHeight": "32px",
     "brandSpinnerUrl": "/moh-static/moh_icon.png",
+}
+
+# Light colours (WCAG AA on white)
+_MOH_LIGHT_COLOR_TOKENS = {
     "colorPrimary": "#1a5cff",
     "colorLink": "#1a5cff",
+    "colorTextTertiary": "#626B77",
+    "colorWarning": "#8F5D00",
 }
+
+# Dark colours, checked after Ant Design's dark algorithm adjusts them:
+# primary #3d74ff -> #3766dc (white button text 5.13:1, 3.59:1 on cards),
+# link #7aa5ff -> #6b8fdc (5.78:1 on #141414, 5.17:1 on #1f1f1f),
+# tertiary text 6.06:1 / 5.42:1, warning #e8a317 -> #c88e17 (6.44:1 / 5.76:1),
+# error text #ec6b78 (6.09:1 / 5.45:1).
+_MOH_DARK_COLOR_TOKENS = {
+    "colorPrimary": "#3d74ff",
+    "colorLink": "#7aa5ff",
+    "colorTextTertiary": "#8b95a1",
+    "colorWarning": "#e8a317",
+    # Error text only; danger buttons keep the default fill for white text
+    "colorErrorText": "#ec6b78",
+}
+
+_MOH_BRAND_TOKENS = {**_MOH_SHARED_BRAND_TOKENS, **_MOH_LIGHT_COLOR_TOKENS}
+
+# Single switch for dark mode. Keep False until the dark theme has been reviewed.
+MOH_DARK_MODE_ENABLED = False
+
+# Users who have not chosen a mode start in light.
+THEME_DEFAULT_MODE = "default"
 
 THEME_DEFAULT = {
     **_APACHE_THEME_DEFAULT,
@@ -144,10 +192,17 @@ THEME_DEFAULT = {
 
 THEME_DARK = (
     {
-        **_APACHE_THEME_DARK,
-        "token": {**_APACHE_THEME_DARK["token"], **_MOH_BRAND_TOKENS},
+        **_APACHE_THEME_DEFAULT,
+        "algorithm": "dark",
+        "token": {
+            **_APACHE_THEME_DEFAULT["token"],
+            **_MOH_SHARED_BRAND_TOKENS,
+            **_MOH_DARK_COLOR_TOKENS,
+            # Darker selection colour for the SQL editor
+            "colorEditorSelection": "#5c4d1a",
+        },
     }
-    if _APACHE_THEME_DARK
+    if MOH_DARK_MODE_ENABLED
     else None
 )
 
@@ -186,9 +241,7 @@ def _origin_of(url):
 
 _MOH_CSP_DEV_ORIGIN = _origin_of(_MOH_CSP_DEV_ORIGIN)
 _MOH_AI_IFRAME_ORIGIN = _origin_of(_MOH_AI_IFRAME_URL)
-_MOH_CSP_EXTRA_ORIGINS = [
-    o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o
-]
+_MOH_CSP_EXTRA_ORIGINS = [o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o]
 
 _MOH_CSP = {
     "default-src": ["'self'"],
@@ -235,8 +288,10 @@ MCP_TOOL_SEARCH_CONFIG = {"enabled": False}
 # -----------------------------------------------------------------------------
 from superset.hpc import hpc_bp as _hpc_bp  # noqa: E402
 from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
-from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
-from superset.moh_assets import moh_guide_bp as _moh_guide_bp  # noqa: E402
+from superset.moh_assets import (
+    moh_assets_bp as _moh_assets_bp,  # noqa: E402
+    moh_guide_bp as _moh_guide_bp,  # noqa: E402
+)
 from superset.moh_monitoring_dashboard import (  # noqa: E402
     monitoring_dashboard_bp as _monitoring_dashboard_bp,
 )
@@ -353,7 +408,10 @@ PHC_MONITORING_DASHBOARD_IFRAME_URL = os.environ.get(
 DECKGL_BASE_MAP = [
     ["/moh-static/blank-style.json", "Blank (Ethiopia only)"],
     ["https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", "Light (Carto)"],
-    ["https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json", "Dark (Carto)"],
+    [
+        "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "Dark (Carto)",
+    ],
     ["https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json", "Streets (Carto)"],
     ["https://tiles.openfreemap.org/styles/liberty", "Liberty (OpenFreeMap)"],
 ]
@@ -443,6 +501,7 @@ THUMBNAIL_CACHE_CONFIG = {
     **CACHE_CONFIG,
     "CACHE_REDIS_DB": 3,
 }
+
 
 # -----------------------------------------------------------------------------
 # CELERY

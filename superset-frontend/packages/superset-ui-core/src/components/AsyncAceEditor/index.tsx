@@ -32,7 +32,7 @@ import {
   AsyncEsmComponent,
   PlaceholderProps,
 } from '@superset-ui/core/components/AsyncEsmComponent';
-import { useTheme, css } from '@apache-superset/core/theme';
+import { useTheme, css, isThemeDark } from '@apache-superset/core/theme';
 import { Global } from '@emotion/react';
 
 export { getTooltipHTML } from './Tooltip';
@@ -83,6 +83,7 @@ export const aceModuleLoaders = {
   'mode/javascript': () => import('brace/mode/javascript'),
   'theme/textmate': () => import('brace/theme/textmate'),
   'theme/github': () => import('brace/theme/github'),
+  'theme/tomorrow_night': () => import('brace/theme/tomorrow_night'),
   'ext/language_tools': () => import('brace/ext/language_tools'),
   'ext/searchbox': () => import('brace/ext/searchbox'),
 };
@@ -94,7 +95,10 @@ export type AsyncAceEditorProps = IAceEditorProps & {
 };
 
 export type AceEditorMode = 'sql';
-export type AceEditorTheme = 'textmate' | 'github';
+export type AceEditorTheme = 'textmate' | 'github' | 'tomorrow_night';
+
+// Syntax colours used for every editor while the app is in dark mode
+const DARK_EDITOR_THEME: AceEditorTheme = 'tomorrow_night';
 export type AsyncAceEditorOptions = {
   defaultMode?: AceEditorMode;
   defaultTheme?: AceEditorTheme;
@@ -149,7 +153,10 @@ export function AsyncAceEditor(
     config.setModuleUrl('ace/mode/javascript_worker', javascriptWorkerUrl);
     config.setModuleUrl('ace/mode/html_worker', htmlWorkerUrl);
 
-    await Promise.all(aceModules.map(x => aceModuleLoaders[x]()));
+    await Promise.all([
+      ...aceModules.map(x => aceModuleLoaders[x]()),
+      aceModuleLoaders[`theme/${DARK_EDITOR_THEME}`](),
+    ]);
 
     const inferredMode =
       defaultMode ||
@@ -449,7 +456,7 @@ export function AsyncAceEditor(
             <ReactAceEditor
               ref={ref}
               mode={mode}
-              theme={theme}
+              theme={isThemeDark(token) ? DARK_EDITOR_THEME : theme}
               tabSize={tabSize}
               defaultValue={defaultValue}
               setOptions={{ fontFamily: editorFontFamily }}

@@ -51,7 +51,7 @@ export const exploreFullscreenStyles = (theme: SupersetTheme) => css`
     box-sizing: border-box;
     padding: ${theme.sizeUnit * 4}px;
     overflow: auto;
-    background: ${theme.colorBgBase};
+    background: ${theme.colorBgContainer};
     color: ${theme.colorText};
     pointer-events: auto;
     opacity: 1;

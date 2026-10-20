@@ -63,9 +63,24 @@
     <script nonce="{{ macros.get_nonce() }}">
       (function() {
         try {
-          var mode = localStorage.getItem('superset-theme-mode');
+          var mode = localStorage.getItem('superset-theme-mode') ||
+            {{ theme_default_mode | default('system') | tojson }};
           var shouldBeDark = mode === 'dark' ||
-            (mode !== 'default' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          // A TV or applied theme with forceMode ("light"/"dark") keeps that look;
+          // without it, it follows the mode like the rest of the page
+          var override = localStorage.getItem('superset-dev-theme-override');
+          if (override) {
+            var forceMode = (JSON.parse(override) || {}).forceMode;
+            if (forceMode === 'light' || forceMode === 'dark') {
+              shouldBeDark = forceMode === 'dark';
+            }
+          }
+          // Styles keyed on data-theme-mode (MoH portal bar, AI panel, logo)
+          // apply from the first paint; React sets the same value once loaded
+          document.documentElement.setAttribute(
+            'data-theme-mode', shouldBeDark ? 'dark' : 'light'
+          );
           if (shouldBeDark) {
             var s = document.createElement('style');
             s.textContent = 'body{background:{{ dark_theme_bg }};color:#fff}';

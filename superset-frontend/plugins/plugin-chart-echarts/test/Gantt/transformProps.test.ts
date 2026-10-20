@@ -241,7 +241,7 @@ describe('Gantt transformProps', () => {
         symbol: ['none', 'none'],
         lineStyle: {
           type: 'dashed',
-          color: '#dbe0ea',
+          color: supersetTheme.colorSplit,
         },
       },
     });

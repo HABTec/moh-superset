@@ -26,6 +26,9 @@ import {
   isThemeDark,
   isThemeConfigDark,
   useThemeMode,
+  applyThemeMode,
+  getEffectiveForceMode,
+  getThemeForceMode,
 } from './themeUtils';
 import { Theme } from '../Theme';
 import { ThemeAlgorithm } from '../types';
@@ -263,4 +266,87 @@ test('useThemeMode returns true for a dark theme', () => {
       ),
   });
   expect(result.current).toBe(true);
+});
+
+test('getThemeForceMode reads only "light" or "dark"', () => {
+  expect(getThemeForceMode({ forceMode: 'light' } as never)).toBe('light');
+  expect(getThemeForceMode({ forceMode: 'dark' } as never)).toBe('dark');
+  expect(getThemeForceMode({ forceMode: 'blue' } as never)).toBeUndefined();
+  expect(getThemeForceMode({ token: {} })).toBeUndefined();
+  expect(getThemeForceMode(null)).toBeUndefined();
+});
+
+test('applyThemeMode sets the light or dark algorithm on a serializable theme', () => {
+  expect(applyThemeMode({ token: {} }, true)).toEqual({
+    token: {},
+    algorithm: ThemeAlgorithm.DARK,
+  });
+  expect(
+    applyThemeMode({ token: {}, algorithm: ThemeAlgorithm.DARK }, false),
+  ).toEqual({ token: {}, algorithm: ThemeAlgorithm.DEFAULT });
+});
+
+test('applyThemeMode keeps other algorithms such as compact', () => {
+  expect(
+    applyThemeMode(
+      { algorithm: [ThemeAlgorithm.DEFAULT, ThemeAlgorithm.COMPACT] },
+      true,
+    ),
+  ).toEqual({ algorithm: [ThemeAlgorithm.DARK, ThemeAlgorithm.COMPACT] });
+});
+
+test('applyThemeMode works with Ant Design algorithm functions', () => {
+  expect(
+    applyThemeMode(
+      { algorithm: [antdTheme.defaultAlgorithm, antdTheme.compactAlgorithm] },
+      true,
+    ),
+  ).toEqual({
+    algorithm: [antdTheme.darkAlgorithm, antdTheme.compactAlgorithm],
+  });
+});
+
+test('applyThemeMode removes forceMode and does not change the input', () => {
+  const input = { forceMode: 'light', token: { fontSize: 22 } } as never;
+  const result = applyThemeMode(input, false);
+
+  expect(result).toEqual({
+    token: { fontSize: 22 },
+    algorithm: ThemeAlgorithm.DEFAULT,
+  });
+  expect(input).toEqual({ forceMode: 'light', token: { fontSize: 22 } });
+});
+
+test('getEffectiveForceMode: brand-only themes follow the user', () => {
+  expect(
+    getEffectiveForceMode({ token: { colorPrimary: '#1E5CE0', fontSize: 14 } }),
+  ).toBeUndefined();
+  expect(
+    getEffectiveForceMode({ algorithm: 'default' } as never),
+  ).toBeUndefined();
+  expect(getEffectiveForceMode(null)).toBeUndefined();
+});
+
+test('getEffectiveForceMode: themes with their own surface or text colours keep their mode', () => {
+  expect(
+    getEffectiveForceMode({
+      algorithm: 'default',
+      token: { colorBgContainer: '#FFFFFF', colorText: '#2A3140' },
+    } as never),
+  ).toBe('light');
+  expect(
+    getEffectiveForceMode({
+      algorithm: 'dark',
+      token: { colorBgLayout: '#0b0f14' },
+    } as never),
+  ).toBe('dark');
+});
+
+test('getEffectiveForceMode: an explicit forceMode always wins', () => {
+  expect(
+    getEffectiveForceMode({
+      forceMode: 'dark',
+      token: { colorBgContainer: '#FFFFFF' },
+    } as never),
+  ).toBe('dark');
 });

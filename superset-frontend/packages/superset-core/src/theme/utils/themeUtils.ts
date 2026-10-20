@@ -137,6 +137,92 @@ export function isThemeConfigDark(config: AnyThemeConfig): boolean {
 }
 
 /**
+ * A theme's "forceMode" setting. A theme with forceMode always renders in that
+ * mode (for example a wall-TV theme that must stay light); a theme without it
+ * follows the user's light/dark choice.
+ */
+export type ThemeForceMode = 'light' | 'dark';
+
+/**
+ * Reads a theme's forceMode setting, if it has a valid one.
+ * @param config - The theme configuration to read
+ * @returns "light", "dark", or undefined when the theme follows the user
+ */
+export function getThemeForceMode(
+  config: AnyThemeConfig | null | undefined,
+): ThemeForceMode | undefined {
+  const value = (config as { forceMode?: unknown } | null | undefined)
+    ?.forceMode;
+  return value === 'light' || value === 'dark' ? value : undefined;
+}
+
+// Colours that only work in one mode: backgrounds, text, borders and fills
+const MODE_SPECIFIC_COLOR_TOKEN = /^color(Bg|Text|Border|Fill|Split)/;
+
+/**
+ * The mode a theme must render in, if any. An explicit forceMode wins. A
+ * theme that sets its own background or text colours (a complete light or
+ * dark palette) keeps the mode those colours belong to; rendering it in the
+ * other mode would mix its fixed colours with ones computed for that mode.
+ * A theme that only sets brand details (fonts, primary colour) follows the
+ * user's mode.
+ * @param config - The theme configuration
+ * @returns "light", "dark", or undefined when the theme follows the user
+ */
+export function getEffectiveForceMode(
+  config: AnyThemeConfig | null | undefined,
+): ThemeForceMode | undefined {
+  const explicit = getThemeForceMode(config);
+  if (explicit || !config) return explicit;
+  const token = (config as { token?: Record<string, unknown> }).token ?? {};
+  const setsModeColors = Object.keys(token).some(key =>
+    MODE_SPECIFIC_COLOR_TOKEN.test(key),
+  );
+  if (!setsModeColors) return undefined;
+  return isThemeConfigDark(config) ? 'dark' : 'light';
+}
+
+const isModeAlgorithm = (algorithm: unknown): boolean =>
+  algorithm === 'default' ||
+  algorithm === 'dark' ||
+  algorithm === antdTheme.defaultAlgorithm ||
+  algorithm === antdTheme.darkAlgorithm;
+
+/**
+ * Returns a copy of a theme set to light or dark. Other algorithms, such as
+ * compact, are kept, and forceMode is removed because it is not an Ant Design
+ * setting.
+ * @param config - The theme configuration (serializable or Ant Design form)
+ * @param isDark - true for the dark algorithm, false for the light one
+ */
+export function applyThemeMode<T extends AnyThemeConfig>(
+  config: T,
+  isDark: boolean,
+): T {
+  const result: Record<string, unknown> = { ...config };
+  delete result.forceMode;
+
+  const current = result.algorithm;
+  const algorithms: unknown[] = Array.isArray(current)
+    ? current
+    : current
+      ? [current]
+      : [];
+  const others = algorithms.filter(algorithm => !isModeAlgorithm(algorithm));
+  const isSerializable = algorithms.every(
+    algorithm => typeof algorithm === 'string',
+  );
+  const lightAlgorithm = isSerializable
+    ? 'default'
+    : antdTheme.defaultAlgorithm;
+  const darkAlgorithm = isSerializable ? 'dark' : antdTheme.darkAlgorithm;
+  const mode = isDark ? darkAlgorithm : lightAlgorithm;
+
+  result.algorithm = others.length ? [mode, ...others] : mode;
+  return result as T;
+}
+
+/**
  * Hook to determine if the current theme is dark mode
  * @returns true if theme is dark, false if light
  */

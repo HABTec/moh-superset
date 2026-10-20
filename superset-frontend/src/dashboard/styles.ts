@@ -129,7 +129,7 @@ export const printStyles = (theme: SupersetTheme) => css`
     html,
     body,
     #app {
-      background: ${theme.colorBgBase} !important;
+      background: ${theme.colorBgContainer} !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
