@@ -226,6 +226,7 @@ from superset.moh_monitoring_dashboard import (  # noqa: E402
     monitoring_dashboard_bp as _monitoring_dashboard_bp,
 )
 from superset.moh_orgunits_api import moh_orgunits_bp as _moh_orgunits_bp  # noqa: E402
+from superset.moh_reports import moh_reports_bp as _moh_reports_bp  # noqa: E402
 
 BLUEPRINTS = [
     _ai_chat_bp,
@@ -235,6 +236,7 @@ BLUEPRINTS = [
     _moh_guide_bp,
     _hpc_bp,
     _monitoring_dashboard_bp,
+    _moh_reports_bp,
 ]
 
 # -----------------------------------------------------------------------------
@@ -258,6 +260,15 @@ MOH_LEVEL_ONE_DASHBOARD_IDS = {
     int(dashboard_id)
     for dashboard_id in os.environ.get("MOH_LEVEL_ONE_DASHBOARD_IDS", "8").split(",")
     if dashboard_id.strip()
+}
+# Guest-token usernames (the "user.username" minted into the token, e.g. by
+# POST /api/v1/security/guest_token/) allowed onto level-one dashboards without
+# an org-unit row. Empty by default: no guest can reach a level-one dashboard
+# until an identity is explicitly added here. Comma-separated if set via env.
+MOH_LEVEL_ONE_GUEST_USERNAMES = {
+    name.strip()
+    for name in os.environ.get("MOH_LEVEL_ONE_GUEST_USERNAMES", "").split(",")
+    if name.strip()
 }
 
 from superset.moh_security_manager import MoHSecurityManager

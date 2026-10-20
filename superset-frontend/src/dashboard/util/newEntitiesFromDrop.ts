@@ -21,7 +21,8 @@ import shouldWrapChildInRow from './shouldWrapChildInRow';
 import newComponentFactory from './newComponentFactory';
 import getComponentWidthFromDrop from './getComponentWidthFromDrop';
 
-import { ROW_TYPE, TABS_TYPE, TAB_TYPE } from './componentTypes';
+import { ROW_TYPE, TABS_TYPE, TAB_TYPE, MARKDOWN_TYPE } from './componentTypes';
+import { GRID_COLUMN_COUNT } from './constants';
 import { DashboardComponent, DashboardComponentMap } from '../types';
 import { DropResult } from '../components/dnd/dragDroppableConfig';
 
@@ -58,6 +59,11 @@ export default function newEntitiesFromDrop({
   };
 
   if (wrapChildInRow) {
+    // A new row on the canvas should use the full grid so a markdown
+    // banner does not sit at 4/12 and shove sibling charts off the right edge.
+    if (dragType === MARKDOWN_TYPE) {
+      newDropChild.meta.width = GRID_COLUMN_COUNT;
+    }
     const rowWrapper = newComponentFactory(ROW_TYPE);
     rowWrapper.children = [newDropChild.id];
     rowWrapper.parents = (dropEntity.parents || []).concat(dropEntity.id);

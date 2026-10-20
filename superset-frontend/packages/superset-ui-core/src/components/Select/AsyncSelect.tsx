@@ -55,6 +55,7 @@ import {
   dropDownRenderHelper,
   handleFilterOptionHelper,
   mapOptions,
+  getSafePopupContainer,
   getOption,
   isObject,
   isEqual as utilsIsEqual,
@@ -701,9 +702,7 @@ const AsyncSelect = forwardRef(
           popupRender={popupRender}
           filterOption={handleFilterOption}
           filterSort={sortComparatorWithSearch}
-          getPopupContainer={
-            getPopupContainer || (triggerNode => triggerNode.parentNode)
-          }
+          getPopupContainer={getPopupContainer || getSafePopupContainer}
           headerPosition={headerPosition}
           labelInValue
           maxTagCount={maxTagCount}

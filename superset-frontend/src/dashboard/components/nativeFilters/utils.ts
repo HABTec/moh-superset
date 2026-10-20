@@ -59,6 +59,7 @@ export const getFormData = ({
   type,
   dashboardId,
   id,
+  name,
 }: (Partial<Filter> | Partial<ChartCustomization>) & {
   dashboardId: number;
   datasetId?: number;
@@ -108,6 +109,7 @@ export const getFormData = ({
     type,
     dashboardId,
     native_filter_id: id,
+    native_filter_name: name,
   };
 };
 

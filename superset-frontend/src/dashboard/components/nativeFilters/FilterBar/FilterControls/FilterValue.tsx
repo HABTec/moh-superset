@@ -42,7 +42,7 @@ import {
   getClientErrorObject,
   isChartCustomization,
 } from '@superset-ui/core';
-import { styled } from '@apache-superset/core/theme';
+import { styled, useTheme } from '@apache-superset/core/theme';
 import { useDispatch, useSelector } from 'react-redux';
 import { isEqual, isEqualWith } from 'lodash';
 import { getChartDataRequest } from 'src/components/Chart/chartAction';
@@ -66,6 +66,10 @@ import {
   unsetHoveredChartCustomization,
 } from 'src/dashboard/actions/nativeFilters';
 import { RESPONSIVE_WIDTH } from 'src/filters/components/common';
+import {
+  getOrgUnitScopeLabel,
+  useAssignedOrgUnit,
+} from 'src/filters/components/OrgUnitTree/useAssignedOrgUnit';
 import { dispatchHoverAction, dispatchFocusAction } from './utils';
 import { FilterControlProps } from './types';
 import { getFormData } from '../../utils';
@@ -310,6 +314,9 @@ const FilterValue: FC<FilterValueProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(hasDataSource);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const dispatch = useDispatch();
+  const theme = useTheme();
+  const isOrgUnitFilter = filterType === FilterPlugins.OrgUnitTree;
+  const assignedOrgUnit = useAssignedOrgUnit(isOrgUnitFilter);
 
   const { outlinedFilterId, lastUpdated } = useFilterOutlined();
 
@@ -602,7 +609,12 @@ const FilterValue: FC<FilterValueProps> = ({
   const formattedTrigger = formatMultiSelectTriggerValue(
     filter.dataMask?.filterState?.value,
   );
-  const triggerText = formattedTrigger ?? t('Select…');
+  // With no org unit selected, datasets show the user's own scope; say so in
+  // the input instead of a generic placeholder.
+  const showScopeLabel = isOrgUnitFilter && assignedOrgUnit !== undefined;
+  const triggerText =
+    formattedTrigger ??
+    (showScopeLabel ? getOrgUnitScopeLabel(assignedOrgUnit) : t('Select…'));
 
   const filterControl = isLoading ? (
     <Flex align="center">
@@ -641,7 +653,17 @@ const FilterValue: FC<FilterValueProps> = ({
       {wrapAsControl ? (
         <Dropdown
           popupRender={() => (
-            <div style={{ width: 340, maxHeight: 480, overflow: 'auto' }}>
+            <div
+              style={{
+                width: 340,
+                maxHeight: 480,
+                overflow: 'auto',
+                padding: theme.sizeUnit * 2,
+                background: theme.colorBgElevated,
+                borderRadius: theme.borderRadiusLG,
+                boxShadow: theme.boxShadowSecondary,
+              }}
+            >
               {filterControl}
             </div>
           )}
@@ -660,7 +682,9 @@ const FilterValue: FC<FilterValueProps> = ({
             overflow={overflow}
             data-test="multiselect-trigger"
           >
-            <MultiSelectTriggerText hasValue={formattedTrigger != null}>
+            <MultiSelectTriggerText
+              hasValue={formattedTrigger != null || showScopeLabel}
+            >
               {triggerText}
             </MultiSelectTriggerText>
             <Icons.DownOutlined iconSize="s" />

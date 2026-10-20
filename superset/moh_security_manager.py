@@ -28,6 +28,7 @@ from superset import db
 from superset.exceptions import SupersetSecurityException
 from superset.security.manager import SupersetSecurityManager
 from superset.tasks.utils import get_current_user
+from superset.utils import json
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,108 @@ class MoHSecurityManager(SupersetSecurityManager):
                 return None
         return None
 
+    def _datasource_from_access_kwargs(self, kwargs: dict[str, Any]) -> Any:
+        """Return the dataset being read, from the server-side raise_for_access kwargs.
+
+        Unlike dashboardId this is not taken from the request, so a client
+        cannot remove it.
+        """
+        datasource = kwargs.get("datasource")
+        for key in ("query_context", "viz", "chart"):
+            if datasource is not None:
+                break
+            obj = kwargs.get(key)
+            datasource = getattr(obj, "datasource", None) if obj is not None else None
+        if datasource is None or getattr(datasource, "type", "table") != "table":
+            return None
+        return datasource
+
+    @staticmethod
+    def _native_filter_dataset_rows(
+        dashboards: list[tuple[int, str | None]],
+    ) -> list[tuple[int, int]]:
+        """(dashboard id, dataset id) pairs for datasets used by native filters."""
+        rows = []
+        for dashboard_id, json_metadata in dashboards:
+            try:
+                filters = (
+                    json.loads(json_metadata or "{}").get("native_filter_configuration")
+                    or []
+                )
+            except (TypeError, ValueError, AttributeError):
+                continue
+            for native_filter in filters:
+                for target in native_filter.get("targets") or []:
+                    try:
+                        rows.append((dashboard_id, int(target["datasetId"])))
+                    except (KeyError, TypeError, ValueError):
+                        continue
+        return rows
+
+    def _level_one_only_dataset_ids(self) -> set[int]:
+        """Datasets used by level-one dashboards and by no other dashboard.
+
+        Reading one of these is reading level-one dashboard data, whatever
+        dashboardId the request carries. Datasets also shown on other dashboards
+        are left to the normal RBAC checks.
+        """
+        restricted = self._level_one_dashboard_ids()
+        if not restricted:
+            return set()
+        memo_key = "_moh_level_one_datasets"
+        if (memo := getattr(g, memo_key, None)) is not None:
+            return memo
+
+        ttl = self._level_one_cache_ttl()
+        cache_key = "moh_level_one_datasets:" + ",".join(map(str, sorted(restricted)))
+        cache = None
+        dataset_ids = None
+        if ttl > 0:
+            try:
+                from superset.extensions import cache_manager
+
+                cache = cache_manager.cache
+                cached = cache.get(cache_key)
+                dataset_ids = set(cached) if cached is not None else None
+            except Exception:  # pylint: disable=broad-except
+                cache = None
+        if dataset_ids is None:
+            from superset.models.dashboard import Dashboard, dashboard_slices
+            from superset.models.slice import Slice
+
+            try:
+                rows = (
+                    db.session.query(
+                        dashboard_slices.c.dashboard_id, Slice.datasource_id
+                    )
+                    .join(Slice, Slice.id == dashboard_slices.c.slice_id)
+                    .filter(Slice.datasource_type == "table")
+                    .all()
+                )
+                rows += self._native_filter_dataset_rows(
+                    db.session.query(Dashboard.id, Dashboard.json_metadata).all()
+                )
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Unable to resolve MoH level-one datasets")
+                return set()
+            level_one = {
+                ds for dash, ds in rows if dash in restricted and ds is not None
+            }
+            elsewhere = {ds for dash, ds in rows if dash not in restricted}
+            dataset_ids = level_one - elsewhere
+            if cache is not None:
+                try:
+                    cache.set(cache_key, sorted(dataset_ids), timeout=ttl)
+                except Exception:  # pylint: disable=broad-except
+                    logger.debug(
+                        "Could not cache MoH level-one datasets", exc_info=True
+                    )
+        try:
+            setattr(g, memo_key, dataset_ids)
+        except RuntimeError:  # outside a request/app context
+            pass
+        return dataset_ids
+
     def _level_one_cache_ttl(self) -> int:
         """Seconds to cache a user's level-one verdict. 0 disables caching."""
         try:
@@ -211,12 +314,29 @@ class MoHSecurityManager(SupersetSecurityManager):
                 logger.debug("Could not cache MoH level-one verdict", exc_info=True)
         return allowed
 
+    def _level_one_guest_usernames(self) -> set[str]:
+        """Guest-token usernames explicitly granted level-one access.
+
+        Distinct from the org-unit table: a guest token's username never has a
+        row there, so without this allowlist no guest identity can ever reach a
+        level-one dashboard. Empty by default, so this changes nothing until an
+        operator opts a specific guest identity in.
+        """
+        configured = current_app.config.get("MOH_LEVEL_ONE_GUEST_USERNAMES", ())
+        if isinstance(configured, str):
+            configured = configured.split(",")
+        return {str(name).strip() for name in configured if str(name).strip()}
+
     def user_can_access_level_one_dashboard(self) -> bool:
         """Return whether the current user may open MoH level-one dashboards."""
         if self.is_admin():
             return True
         username = get_current_user()
-        return isinstance(username, str) and self._cached_level_one_check(username)
+        if not isinstance(username, str):
+            return False
+        if username in self._level_one_guest_usernames():
+            return True
+        return self._cached_level_one_check(username)
 
     def can_access_moh_dashboard(self, dashboard: Any) -> bool:
         """Return whether the active user may access MoH-restricted dashboards."""
@@ -231,7 +351,7 @@ class MoHSecurityManager(SupersetSecurityManager):
         return self.user_can_access_level_one_dashboard()
 
     def raise_for_access(self, *args: Any, **kwargs: Any) -> None:
-        """Deny level-one dashboards before running Superset's RBAC checks."""
+        """Deny level-one dashboards and their own datasets before RBAC checks."""
         dashboard_id = self._dashboard_id_from_access_kwargs(kwargs)
         if (
             dashboard_id is not None
@@ -247,5 +367,15 @@ class MoHSecurityManager(SupersetSecurityManager):
                 )()
             raise SupersetSecurityException(
                 self.get_dashboard_access_error_object(dashboard)
+            )
+        datasource = self._datasource_from_access_kwargs(kwargs)
+        datasource_id = getattr(datasource, "id", None)
+        if (
+            datasource_id is not None
+            and datasource_id in self._level_one_only_dataset_ids()
+            and not self.user_can_access_level_one_dashboard()
+        ):
+            raise SupersetSecurityException(
+                self.get_datasource_access_error_object(datasource)
             )
         super().raise_for_access(*args, **kwargs)

@@ -42,6 +42,7 @@ import {
   getBuckets,
   getBreakPointColorScaler,
   getColorBreakpointsBuckets,
+  isMetricOutOfZeroToHundred,
   TRANSPARENT_COLOR_ARRAY,
 } from '../../utils';
 
@@ -190,7 +191,23 @@ export const getLayer = function ({
     }
     case COLOR_SCHEME_TYPES.color_breakpoints: {
       const colorBreakpoints = fd.color_breakpoints;
+      const outOfRangeColor: Color = defaultBreakpointColor
+        ? [
+            defaultBreakpointColor.r,
+            defaultBreakpointColor.g,
+            defaultBreakpointColor.b,
+            (defaultBreakpointColor.a ?? 1) * 255,
+          ]
+        : [
+            DEFAULT_DECKGL_COLOR.r,
+            DEFAULT_DECKGL_COLOR.g,
+            DEFAULT_DECKGL_COLOR.b,
+            DEFAULT_DECKGL_COLOR.a * 255,
+          ];
       baseColorScaler = data => {
+        if (isMetricOutOfZeroToHundred(accessor(data))) {
+          return outOfRangeColor;
+        }
         const breakpointIndex = getColorForBreakpoints(
           accessor,
           data as number[],
@@ -201,19 +218,7 @@ export const getLayer = function ({
           colorBreakpoints[breakpointIndex - 1]?.color;
         return breakpointColor
           ? [breakpointColor.r, breakpointColor.g, breakpointColor.b, 255]
-          : defaultBreakpointColor
-            ? [
-                defaultBreakpointColor.r,
-                defaultBreakpointColor.g,
-                defaultBreakpointColor.b,
-                defaultBreakpointColor.a * 255,
-              ]
-            : [
-                DEFAULT_DECKGL_COLOR.r,
-                DEFAULT_DECKGL_COLOR.g,
-                DEFAULT_DECKGL_COLOR.b,
-                DEFAULT_DECKGL_COLOR.a * 255,
-              ];
+          : outOfRangeColor;
       };
       break;
     }
@@ -457,7 +462,10 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
   const colorSchemeType = formData.color_scheme_type;
   const buckets =
     colorSchemeType === COLOR_SCHEME_TYPES.color_breakpoints
-      ? getColorBreakpointsBuckets(formData.color_breakpoints)
+      ? getColorBreakpointsBuckets(
+          formData.color_breakpoints,
+          formData.default_breakpoint_color ?? DEFAULT_DECKGL_COLOR,
+        )
       : getBuckets(formData, payload.data.features, accessor);
 
   return (
@@ -484,6 +492,9 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
           categories={buckets}
           position={formData.legend_position}
           format={formData.legend_format}
+          forceCategorical={
+            colorSchemeType === COLOR_SCHEME_TYPES.color_breakpoints
+          }
         />
       )}
     </div>

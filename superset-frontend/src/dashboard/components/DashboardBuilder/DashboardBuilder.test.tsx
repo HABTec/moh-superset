@@ -299,7 +299,7 @@ describe('DashboardBuilder', () => {
     expect(filterbar).toHaveStyleRule('width', `${expectedValue}px`);
   });
 
-  test('should set header max width based on open filter bar width', () => {
+  test('should size header to the grid column instead of the viewport', () => {
     const expectedValue = 320;
     const setter = jest.fn();
     (useStoredSidebarWidth as jest.Mock).mockImplementation(() => [
@@ -320,13 +320,17 @@ describe('DashboardBuilder', () => {
 
     expect(getByTestId('dashboard-header-wrapper')).toHaveStyleRule(
       'max-width',
-      `calc(100vw - ${expectedValue}px)`,
+      '100%',
+    );
+    expect(getByTestId('dashboard-header-wrapper')).toHaveStyleRule(
+      'width',
+      '100%',
     );
 
     nativeFiltersSpy.mockRestore();
   });
 
-  test('should use closed filter bar width when the panel is collapsed', () => {
+  test('should keep header at container width when the filter panel is collapsed', () => {
     const setter = jest.fn();
     (useStoredSidebarWidth as jest.Mock).mockImplementation(() => [
       OPEN_FILTER_BAR_WIDTH,
@@ -346,13 +350,13 @@ describe('DashboardBuilder', () => {
 
     expect(getByTestId('dashboard-header-wrapper')).toHaveStyleRule(
       'max-width',
-      `calc(100vw - ${CLOSED_FILTER_BAR_WIDTH}px)`,
+      '100%',
     );
 
     nativeFiltersSpy.mockRestore();
   });
 
-  test('should not constrain header width when filter bar is hidden', () => {
+  test('should keep header at container width when filter bar is hidden', () => {
     const setter = jest.fn();
     (useStoredSidebarWidth as jest.Mock).mockImplementation(() => [
       OPEN_FILTER_BAR_WIDTH,
@@ -372,7 +376,7 @@ describe('DashboardBuilder', () => {
 
     expect(getByTestId('dashboard-header-wrapper')).toHaveStyleRule(
       'max-width',
-      'calc(100vw - 0px)',
+      '100%',
     );
 
     nativeFiltersSpy.mockRestore();

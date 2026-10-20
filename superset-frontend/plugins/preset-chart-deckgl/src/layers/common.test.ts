@@ -313,6 +313,18 @@ describe('getColorForBreakpoints', () => {
     ).toBeUndefined();
   });
 
+  test('returns undefined (not the breakpoint covering 0) if aggFunc returns null', () => {
+    // A missing value must render as "no data", never as if it were 0.
+    const aggFunc = () => null;
+    expect(
+      getColorForBreakpoints(
+        aggFunc as unknown as (arr: number[]) => number | undefined,
+        [5],
+        colorBreakpoints,
+      ),
+    ).toBeUndefined();
+  });
+
   test('returns undefined if aggFunc returns array', () => {
     const aggFunc = () => [1, 2];
     expect(

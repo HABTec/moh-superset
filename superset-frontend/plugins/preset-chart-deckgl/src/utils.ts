@@ -215,18 +215,45 @@ export function getBuckets(
   return buckets;
 }
 
+export const OUT_OF_RANGE_LEGEND_LABEL = 'Above 100 or below 0';
+export const NO_DATA_LEGEND_LABEL = 'No data';
+
+export type BreakpointDefaultColor = {
+  r: number;
+  g: number;
+  b: number;
+  a?: number;
+};
+
+export function isMetricOutOfZeroToHundred(value: unknown): boolean {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    (value < 0 || value > 100)
+  );
+}
+
+function isZeroToHundredBreakpoint(breakpoint: ColorBreakpointType): boolean {
+  return breakpoint.minValue <= 100 && breakpoint.maxValue >= 0;
+}
+
 export function getColorBreakpointsBuckets(
   colorBreakpoints: ColorBreakpointType[],
+  defaultColor?: BreakpointDefaultColor | null,
 ) {
-  const breakpoints = colorBreakpoints || [];
+  const breakpoints = Array.isArray(colorBreakpoints) ? colorBreakpoints : [];
 
   const buckets: Record<string, { color: Color; enabled: boolean }> = {};
 
-  if (!breakpoints || !breakpoints.length) {
+  const inRangeBreakpoints = defaultColor
+    ? breakpoints.filter(isZeroToHundredBreakpoint)
+    : breakpoints;
+
+  if (!inRangeBreakpoints.length && !defaultColor) {
     return buckets;
   }
 
-  breakpoints.forEach((breakpoint: ColorBreakpointType) => {
+  inRangeBreakpoints.forEach((breakpoint: ColorBreakpointType) => {
     const range = `${breakpoint.minValue} - ${breakpoint.maxValue}`;
 
     buckets[range] = {
@@ -234,6 +261,23 @@ export function getColorBreakpointsBuckets(
       enabled: true,
     };
   });
+
+  if (defaultColor) {
+    // Two distinct reasons a feature can fall back to the default colour:
+    // a value reported outside the expected range, or no value at all.
+    // Both currently share the same swatch (there is no separate "No data
+    // colour" control yet) but get their own legend row so map readers are
+    // told which one applies rather than seeing one ambiguous "default"
+    // entry — a feature with genuinely no data is not the same as bad data.
+    buckets[OUT_OF_RANGE_LEGEND_LABEL] = {
+      color: [defaultColor.r, defaultColor.g, defaultColor.b],
+      enabled: true,
+    };
+    buckets[NO_DATA_LEGEND_LABEL] = {
+      color: [defaultColor.r, defaultColor.g, defaultColor.b],
+      enabled: true,
+    };
+  }
 
   return buckets;
 }

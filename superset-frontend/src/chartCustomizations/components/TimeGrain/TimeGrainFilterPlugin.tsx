@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { t, tn } from '@apache-superset/core/translation';
 import {
   ensureIsArray,
   ExtraFormData,
@@ -31,6 +30,7 @@ import {
   type SelectValue,
 } from '@superset-ui/core/components';
 import { propertyComparator } from '@superset-ui/core/components/Select/utils';
+import { getEmptyFilterPlaceholder } from 'src/filters/utils/filterDisplay';
 import { FilterPluginStyle, StatusMessage } from '../common';
 import { PluginFilterTimeGrainProps } from './types';
 
@@ -51,7 +51,7 @@ export default function PluginFilterTimegrain(
     filterState,
     inputRef,
   } = props;
-  const { defaultValue } = formData;
+  const { defaultValue, enableEmptyFilter } = formData;
 
   const [value, setValue] = useState<string[]>(defaultValue ?? []);
   const durationMap = useMemo(
@@ -97,10 +97,10 @@ export default function PluginFilterTimegrain(
     handleChange(filterState.value ?? []);
   }, [JSON.stringify(filterState.value)]);
 
-  const placeholderText =
-    (data || []).length === 0
-      ? t('No data')
-      : tn('%s option', '%s options', data.length, data.length);
+  const placeholderText = getEmptyFilterPlaceholder({
+    optionCount: (data || []).length,
+    enableEmptyFilter,
+  });
 
   const formItemData: FormItemProps = {};
   if (filterState.validateMessage) {

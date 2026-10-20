@@ -267,7 +267,7 @@ test('FilterBar renders "Filters and controls" heading', () => {
 test('FilterBar renders "Clear all" button', () => {
   const props = createClosedBarProps();
   renderFilterBar(props);
-  expect(screen.getByText('Clear all')).toBeInTheDocument();
+  expect(screen.getByText('Clear all filters')).toBeInTheDocument();
 });
 
 test('FilterBar renders "Apply filters" button', () => {

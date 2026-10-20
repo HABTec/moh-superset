@@ -250,3 +250,10 @@ export const mapOptions = (values: SelectOptionsType): Record<string, any>[] =>
     key: opt.value,
     ...opt,
   }));
+
+/** Never return null — rc-trigger reads ownerDocument on this node. */
+export function getSafePopupContainer(
+  triggerNode?: HTMLElement | null,
+): HTMLElement {
+  return triggerNode?.parentElement ?? document.body;
+}

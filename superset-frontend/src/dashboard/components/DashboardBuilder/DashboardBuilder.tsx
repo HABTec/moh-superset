@@ -111,10 +111,6 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
   ${({ theme, filterBarWidth }) => {
     const hasVerticalFilterBar = filterBarWidth > 0;
     const compactGridColumn = hasVerticalFilterBar ? '2' : '1 / -1';
-    const compactHeaderWidth = `calc(100vw - ${filterBarWidth}px)`;
-    const headerInsetWidth = hasVerticalFilterBar
-      ? '100%'
-      : `calc(100vw - ${theme.sizeUnit * 4}px)`;
     const headerInsetMarginLeft = hasVerticalFilterBar
       ? '0'
       : `${theme.sizeUnit * 2}px`;
@@ -126,9 +122,9 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
       top: 0;
       z-index: 99;
       box-sizing: border-box;
-      max-width: calc(100vw - ${filterBarWidth}px);
+      max-width: 100%;
       min-width: 0;
-      width: calc(100vw - ${filterBarWidth}px);
+      width: 100%;
 
       .empty-droptarget {
         min-height: ${theme.sizeUnit * 4}px;
@@ -151,9 +147,9 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
         &
         > [data-test='dragdroppable-object'] {
         margin-left: ${headerInsetMarginLeft} !important;
-        max-width: ${headerInsetWidth} !important;
+        max-width: 100% !important;
         min-width: 0 !important;
-        width: ${headerInsetWidth} !important;
+        width: 100% !important;
       }
 
       body.${RESPONSIVE_DASHBOARD_BODY_CLASS}
@@ -190,13 +186,13 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
         body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
           box-sizing: border-box;
           grid-column: ${compactGridColumn};
-          max-width: ${compactHeaderWidth};
+          max-width: 100%;
           min-width: 0;
           overflow-x: hidden;
           padding-inline: ${hasVerticalFilterBar
             ? 0
             : `${theme.sizeUnit * 2}px`};
-          width: ${compactHeaderWidth};
+          width: 100%;
 
           & > [data-test='dragdroppable-object'] {
             margin-left: 0 !important;
@@ -230,15 +226,13 @@ const StyledContent = styled.div<{
   fullSizeChartId: number | null;
   filterBarWidth: number;
 }>`
-  ${({ filterBarWidth }) => css`
-    grid-column: 2;
-    grid-row: 2;
-    box-sizing: border-box;
-    max-width: calc(100vw - ${filterBarWidth}px);
-    min-width: 0;
-    width: calc(100vw - ${filterBarWidth}px);
-    // @z-index-above-dashboard-header (100) + 1 = 101
-  `}
+  grid-column: 2;
+  grid-row: 2;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  // @z-index-above-dashboard-header (100) + 1 = 101
 
   ${({ fullSizeChartId }) => fullSizeChartId && `z-index: 101;`}
 
@@ -246,10 +240,10 @@ const StyledContent = styled.div<{
     body.${RESPONSIVE_DASHBOARD_BODY_CLASS} & {
       grid-column: ${({ filterBarWidth }) =>
         filterBarWidth > 0 ? '2' : '1 / -1'};
-      max-width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
+      max-width: 100%;
       min-width: 0;
       overflow-x: hidden;
-      width: calc(100vw - ${({ filterBarWidth }) => filterBarWidth}px);
+      width: 100%;
     }
   }
 
@@ -294,10 +288,10 @@ const DashboardContentWrapper = styled.div`
 
     &.${RESPONSIVE_DASHBOARD_MOBILE_CLASS} {
       box-sizing: border-box;
-      max-width: 100vw;
+      max-width: 100%;
       min-width: 0;
       overflow-x: hidden;
-      width: 100vw;
+      width: 100%;
     }
 
     &.dashboard--editing {
@@ -424,6 +418,9 @@ const StyledDashboardContent = styled.div<{
     flex-wrap: nowrap;
     height: auto;
     flex: 1;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
 
     .grid-container .dashboard-component-tabs {
       box-shadow: none;
@@ -434,6 +431,7 @@ const StyledDashboardContent = styled.div<{
       /* without this, the grid will not get smaller upon toggling the builder panel on */
       width: 0;
       flex: 1;
+      min-width: 0;
       position: relative;
       margin: ${theme.sizeUnit * 4}px;
       margin-left: ${marginLeft}px;
@@ -527,6 +525,31 @@ const StyledDashboardContent = styled.div<{
       .dashboard-component-chart-holder .ag-root-wrapper {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
+      }
+
+      .grid-row {
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .grid-row > .dragdroppable:not(.empty-droptarget) {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        flex-shrink: 1;
+      }
+
+      .grid-row .resizable-container,
+      .grid-row .dashboard-markdown,
+      .grid-row .dashboard-component-chart-holder {
+        box-sizing: border-box !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      .superset-legacy-chart-country-map,
+      .superset-legacy-chart-country-map svg {
+        max-width: 100% !important;
+        width: 100% !important;
       }
     }
 
@@ -986,7 +1009,7 @@ const DashboardBuilder = () => {
     }));
 
     targets.forEach(element => {
-      element.style.setProperty('max-width', '100vw', 'important');
+      element.style.setProperty('max-width', '100%', 'important');
       element.style.setProperty('overflow-x', 'hidden', 'important');
     });
 

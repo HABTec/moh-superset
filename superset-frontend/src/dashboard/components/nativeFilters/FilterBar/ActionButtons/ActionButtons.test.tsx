@@ -50,7 +50,7 @@ test('should render the "Apply" button', () => {
 test('should render the "Clear all" button as disabled', () => {
   const mockedProps = createProps();
   render(<ActionButtons {...mockedProps} />, { useRedux: true });
-  const clearBtn = screen.getByText('Clear all');
+  const clearBtn = screen.getByText('Clear all filters');
   expect(clearBtn.parentElement).toBeDisabled();
 });
 

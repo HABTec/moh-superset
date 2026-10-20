@@ -406,7 +406,7 @@ const SliceHeaderControls = (
     : null;
   const fullscreenLabel = isFullSize
     ? t('Exit fullscreen')
-    : t('Enter fullscreen');
+    : t('View fullscreen');
 
   // Use theme.zIndexPopupBase to keep dropdown above fullscreen (+1) or below dashboard header (-1)
   const dropdownOverlayStyle = {
@@ -414,7 +414,58 @@ const SliceHeaderControls = (
     animationDuration: '0s',
   };
 
-  const newMenuItems: MenuItem[] = [
+  // Actions shown on every chart, in the same order, whatever the user's role.
+  // Unavailable ones stay visible but disabled, with the reason as a tooltip.
+  const unavailableMenuItem = (
+    key: MenuKeys,
+    label: string,
+    reason: string,
+  ): MenuItem => ({
+    key,
+    label: (
+      <Tooltip title={reason}>
+        <span>{label}</span>
+      </Tooltip>
+    ),
+    disabled: true,
+  });
+
+  const fullscreenMenuItem: MenuItem = {
+    key: MenuKeys.Fullscreen,
+    label: fullscreenLabel,
+  };
+
+  const detailsMenuItem: MenuItem = slice.description
+    ? {
+        key: MenuKeys.ToggleChartDescription,
+        label: props.isDescriptionExpanded
+          ? t('Hide details / interpretations')
+          : t('View details / interpretations'),
+      }
+    : unavailableMenuItem(
+        MenuKeys.ToggleChartDescription,
+        t('View details / interpretations'),
+        t('No details have been added for this chart'),
+      );
+
+  const exploreMenuItem: MenuItem = canExplore
+    ? ({
+        key: MenuKeys.ExploreChart,
+        label: (
+          <Tooltip title={getSliceHeaderTooltip(props.slice.slice_name)}>
+            {t('Explore visual')}
+          </Tooltip>
+        ),
+        'data-test-edit-chart-name': slice.slice_name,
+      } as any)
+    : unavailableMenuItem(
+        MenuKeys.ExploreChart,
+        t('Explore visual'),
+        t('You do not have permission to explore this chart'),
+      );
+
+  // Less common actions, below the standard ones.
+  const moreMenuItems: MenuItem[] = [
     {
       key: MenuKeys.ForceRefresh,
       label: (
@@ -434,49 +485,17 @@ const SliceHeaderControls = (
       style: { height: 'auto', lineHeight: 'initial' },
       'data-test': 'refresh-chart-menu-item', // Typescript hack to get around MenuItem type
     } as any,
-    {
-      key: MenuKeys.Fullscreen,
-      label: fullscreenLabel,
-    },
-    {
-      type: 'divider',
-    },
   ];
 
-  if (slice.description) {
-    newMenuItems.push({
-      key: MenuKeys.ToggleChartDescription,
-      label: props.isDescriptionExpanded
-        ? t('Hide chart description')
-        : t('Show chart description'),
-    });
-  }
-
-  if (canExplore) {
-    newMenuItems.push({
-      key: MenuKeys.ExploreChart,
-      label: (
-        <Tooltip title={getSliceHeaderTooltip(props.slice.slice_name)}>
-          {t('Edit chart')}
-        </Tooltip>
-      ),
-      'data-test-edit-chart-name': slice.slice_name,
-    } as any);
-  }
-
   if (canEditCrossFilters) {
-    newMenuItems.push({
+    moreMenuItems.push({
       key: MenuKeys.CrossFilterScoping,
       label: t('Cross-filtering scoping'),
     });
   }
 
-  if (canExplore || canEditCrossFilters) {
-    newMenuItems.push({ type: 'divider' });
-  }
-
   if (canExplore || canViewQuery) {
-    newMenuItems.push({
+    moreMenuItems.push({
       key: MenuKeys.ViewQuery,
       label: (
         <ModalTrigger
@@ -494,33 +513,38 @@ const SliceHeaderControls = (
     });
   }
 
-  if (canExplore || canViewTable) {
-    newMenuItems.push({
-      key: MenuKeys.ViewResults,
-      label: (
-        <ViewResultsModalTrigger
-          canExplore={props.supersetCanExplore}
-          exploreUrl={props.exploreUrl}
-          triggerNode={
-            <div data-test="view-query-menu-item">{t('View as table')}</div>
-          }
-          modalRef={resultsMenuRef}
-          modalTitle={t('Chart Data: %s', slice.slice_name)}
-          modalBody={
-            <ResultsPaneOnDashboard
-              queryFormData={props.formData}
-              queryForce={false}
-              dataSize={20}
-              isRequest
-              isVisible
-              canDownload={!!props.supersetCanCSV}
-              columnDisplayNames={datasetWithVerboseMap?.verbose_map}
+  const tableMenuItem: MenuItem =
+    canExplore || canViewTable
+      ? {
+          key: MenuKeys.ViewResults,
+          label: (
+            <ViewResultsModalTrigger
+              canExplore={props.supersetCanExplore}
+              exploreUrl={props.exploreUrl}
+              triggerNode={
+                <div data-test="view-query-menu-item">{t('View as table')}</div>
+              }
+              modalRef={resultsMenuRef}
+              modalTitle={t('Chart Data: %s', slice.slice_name)}
+              modalBody={
+                <ResultsPaneOnDashboard
+                  queryFormData={props.formData}
+                  queryForce={false}
+                  dataSize={20}
+                  isRequest
+                  isVisible
+                  canDownload={!!props.supersetCanCSV}
+                  columnDisplayNames={datasetWithVerboseMap?.verbose_map}
+                />
+              }
             />
-          }
-        />
-      ),
-    });
-  }
+          ),
+        }
+      : unavailableMenuItem(
+          MenuKeys.ViewResults,
+          t('View as table'),
+          t('You do not have permission to view this chart as a table'),
+        );
 
   const drillDetailMenuItems = useDrillDetailMenuItems({
     formData: props.formData,
@@ -545,71 +569,81 @@ const SliceHeaderControls = (
   });
 
   if (isFeatureEnabled(FeatureFlag.DrillToDetail) && canDrillToDetail) {
-    newMenuItems.push(...drillDetailMenuItems);
-  }
-
-  if (slice.description || canExplore) {
-    newMenuItems.push({ type: 'divider' });
+    moreMenuItems.push(...drillDetailMenuItems);
   }
 
   if (supersetCanShare) {
-    newMenuItems.push(shareMenuItems);
+    moreMenuItems.push(shareMenuItems);
   }
 
-  if (props.supersetCanCSV) {
-    newMenuItems.push({
-      type: 'submenu',
-      key: MenuKeys.Download,
-      label: t('Download'),
-      children: [
-        {
-          key: MenuKeys.ExportCsv,
-          label: t('Export to .CSV'),
-          icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-        },
-        ...(isPivotTable
-          ? [
-              {
-                key: MenuKeys.ExportPivotCsv,
-                label: t('Export to Pivoted .CSV'),
-                icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-              },
-              {
-                key: MenuKeys.ExportPivotXlsx,
-                label: t('Export to Pivoted Excel'),
-                icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-              },
-            ]
-          : []),
-        {
-          key: MenuKeys.ExportXlsx,
-          label: t('Export to Excel'),
-          icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-        },
-        ...(isFeatureEnabled(FeatureFlag.AllowFullCsvExport) &&
-        props.supersetCanCSV &&
-        isTable
-          ? [
-              {
-                key: MenuKeys.ExportFullCsv,
-                label: t('Export to full .CSV'),
-                icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-              },
-              {
-                key: MenuKeys.ExportFullXlsx,
-                label: t('Export to full Excel'),
-                icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
-              },
-            ]
-          : []),
-        {
-          key: MenuKeys.DownloadAsImage,
-          label: t('Download as image'),
-          icon: <Icons.FileImageOutlined css={dropdownIconsStyles} />,
-        },
-      ],
-    });
-  }
+  const downloadMenuItem: MenuItem = props.supersetCanCSV
+    ? {
+        type: 'submenu',
+        key: MenuKeys.Download,
+        label: t('Download'),
+        children: [
+          {
+            key: MenuKeys.ExportCsv,
+            label: t('Export to .CSV'),
+            icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+          },
+          ...(isPivotTable
+            ? [
+                {
+                  key: MenuKeys.ExportPivotCsv,
+                  label: t('Export to Pivoted .CSV'),
+                  icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+                },
+                {
+                  key: MenuKeys.ExportPivotXlsx,
+                  label: t('Export to Pivoted Excel'),
+                  icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+                },
+              ]
+            : []),
+          {
+            key: MenuKeys.ExportXlsx,
+            label: t('Export to Excel'),
+            icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+          },
+          ...(isFeatureEnabled(FeatureFlag.AllowFullCsvExport) &&
+          props.supersetCanCSV &&
+          isTable
+            ? [
+                {
+                  key: MenuKeys.ExportFullCsv,
+                  label: t('Export to full .CSV'),
+                  icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+                },
+                {
+                  key: MenuKeys.ExportFullXlsx,
+                  label: t('Export to full Excel'),
+                  icon: <Icons.FileOutlined css={dropdownIconsStyles} />,
+                },
+              ]
+            : []),
+          {
+            key: MenuKeys.DownloadAsImage,
+            label: t('Download as image'),
+            icon: <Icons.FileImageOutlined css={dropdownIconsStyles} />,
+          },
+        ],
+      }
+    : unavailableMenuItem(
+        MenuKeys.Download,
+        t('Download'),
+        t('You do not have permission to download this chart'),
+      );
+
+  const newMenuItems: MenuItem[] = [
+    fullscreenMenuItem,
+    tableMenuItem,
+    exploreMenuItem,
+    downloadMenuItem,
+    detailsMenuItem,
+    { type: 'divider' },
+    ...moreMenuItems,
+  ];
 
   useEffect(() => {
     const handleFullscreenChange = () => {

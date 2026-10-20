@@ -159,7 +159,7 @@ const ActionButtons = ({
           onClick={onClearAll}
           {...getFilterBarTestId('clear-button')}
         >
-          {t('Clear all')}
+          {isVertical ? t('Clear all filters') : t('Clear all')}
         </Button>
         {hasOutOfScopeRequiredFilters && (
           <Tooltip

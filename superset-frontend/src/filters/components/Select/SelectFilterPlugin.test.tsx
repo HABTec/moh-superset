@@ -1472,7 +1472,10 @@ test('clear-all resets LIKE input value and calls setDataMask with empty state',
   jest.useFakeTimers({ advanceTimers: true });
   const setDataMaskMock = jest.fn();
   const likeProps = buildSelectFilterProps({
-    formData: { operatorType: SelectFilterOperatorType.Contains },
+    formData: {
+      operatorType: SelectFilterOperatorType.Contains,
+      defaultValue: undefined,
+    },
     filterState: { value: ['Jen'] },
     setDataMask: setDataMaskMock,
   });
@@ -1532,6 +1535,76 @@ test('clear-all resets LIKE input value and calls setDataMask with empty state',
   });
 
   expect(setDataMaskMock).toHaveBeenCalledTimes(callsBeforeDebounceFlush);
+});
+
+test('clear-all restores the configured default value', async () => {
+  const setDataMaskMock = jest.fn();
+  const props = buildSelectFilterProps({
+    formData: { defaultValue: ['boy'] },
+    filterState: { value: ['girl'] },
+    setDataMask: setDataMaskMock,
+  });
+
+  const { rerender } = render(<SelectFilterPlugin {...props} />, {
+    useRedux: true,
+    initialState: {
+      nativeFilters: { filters: { 'test-filter': { name: 'Test Filter' } } },
+      dataMask: {
+        'test-filter': {
+          extraFormData: {},
+          filterState: { value: ['girl'] },
+        },
+      },
+    },
+  });
+
+  setDataMaskMock.mockClear();
+  rerender(
+    <SelectFilterPlugin {...props} clearAllTrigger={{ 'test-filter': true }} />,
+  );
+
+  await waitFor(() => {
+    expect(setDataMaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterState: expect.objectContaining({ value: ['boy'] }),
+      }),
+    );
+  });
+});
+
+test('clear-all empties a filter that has no default value', async () => {
+  const setDataMaskMock = jest.fn();
+  const props = buildSelectFilterProps({
+    formData: { defaultValue: undefined },
+    filterState: { value: ['girl'] },
+    setDataMask: setDataMaskMock,
+  });
+
+  const { rerender } = render(<SelectFilterPlugin {...props} />, {
+    useRedux: true,
+    initialState: {
+      nativeFilters: { filters: { 'test-filter': { name: 'Test Filter' } } },
+      dataMask: {
+        'test-filter': {
+          extraFormData: {},
+          filterState: { value: ['girl'] },
+        },
+      },
+    },
+  });
+
+  setDataMaskMock.mockClear();
+  rerender(
+    <SelectFilterPlugin {...props} clearAllTrigger={{ 'test-filter': true }} />,
+  );
+
+  await waitFor(() => {
+    expect(setDataMaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterState: expect.objectContaining({ value: null }),
+      }),
+    );
+  });
 });
 
 test('pending LIKE debounce still applies after rerender recreates updateDataMask', async () => {
@@ -1686,4 +1759,34 @@ test('renders standard Select dropdown when operatorType is Exact', () => {
   });
 
   expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
+});
+
+test('shows All as the empty placeholder when the filter is optional', () => {
+  render(
+    <SelectFilterPlugin
+      {...buildSelectFilterProps({
+        formData: { enableEmptyFilter: false },
+        filterState: { value: undefined },
+      })}
+    />,
+    { useRedux: true },
+  );
+
+  expect(screen.getByText('All')).toBeInTheDocument();
+  expect(screen.queryByText('3 options')).not.toBeInTheDocument();
+});
+
+test('shows Select... as the empty placeholder when the filter is required', () => {
+  render(
+    <SelectFilterPlugin
+      {...buildSelectFilterProps({
+        formData: { enableEmptyFilter: true },
+        filterState: { value: undefined },
+      })}
+    />,
+    { useRedux: true },
+  );
+
+  expect(screen.getByText('Select...')).toBeInTheDocument();
+  expect(screen.queryByText('3 options')).not.toBeInTheDocument();
 });

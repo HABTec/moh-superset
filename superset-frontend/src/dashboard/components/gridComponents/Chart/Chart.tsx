@@ -115,6 +115,7 @@ const CHART_TOOLTIP_SELECTOR = '.chart-tooltip, [class*="tooltip"]';
 const ChartWrapper = styled.div`
   overflow: hidden;
   position: relative;
+  max-width: 100%;
 
   &.dashboard-chart--overflowable {
     overflow: visible;
@@ -467,17 +468,25 @@ const Chart = (props: ChartProps) => {
       .querySelectorAll<SVGSVGElement>('[data-test="chart-container"] svg')
       .forEach(svg => {
         const chartContainer = svg.closest('[data-test="chart-container"]');
+        const chartHolder = svg.closest(
+          '[data-test="dashboard-component-chart-holder"]',
+        );
         const chartContainerWidth = chartContainer?.clientWidth ?? 0;
+        const availableWidth = Math.min(
+          chartContainerWidth || Number.POSITIVE_INFINITY,
+          chartHolder?.clientWidth || Number.POSITIVE_INFINITY,
+        );
         const svgWidth = parseFloat(svg.getAttribute('width') ?? '');
         const svgHeight = parseFloat(svg.getAttribute('height') ?? '');
 
         if (
-          !chartContainerWidth ||
+          !Number.isFinite(availableWidth) ||
+          availableWidth <= 0 ||
           !Number.isFinite(svgWidth) ||
           !Number.isFinite(svgHeight) ||
           svgWidth <= 0 ||
           svgHeight <= 0 ||
-          svgWidth <= chartContainerWidth + 1
+          svgWidth <= availableWidth + 1
         ) {
           return;
         }

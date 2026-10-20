@@ -28,7 +28,6 @@ import {
   JsonObject,
   finestTemporalGrainFormatter,
 } from '@superset-ui/core';
-import { tn } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
 import { GenericDataType } from '@apache-superset/core/common';
 import { debounce, isUndefined } from 'lodash';
@@ -46,6 +45,10 @@ import {
   propertyComparator,
 } from '@superset-ui/core/components/Select/utils';
 import { FilterBarOrientation } from 'src/dashboard/types';
+import {
+  formatFilterOptionLabel,
+  getEmptyFilterPlaceholder,
+} from 'src/filters/utils/filterDisplay';
 import { getDataRecordFormatter, getSelectExtraFormData } from '../../utils';
 import { FilterPluginStyle, StatusMessage } from '../common';
 import {
@@ -250,7 +253,12 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
           ...filterState,
           label: values?.length
             ? `${(values || [])
-                .map(value => labelFormatter(value, datatype))
+                .map(value =>
+                  formatFilterOptionLabel(
+                    String(labelFormatter(value, datatype)),
+                    col,
+                  ),
+                )
                 .join(', ')}${suffix}`
             : undefined,
           value:
@@ -338,10 +346,12 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
     [updateDataMask, multiSelect],
   );
 
-  const placeholderText =
-    data.length === 0
-      ? t('No data')
-      : tn('%s option', '%s options', data.length, data.length);
+  const placeholderText = getEmptyFilterPlaceholder({
+    optionCount: data.length,
+    enableEmptyFilter,
+    columnName: col,
+    filterName: formData.native_filter_name,
+  });
 
   const formItemExtra = useMemo(() => {
     if (filterState.validateMessage) {
@@ -357,7 +367,10 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
   const uniqueOptions = useMemo(() => {
     const allOptions = new Set(data.map(el => el[col]));
     return [...allOptions].map((value: string) => ({
-      label: labelFormatter(value, datatype),
+      label: formatFilterOptionLabel(
+        String(labelFormatter(value, datatype)),
+        col,
+      ),
       value,
       isNewOption: false,
     }));
@@ -512,7 +525,22 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
         },
       });
 
-      updateDataMask(null);
+      // "Clear all" returns the filter to its configured default view; a
+      // filter without a default is simply emptied.
+      const defaultValue = ensureIsArray(formData?.defaultValue).filter(
+        value => value != null,
+      );
+      const firstItem: SelectValue =
+        defaultToFirstItem && data[0]
+          ? (groupby.map(column => data[0][column]) as string[])
+          : null;
+      if (defaultValue.length > 0) {
+        updateDataMask(defaultValue);
+      } else if (firstItem?.[0] !== undefined) {
+        updateDataMask(firstItem);
+      } else {
+        updateDataMask(null);
+      }
       setSearch('');
       setLikeInputValue('');
       onClearAllComplete?.(formData.nativeFilterId);
@@ -636,12 +664,7 @@ export default function PluginFilterSelect(props: PluginFilterSelectProps) {
               allowSelectAll={!searchAllOptions}
               value={multiSelect ? filterState.value || [] : filterState.value}
               disabled={isDisabled}
-              getPopupContainer={
-                showOverflow
-                  ? () => (parentRef?.current as HTMLElement) || document.body
-                  : (trigger: HTMLElement) =>
-                      (trigger?.parentNode as HTMLElement) || document.body
-              }
+              getPopupContainer={() => document.body}
               showSearch={showSearch}
               mode={multiSelect ? 'multiple' : 'single'}
               placeholder={placeholderText}

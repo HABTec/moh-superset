@@ -41,6 +41,7 @@ export enum SelectFilterOperatorType {
 
 export interface PluginFilterSelectCustomizeProps {
   defaultValue?: SelectValue;
+  native_filter_name?: string;
   enableEmptyFilter: boolean;
   inverseSelection: boolean;
   creatable: boolean;

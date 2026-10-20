@@ -107,6 +107,9 @@ const MarkdownStyles = styled.div`
   ${({ theme }) => css`
     &.dashboard-markdown {
       overflow: hidden;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       color: ${theme.colorText};
 
       h4,
@@ -126,6 +129,8 @@ const MarkdownStyles = styled.div`
       .dashboard-component-chart-holder {
         overflow-y: auto;
         overflow-x: hidden;
+        max-width: 100%;
+        min-width: 0;
         border-radius: ${theme.borderRadius}px;
       }
 

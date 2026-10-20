@@ -23,6 +23,7 @@ import { PluginFilterHooks, PluginFilterStylesProps } from '../types';
 
 interface PluginFilterTimeGrainCustomizeProps {
   defaultValue?: string[] | null;
+  enableEmptyFilter?: boolean;
   inputRef?: RefObject<HTMLInputElement>;
   time_grains?: string[];
 }

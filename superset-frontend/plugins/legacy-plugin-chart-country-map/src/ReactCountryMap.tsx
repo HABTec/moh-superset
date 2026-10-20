@@ -46,12 +46,25 @@ const CountryMap = ({
 
 export default styled(CountryMap)`
   ${({ theme }) => `
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+
     .superset-legacy-chart-country-map svg {
       background-color: ${theme.colorBgContainer};
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
     }
 
     .superset-legacy-chart-country-map {
       position: relative;
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
     }
 
     .superset-legacy-chart-country-map .background {
