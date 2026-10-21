@@ -760,3 +760,165 @@ test('looks the element up again after switching to light, in case it re-rendere
   registerThemePreview(null);
   document.documentElement.removeAttribute('data-theme-mode');
 });
+
+// Build a dashboard chart cell: chart column (header + body) beside an AI panel
+function buildChartCellWithInsight() {
+  const cell = document.createElement('div');
+  cell.className = 'dashboard-chart-id-7';
+  const row = document.createElement('div');
+  row.setAttribute('data-test', 'chart-with-ai-insight');
+  const chartColumn = document.createElement('div');
+  const header = document.createElement('div');
+  header.setAttribute('data-test', 'slice-header');
+  const title = document.createElement('div');
+  title.className = 'header-title';
+  title.textContent = 'Woreda Level Heatmap';
+  const controls = document.createElement('div');
+  controls.className = 'header-controls';
+  controls.textContent = 'menu';
+  header.append(title, controls);
+  chartColumn.appendChild(header);
+  const panel = document.createElement('div');
+  panel.setAttribute('data-test', 'ai-insight-panel');
+  panel.textContent = 'AI Insight';
+  row.append(chartColumn, panel);
+  cell.appendChild(row);
+  document.body.appendChild(cell);
+  return { cell, cleanup: () => document.body.removeChild(cell) };
+}
+
+test('a chart image shows the chart column and leaves out the AI insight panel', async () => {
+  const { cell, cleanup } = buildChartCellWithInsight();
+
+  const handler = downloadAsImageOptimized('.dashboard-chart-id-7', 'Map');
+  await handler(syntheticEventFor(cell));
+
+  const [[captured]] = mockToJpeg.mock.calls as [[HTMLElement]];
+  expect(captured.textContent).toContain('Woreda Level Heatmap');
+  expect(captured.querySelector('[data-test="ai-insight-panel"]')).toBeNull();
+  expect(mockAddWarningToast).not.toHaveBeenCalled();
+
+  cleanup();
+});
+
+test('header buttons keep their space but are invisible in the image', async () => {
+  const { cell, cleanup } = buildChartCellWithInsight();
+
+  const handler = downloadAsImageOptimized('.dashboard-chart-id-7', 'Map');
+  await handler(syntheticEventFor(cell));
+
+  const [[captured, options]] = mockToJpeg.mock.calls;
+  const controls = (captured as HTMLElement).querySelector<HTMLElement>(
+    '.header-controls',
+  );
+  expect(controls).not.toBeNull();
+  expect(controls?.style.opacity).toBe('0');
+  expect(options).not.toHaveProperty('filter');
+
+  cleanup();
+});
+
+test('only elements whose content overflows their box are expanded', async () => {
+  const container = document.createElement('div');
+  const scroller = document.createElement('div');
+  scroller.className = 'scroller';
+  scroller.style.overflowY = 'auto';
+  scroller.style.height = '100px';
+  Object.defineProperty(scroller, 'scrollHeight', { value: 400 });
+  Object.defineProperty(scroller, 'clientHeight', { value: 100 });
+  const fixedBox = document.createElement('div');
+  fixedBox.className = 'fixed-box';
+  fixedBox.style.overflowY = 'scroll';
+  fixedBox.style.height = '20px';
+  Object.defineProperty(fixedBox, 'scrollHeight', { value: 20 });
+  Object.defineProperty(fixedBox, 'clientHeight', { value: 20 });
+  container.append(scroller, fixedBox);
+  document.body.appendChild(container);
+
+  const handler = downloadAsImageOptimized('div', 'Chart');
+  await handler(syntheticEventFor(container));
+
+  const [[captured]] = mockToJpeg.mock.calls as [[HTMLElement]];
+  const clonedScroller = captured.querySelector<HTMLElement>('.scroller');
+  const clonedFixedBox = captured.querySelector<HTMLElement>('.fixed-box');
+  expect(clonedScroller?.style.height).toBe('auto');
+  expect(clonedScroller?.style.overflow).toBe('visible');
+  expect(clonedFixedBox?.style.height).toBe('20px');
+
+  document.body.removeChild(container);
+});
+
+test('containers of scrolled content grow to show it and never shrink', async () => {
+  const container = document.createElement('div');
+  const chartBody = document.createElement('div');
+  chartBody.className = 'chart-body';
+  chartBody.style.height = '300px';
+  chartBody.style.width = '310px';
+  const header = document.createElement('div');
+  header.className = 'sticky-header';
+  header.style.overflowX = 'hidden';
+  header.style.width = '310px';
+  Object.defineProperty(header, 'scrollWidth', { value: 870 });
+  Object.defineProperty(header, 'clientWidth', { value: 310 });
+  const rows = document.createElement('div');
+  rows.className = 'rows';
+  rows.style.overflow = 'auto';
+  rows.style.height = '160px';
+  rows.style.width = '310px';
+  Object.defineProperty(rows, 'scrollHeight', { value: 690 });
+  Object.defineProperty(rows, 'clientHeight', { value: 160 });
+  Object.defineProperty(rows, 'scrollWidth', { value: 870 });
+  Object.defineProperty(rows, 'clientWidth', { value: 310 });
+  chartBody.append(header, rows);
+  container.appendChild(chartBody);
+  document.body.appendChild(container);
+
+  const handler = downloadAsImageOptimized('div', 'Chart');
+  await handler(syntheticEventFor(container));
+
+  const [[captured]] = mockToJpeg.mock.calls as [[HTMLElement]];
+  const clonedBody = captured.querySelector<HTMLElement>('.chart-body');
+  expect(clonedBody?.style.height).toBe('auto');
+  expect(clonedBody?.style.minHeight).toBe('300px');
+  expect(clonedBody?.style.width).toBe('870px');
+  expect(captured.querySelector<HTMLElement>('.rows')?.style.width).toBe(
+    '870px',
+  );
+  const clonedHeader = captured.querySelector<HTMLElement>('.sticky-header');
+  expect(clonedHeader?.style.width).toBe('870px');
+  expect(clonedHeader?.style.overflow).toBe('visible');
+
+  document.body.removeChild(container);
+});
+
+test('text cut off with an ellipsis wraps in the image', async () => {
+  const container = document.createElement('div');
+  const chip = document.createElement('div');
+  chip.className = 'context-chip';
+  chip.style.whiteSpace = 'nowrap';
+  chip.style.overflow = 'hidden';
+  chip.style.textOverflow = 'ellipsis';
+  chip.textContent =
+    '2019 EFY | National / Ethiopia | DHIS2 · data as of Tikimt';
+  Object.defineProperty(chip, 'scrollWidth', { value: 420 });
+  Object.defineProperty(chip, 'clientWidth', { value: 300 });
+  const label = document.createElement('div');
+  label.className = 'short-label';
+  label.style.textOverflow = 'ellipsis';
+  label.textContent = 'Baseline';
+  container.append(chip, label);
+  document.body.appendChild(container);
+
+  const handler = downloadAsImageOptimized('div', 'Chart');
+  await handler(syntheticEventFor(container));
+
+  const [[captured]] = mockToJpeg.mock.calls as [[HTMLElement]];
+  const clonedChip = captured.querySelector<HTMLElement>('.context-chip');
+  expect(clonedChip?.style.whiteSpace).toBe('normal');
+  expect(clonedChip?.style.textOverflow).toBe('clip');
+  expect(
+    captured.querySelector<HTMLElement>('.short-label')?.style.whiteSpace,
+  ).toBe('');
+
+  document.body.removeChild(container);
+});

@@ -52,7 +52,10 @@ def test_escape_value():
     assert result == r"'\|value"
 
     result = csv.escape_value("%value")
-    assert result == "'%value"
+    assert result == "%value"
+
+    result = csv.escape_value("% of Neonatal Deaths")
+    assert result == "% of Neonatal Deaths"
 
     result = csv.escape_value("=cmd|' /C calc'!A0")
     assert result == r"'=cmd\|' /C calc'!A0"

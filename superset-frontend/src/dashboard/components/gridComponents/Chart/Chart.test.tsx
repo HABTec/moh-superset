@@ -196,6 +196,7 @@ test('should call exportChart when exportCSV is clicked', async () => {
       }),
       resultType: 'full',
       resultFormat: 'csv',
+      force: false,
     }),
   );
   stubbedExportCSV.mockRestore();

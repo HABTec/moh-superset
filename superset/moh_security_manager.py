@@ -159,6 +159,38 @@ class MoHSecurityManager(SupersetSecurityManager):
                 return None
         return None
 
+    def _slice_id_from_access_kwargs(self, kwargs: dict[str, Any]) -> int | None:
+        """Resolve the requested chart id from a chart/data request's form_data."""
+        for key in ("query_context", "viz"):
+            obj = kwargs.get(key)
+            form_data = getattr(obj, "form_data", None) if obj is not None else None
+            if not isinstance(form_data, dict) or form_data.get("slice_id") is None:
+                continue
+            try:
+                return int(form_data["slice_id"])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _raise_for_hidden_tab_chart(
+        self, dashboard_id: int, kwargs: dict[str, Any]
+    ) -> None:
+        """Deny data for a chart that sits only in tabs hidden from the user."""
+        slice_id = self._slice_id_from_access_kwargs(kwargs)
+        if slice_id is None:
+            return
+
+        from superset import moh_tab_access
+        from superset.models.dashboard import Dashboard
+
+        dashboard = kwargs.get("dashboard") or db.session.get(Dashboard, dashboard_id)
+        if dashboard is None:
+            return
+        if slice_id in moh_tab_access.hidden_chart_ids(dashboard):
+            raise SupersetSecurityException(
+                self.get_dashboard_access_error_object(dashboard)
+            )
+
     def _level_one_cache_ttl(self) -> int:
         """Seconds to cache a user's level-one verdict. 0 disables caching."""
         try:
@@ -248,7 +280,10 @@ class MoHSecurityManager(SupersetSecurityManager):
         return self.user_can_access_level_one_dashboard()
 
     def raise_for_access(self, *args: Any, **kwargs: Any) -> None:
-        """Deny level-one dashboards before running Superset's RBAC checks."""
+        """
+        Deny level-one dashboards, and charts in tabs hidden from the user (see
+        ``superset.moh_tab_access``), before running Superset's RBAC checks.
+        """
         dashboard_id = self._dashboard_id_from_access_kwargs(kwargs)
         if (
             dashboard_id is not None
@@ -265,4 +300,6 @@ class MoHSecurityManager(SupersetSecurityManager):
             raise SupersetSecurityException(
                 self.get_dashboard_access_error_object(dashboard)
             )
+        if dashboard_id is not None:
+            self._raise_for_hidden_tab_chart(dashboard_id, kwargs)
         super().raise_for_access(*args, **kwargs)

@@ -28,6 +28,8 @@ const StyledLegend = styled.div`
   ${({ theme }) => `
     font-size: ${theme.fontSizeSM}px;
     position: absolute;
+    /* Above the deck.gl overlay canvas, which otherwise paints over it. */
+    z-index: 3;
     background: ${theme.colorBgElevated};
     box-shadow: 0 0 ${theme.sizeUnit}px ${theme.colorBorderSecondary};
     margin: ${theme.sizeUnit * 6}px;

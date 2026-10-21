@@ -38,6 +38,7 @@ The same customizations work in two runtimes:
 | `docker/requirements-local.txt` | **NEW** | AI provider SDKs installed on every container start (`google-genai`, `anthropic`, `openai`) |
 | `docker-compose.override.yml` | **MODIFIED** *(gitignored)* | Adds `superset-mcp` service running the bundled MCP server on port 5008 |
 | `docs/AI_CHAT_INTEGRATION.md` | **NEW** | Line-by-line integration guide for the AI Assistant |
+| `superset/moh_tab_access.py` | **NEW** | Dashboard tabs reserved for level-one (national) users: hidden from everyone else, with per-tab exceptions by org unit (`MOH_RESTRICTED_TABS`) |
 
 ### 1.2 What each piece does
 
@@ -50,6 +51,12 @@ The same customizations work in two runtimes:
 - `CACHE_CONFIG` / `DATA_CACHE_CONFIG` / `THUMBNAIL_CACHE_CONFIG` → Redis-backed caches on separate DBs (1/2/3), 24h/1h TTL
 - `GLOBAL_ASYNC_QUERIES_REDIS_CONFIG` → Redis DB 4 for async query state
 - `RESULTS_BACKEND` → Redis DB 5 for SQL Lab results (replaces filesystem backend)
+
+**`superset/moh_tab_access.py`** — Hides dashboard tabs from users who are not at the national level (org-unit level 1). The default rule is for dashboard 3, MOH Performance Monitoring:
+- **Multi Source**: shown to level-one users only.
+- **Triangulation**: shown to level-one users and to users whose assigned org unit is Dire Dawa City Administration (`G9hDiPNoB7d`) or lies below it.
+
+For everyone else the tab and everything inside it are left out of `/api/v1/dashboard/<id>` (layout), `/charts` and `/tabs`, and `MoHSecurityManager.raise_for_access` refuses data for its charts on that dashboard. Admins, the dashboard's owners and level-one users see every tab; owners are exempt so that saving the dashboard in edit mode never drops tabs. Tabs are matched by title, so renaming a tab lifts its restriction. Override the rules with `MOH_RESTRICTED_TABS` in `superset_config.py`.
 
 **`superset/landing_view.py`** — Replaces FAB's default index. Queries published dashboards from the metadata DB, picks the dashboard with the most top-level tabs as the "featured" hero, lists the rest as compact pills. Located at top-level (not under `superset/views/`) on purpose — importing through `superset.views` triggers an init cascade that uses `security_manager` before it's initialized, causing `AttributeError`.
 

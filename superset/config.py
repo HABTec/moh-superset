@@ -1216,7 +1216,9 @@ ALLOWED_EXTENSIONS = {*EXCEL_EXTENSIONS, *CSV_EXTENSIONS, *COLUMNAR_EXTENSIONS}
 # CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv
 # method.
 # note: index option should not be overridden
-CSV_EXPORT = {"encoding": "utf-8-sig"}
+# float_format "%.15g" writes a float's significant digits only, so 93.5 is
+# not exported as 93.50000000000001 nor 120 as 120.0.
+CSV_EXPORT = {"encoding": "utf-8-sig", "float_format": "%.15g"}
 
 # CSV Streaming: row threshold for using streaming CSV exports
 # When row count >= this threshold, use streaming response instead of loading

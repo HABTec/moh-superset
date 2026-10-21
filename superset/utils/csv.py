@@ -32,11 +32,14 @@ negative_number_re = re.compile(r"^-[0-9.]+$")
 
 # This regex will match if the string starts with:
 #
-#     1. one of -, @, +, |, =, %
-#     2. two double quotes immediately followed by one of -, @, +, |, =, %
-#     3. one or more spaces immediately followed by one of -, @, +, |, =, %
+#     1. one of -, @, +, |, =
+#     2. two double quotes immediately followed by one of -, @, +, |, =
+#     3. one or more spaces immediately followed by one of -, @, +, |, =
 #
-problematic_chars_re = re.compile(r'^(?:"{2}|\s{1,})(?=[\-@+|=%])|^[\-@+|=%]')
+# "%" is not among them: spreadsheets do not evaluate a cell starting with it,
+# and indicator names such as "% of deliveries" would otherwise open with a
+# visible leading quote.
+problematic_chars_re = re.compile(r'^(?:"{2}|\s{1,})(?=[\-@+|=])|^[\-@+|=]')
 
 
 def escape_value(value: str) -> str:

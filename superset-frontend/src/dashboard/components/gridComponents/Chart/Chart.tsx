@@ -800,7 +800,10 @@ const Chart = (props: ChartProps) => {
           exportFormData as unknown as import('@superset-ui/core').QueryFormData,
         resultType,
         resultFormat: format,
-        force: true,
+        // The cached result is the data the chart shows; forcing a re-run
+        // made each download repeat a query that can exceed the database
+        // timeout.
+        force: false,
         ownState: exportOwnState,
         onStartStreamingExport: shouldUseStreaming
           ? (exportParams: JsonObject) => {

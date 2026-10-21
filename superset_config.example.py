@@ -340,6 +340,14 @@ MOH_LEVEL_ONE_GUEST_USERNAMES = {
     if name.strip()
 }
 
+# Dashboard tabs only level-one users see: {dashboard id: {tab title: [org
+# unit ids whose users (and users below them) may see it too]}}. Everyone else
+# never receives the tab or its charts. Admins and dashboard owners see all.
+# Defaults (superset/moh_tab_access.py) cover dashboard 3; set this to change.
+# MOH_RESTRICTED_TABS = {
+#     3: {"Multi Source": [], "Triangulation": ["G9hDiPNoB7d"]},  # Dire Dawa
+# }
+
 from superset.moh_security_manager import MoHSecurityManager
 
 CUSTOM_SECURITY_MANAGER = MoHSecurityManager
