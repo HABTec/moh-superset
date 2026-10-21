@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { ChartProps } from '@superset-ui/core';
+import { ChartProps, getContrastingColor } from '@superset-ui/core';
 import { supersetTheme } from '@apache-superset/core/theme';
 import { OpacityEnum } from '../../src/constants';
 import { EchartsTreemapChartProps } from '../../src/Treemap/types';
@@ -114,5 +114,51 @@ describe('Treemap transformProps', () => {
         }),
       }),
     );
+  });
+});
+
+type TreemapNode = {
+  name?: string;
+  itemStyle?: { color?: string };
+  label?: { color?: string };
+  upperLabel?: { color?: string };
+  children?: TreemapNode[];
+};
+
+const collectNodes = (nodes: TreemapNode[]): TreemapNode[] =>
+  nodes.flatMap(node => [node, ...collectNodes(node.children ?? [])]);
+
+test('Treemap labels contrast with the fill of their own block', () => {
+  const chartProps = new ChartProps({
+    formData: {
+      colorScheme: 'supersetColors',
+      datasource: '3__table',
+      metric: 'sum__num',
+      groupby: ['foo', 'bar'],
+    },
+    width: 800,
+    height: 600,
+    queriesData: [
+      {
+        data: [
+          { foo: 'Nurses', bar: 'Oromia', sum__num: 10 },
+          { foo: 'Midwives', bar: 'Amhara', sum__num: 6 },
+          { foo: 'Doctors', bar: 'Tigray', sum__num: 3 },
+        ],
+      },
+    ],
+    theme: supersetTheme,
+  });
+  const { echartOptions } = transformProps(
+    chartProps as EchartsTreemapChartProps,
+  );
+  const [series] = echartOptions.series as { data: TreemapNode[] }[];
+  const nodes = collectNodes(series.data[0].children ?? []);
+
+  expect(nodes.length).toBeGreaterThan(0);
+  nodes.forEach(node => {
+    const expected = getContrastingColor(node.itemStyle!.color!);
+    expect(node.label?.color).toBe(expected);
+    expect(node.upperLabel?.color).toBe(expected);
   });
 });

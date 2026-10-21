@@ -62,10 +62,16 @@ const createProps = () => ({
   title: 'Download',
   submenuKey: 'download',
   userCanExport: true,
+  userCanEdit: true,
 });
 
-const MenuWrapper = () => {
-  const downloadMenuItem = useDownloadMenuItems(createProps());
+const MenuWrapper = (
+  overrides: Partial<ReturnType<typeof createProps>> = {},
+) => {
+  const downloadMenuItem = useDownloadMenuItems({
+    ...createProps(),
+    ...overrides,
+  });
   const menuItems: MenuItem[] = [downloadMenuItem];
   return <Menu forceSubMenuRender items={menuItems} />;
 };
@@ -94,6 +100,27 @@ test('Should render all menu items', () => {
   // Export options
   expect(screen.getByText('Export YAML')).toBeInTheDocument();
   expect(screen.getByText('Export as Example')).toBeInTheDocument();
+});
+
+test('Hides developer exports from users who cannot edit the dashboard', () => {
+  render(<MenuWrapper userCanEdit={false} />, {
+    useRedux: true,
+  });
+
+  expect(screen.getByText('Export to PDF')).toBeInTheDocument();
+  expect(screen.getByText('Download as Image')).toBeInTheDocument();
+  expect(screen.queryByText('Export YAML')).not.toBeInTheDocument();
+  expect(screen.queryByText('Export as Example')).not.toBeInTheDocument();
+  expect(screen.queryByText('For dashboard owners')).not.toBeInTheDocument();
+});
+
+test('Hides developer exports from users without the export permission', () => {
+  render(<MenuWrapper userCanExport={false} />, {
+    useRedux: true,
+  });
+
+  expect(screen.queryByText('Export YAML')).not.toBeInTheDocument();
+  expect(screen.queryByText('Export as Example')).not.toBeInTheDocument();
 });
 
 test('Export as Example calls SupersetClient.get with correct endpoint', async () => {

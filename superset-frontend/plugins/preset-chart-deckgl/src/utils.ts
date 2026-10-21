@@ -233,6 +233,15 @@ export function isMetricOutOfZeroToHundred(value: unknown): boolean {
   );
 }
 
+export function isMetricMissing(value: unknown): boolean {
+  return (
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (typeof value === 'number' && !Number.isFinite(value))
+  );
+}
+
 function isZeroToHundredBreakpoint(breakpoint: ColorBreakpointType): boolean {
   return breakpoint.minValue <= 100 && breakpoint.maxValue >= 0;
 }
@@ -240,14 +249,19 @@ function isZeroToHundredBreakpoint(breakpoint: ColorBreakpointType): boolean {
 export function getColorBreakpointsBuckets(
   colorBreakpoints: ColorBreakpointType[],
   defaultColor?: BreakpointDefaultColor | null,
+  noDataColor?: BreakpointDefaultColor | null,
 ) {
   const breakpoints = Array.isArray(colorBreakpoints) ? colorBreakpoints : [];
 
   const buckets: Record<string, { color: Color; enabled: boolean }> = {};
 
-  const inRangeBreakpoints = defaultColor
-    ? breakpoints.filter(isZeroToHundredBreakpoint)
-    : breakpoints;
+  // Legend rows follow value order, not the order the bands were entered in
+  // the control panel; colour lookup matches by range so it is unaffected.
+  const inRangeBreakpoints = (
+    defaultColor ? breakpoints.filter(isZeroToHundredBreakpoint) : breakpoints
+  )
+    .slice()
+    .sort((a, b) => a.minValue - b.minValue);
 
   if (!inRangeBreakpoints.length && !defaultColor) {
     return buckets;
@@ -263,18 +277,16 @@ export function getColorBreakpointsBuckets(
   });
 
   if (defaultColor) {
-    // Two distinct reasons a feature can fall back to the default colour:
-    // a value reported outside the expected range, or no value at all.
-    // Both currently share the same swatch (there is no separate "No data
-    // colour" control yet) but get their own legend row so map readers are
-    // told which one applies rather than seeing one ambiguous "default"
-    // entry — a feature with genuinely no data is not the same as bad data.
+    // A value reported outside the expected range and a missing value get
+    // their own legend rows (and their own colours when a no-data colour is
+    // set): a feature with genuinely no data is not the same as bad data.
+    const noData = noDataColor ?? defaultColor;
     buckets[OUT_OF_RANGE_LEGEND_LABEL] = {
       color: [defaultColor.r, defaultColor.g, defaultColor.b],
       enabled: true,
     };
     buckets[NO_DATA_LEGEND_LABEL] = {
-      color: [defaultColor.r, defaultColor.g, defaultColor.b],
+      color: [noData.r, noData.g, noData.b],
       enabled: true,
     };
   }

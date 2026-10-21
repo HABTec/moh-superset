@@ -160,7 +160,7 @@ class MoHLandingView(IndexView):
 
         # Local imports — top-level imports here would create a cycle since
         # this module is loaded during app initialization.
-        from superset import db
+        from superset import db, moh_tab_access
         from superset.extensions import security_manager
         from superset.models.dashboard import Dashboard
 
@@ -206,7 +206,13 @@ class MoHLandingView(IndexView):
 
         dashboards: list[dict[str, Any]] = []
         for d in rows:
-            tabs = _extract_tabs(d.position_json)
+            # Tabs reserved for level-one users get no tile either.
+            hidden_tabs = moh_tab_access.hidden_tab_ids(d)
+            tabs = [
+                tab
+                for tab in _extract_tabs(d.position_json)
+                if tab["id"] not in hidden_tabs
+            ]
             dashboards.append({
                 "id": d.id,
                 "slug": d.slug,

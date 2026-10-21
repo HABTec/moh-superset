@@ -18,7 +18,9 @@
  */
 /* eslint camelcase: 0 */
 import {
+  Divider,
   ensureIsArray,
+  Filter,
   QueryFormData,
   JsonValue,
   JsonObject,
@@ -41,6 +43,7 @@ import * as actions from 'src/explore/actions/exploreActions';
 import { HYDRATE_EXPLORE, HydrateExplore } from '../actions/hydrateExplore';
 import { Slice } from 'src/types/Chart';
 import { SaveActionType } from 'src/explore/types';
+import { ActiveFilters } from 'src/dashboard/types';
 
 // Type definitions for explore state
 export interface ExploreState {
@@ -62,6 +65,18 @@ export interface ExploreState {
   controlsTransferred?: string[];
   standalone?: boolean;
   force?: boolean;
+  /**
+   * Native filter configuration of the dashboard this Explore session was
+   * opened from, when one was requested and the user can read it. Undefined
+   * otherwise, in which case Explore renders no filter bar.
+   */
+  nativeFilterConfiguration?: (Filter | Divider)[];
+  /**
+   * Scope of every native filter from the originating dashboard, keyed by
+   * filter id. Used to work out which filters apply to the chart being
+   * explored so their values can drive the query.
+   */
+  activeFilters?: ActiveFilters;
   common?: {
     conf: {
       DEFAULT_VIZ_TYPE?: string;

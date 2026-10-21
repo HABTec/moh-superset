@@ -38,7 +38,13 @@ import {
   hasOrgUnitFilter,
   hasPeriodFilter,
 } from '../nativeFilters/FilterBar/globalContext';
-import { getFreshnessSource } from './dataFreshness';
+import { useDataFreshness } from 'src/filters/components/OrgUnitTree/useDataFreshness';
+import {
+  FreshnessSource,
+  formatFreshnessPeriod,
+  getFreshnessGrain,
+  getFreshnessSource,
+} from './dataFreshness';
 
 type LayoutItem = DashboardLayout[string];
 
@@ -80,6 +86,57 @@ function useTopLevelTabTitle(chartId?: number): string | undefined {
  * The Period and Organisation unit currently applied. With a `chartId` it
  * describes what that chart is filtered by; without one, what the active tab is.
  */
+/** Titles of every tab a chart sits in, outermost first. */
+function useChartTabTitles(chartId: number): string[] {
+  const layout = useSelector<RootState, DashboardLayout>(
+    state => state.dashboardLayout.present,
+  );
+
+  return useMemo(() => {
+    const chartItem = Object.values(layout).find(
+      item => item?.type === CHART_TYPE && item.meta?.chartId === chartId,
+    );
+    return (chartItem?.parents ?? [])
+      .map(id => layout[id])
+      .filter(item => item?.type === TAB_TYPE && item.meta?.text)
+      .sort(byDepth)
+      .map(item => item.meta?.text?.trim() ?? '');
+  }, [layout, chartId]);
+}
+
+const SOURCE_LABELS: Record<FreshnessSource, () => string> = {
+  routine: () => t('DHIS2'),
+  quality: () => t('DHIS2'),
+};
+
+export type ChartSourceContext = {
+  /** Where the chart's data comes from; null when the tab's source is unknown. */
+  source: string | null;
+  /** Latest period with data for that source, e.g. "2018 EFY · Hamle". */
+  dataAsOf: string | null;
+};
+
+/**
+ * Source and data-as-of for one chart, read from the tab it sits in — the
+ * same rule the dashboard context strip uses for the whole tab.
+ */
+export function useChartSourceContext(chartId: number): ChartSourceContext {
+  const tabTitles = useChartTabTitles(chartId);
+  const sourceKey = getFreshnessSource(tabTitles[0]);
+  const freshness = useDataFreshness(undefined, sourceKey !== null);
+
+  return useMemo(() => {
+    if (!sourceKey) {
+      return { source: null, dataAsOf: null };
+    }
+    const grain = getFreshnessGrain(tabTitles);
+    return {
+      source: SOURCE_LABELS[sourceKey](),
+      dataAsOf: formatFreshnessPeriod(freshness?.[sourceKey]?.[grain], grain),
+    };
+  }, [freshness, sourceKey, tabTitles]);
+}
+
 export function useGlobalContext(chartId?: number): GlobalContext {
   // Same source the visible filter panel uses (dashboardInfo.metadata), not
   // the separate `state.nativeFilters.filters` slice — that one can still

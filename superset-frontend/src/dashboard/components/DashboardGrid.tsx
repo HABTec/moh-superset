@@ -75,6 +75,21 @@ const DashboardEmptyStateContainer = styled.div`
   justify-content: center;
 `;
 
+/**
+ * Horizontal padding (per side) that GridContent applies at a given viewport
+ * width. Must stay in sync with the media queries below so column widths are
+ * computed from the space rows actually get.
+ */
+export function getGridContentPadding(
+  viewportWidth: number,
+  sizeUnit: number,
+): number {
+  if (viewportWidth <= 575) return sizeUnit;
+  if (viewportWidth <= 768) return sizeUnit * 1.5;
+  if (viewportWidth <= 992) return sizeUnit * 2;
+  return sizeUnit * 3;
+}
+
 const GridContent = styled.div<{
   editMode?: boolean;
   responsiveLayout?: boolean;
@@ -92,11 +107,16 @@ const GridContent = styled.div<{
       min-width: 0;
     }
 
-    .grid-row > .dragdroppable:not(.empty-droptarget) {
-      min-width: 0;
-      max-width: 100%;
-      flex-shrink: 1;
-    }
+    /* Viewing only: while editing, a slot that shrinks leaves its chart at
+       full width, so the chart spills over its neighbour. */
+    ${!editMode &&
+    css`
+      .grid-row > .dragdroppable:not(.empty-droptarget) {
+        min-width: 0;
+        max-width: 100%;
+        flex-shrink: 1;
+      }
+    `}
     ${responsiveLayout &&
     `
       width: 100%;
@@ -320,9 +340,10 @@ class DashboardGrid extends PureComponent<
       responsiveDashboardEnabled &&
       isResponsiveDashboardCompact(Math.min(width, viewportWidth));
     const gridColumnCount = responsiveLayout ? 1 : GRID_COLUMN_COUNT;
-    const effectiveWidth = responsiveLayout
-      ? Math.min(width, viewportWidth)
-      : width;
+    const gridPadding = getGridContentPadding(viewportWidth, theme.sizeUnit);
+    const effectiveWidth =
+      (responsiveLayout ? Math.min(width, viewportWidth) : width) -
+      2 * gridPadding;
     const columnPlusGutterWidth =
       (effectiveWidth + GRID_GUTTER_SIZE) / gridColumnCount;
 
@@ -472,7 +493,8 @@ class DashboardGrid extends PureComponent<
                     key={`grid-column-${i}`}
                     className="grid-column-guide"
                     style={{
-                      left: i * GRID_GUTTER_SIZE + i * columnWidth,
+                      left:
+                        gridPadding + i * GRID_GUTTER_SIZE + i * columnWidth,
                       width: columnWidth,
                     }}
                   />

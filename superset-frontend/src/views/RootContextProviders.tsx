@@ -26,12 +26,53 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DynamicPluginProvider } from 'src/components';
 import { EmbeddedUiConfigProvider } from 'src/components/UiConfigContext';
 import { SupersetThemeProvider } from 'src/theme/ThemeProvider';
+import type { ThemeMode } from '@apache-superset/core/theme';
 import { ThemeController } from 'src/theme/ThemeController';
+import { registerThemePreview } from 'src/theme/lightModeExport';
+import getBootstrapData from 'src/utils/getBootstrapData';
+import setupColors from 'src/setup/setupColors';
 import { store } from './store';
 import '../preamble';
 import querystring from 'query-string';
 
-const themeController = new ThemeController();
+const themeController = new ThemeController({
+  initialMode: getBootstrapData().common?.theme?.defaultMode,
+});
+
+// Custom colour schemes can define dark colours ("colorsDark"); register the
+// set that matches the theme on screen (including a temporary light preview
+// for printing), and switch when light/dark changes.
+let colorSchemesAreDark: boolean | null = null;
+const registerColorSchemesForMode = () => {
+  const isDark = themeController.getCurrentModeResolved() === 'dark';
+  if (isDark === colorSchemesAreDark) return;
+  colorSchemesAreDark = isDark;
+  const { common } = getBootstrapData();
+  setupColors(
+    common.extra_categorical_color_schemes,
+    common.extra_sequential_color_schemes,
+    isDark,
+  );
+};
+registerColorSchemesForMode();
+themeController.onChange(registerColorSchemesForMode);
+
+declare global {
+  interface Window {
+    /** Lets MoH page templates (chart image export) show light output */
+    supersetTheme?: { previewMode: (mode: ThemeMode) => () => void };
+  }
+}
+window.supersetTheme = {
+  previewMode: mode => themeController.previewMode(mode),
+};
+
+// Image and PDF downloads switch to light through this (runInLightMode)
+registerThemePreview({
+  previewMode: mode => themeController.previewMode(mode),
+  getTheme: () => themeController.getTheme().theme,
+});
+
 const extensionsRegistry = getExtensionsRegistry();
 
 export const RootContextProviders: React.FC<{ children?: React.ReactNode }> = ({

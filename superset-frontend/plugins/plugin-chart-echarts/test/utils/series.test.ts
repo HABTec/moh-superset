@@ -117,7 +117,10 @@ const {
 } = require('../../src/utils/legendLayout');
 
 const expectedThemeProps = {
-  selector: ['all', 'inverse'],
+  selector: [
+    { type: 'all', title: 'Select all' },
+    { type: 'inverse', title: 'Invert selection' },
+  ],
   selected: {},
   selectorLabel: {
     fontFamily: theme.fontFamily,
@@ -1120,7 +1123,9 @@ test('getLegendLayoutResult keeps plain vertical legends when they fit within a 
       type: LegendType.Plain,
     }),
   ).toEqual({
-    effectiveMargin: defaultLegendPadding[LegendOrientation.Left],
+    // Widened past the default padding to fit the spelled-out
+    // "Select all" / "Invert selection" buttons (176px + 16px gutter).
+    effectiveMargin: 192,
     effectiveType: LegendType.Plain,
   });
 });

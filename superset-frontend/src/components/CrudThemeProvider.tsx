@@ -20,8 +20,10 @@ import { ReactNode, useEffect, useMemo } from 'react';
 import { logging } from '@apache-superset/core/utils';
 import {
   Theme,
+  applyThemeMode,
+  getEffectiveForceMode,
   normalizeThemeConfig,
-  isThemeConfigDark,
+  useThemeMode,
 } from '@apache-superset/core/theme';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import type { Dashboard } from 'src/types/Dashboard';
@@ -33,22 +35,28 @@ interface CrudThemeProviderProps {
 
 /**
  * CrudThemeProvider applies a dashboard-specific theme using theme data
- * from the dashboard API response. Merges with the system's base theme
- * (light or dark) and loads custom fonts. Falls back to the global theme
+ * from the dashboard API response. The theme follows the user's light/dark
+ * mode unless it sets forceMode, is merged with the matching system base
+ * theme, and loads custom fonts. Falls back to the global theme
  * if the theme data is missing or invalid.
  */
 export default function CrudThemeProvider({
   children,
   theme,
 }: CrudThemeProviderProps) {
+  // The page's current mode; a dashboard theme follows it unless it sets forceMode
+  const globalIsDark = useThemeMode();
   const { dashboardTheme, fontUrls } = useMemo(() => {
     if (!theme?.json_data) {
       return { dashboardTheme: null, fontUrls: undefined };
     }
     try {
       const themeConfig = JSON.parse(theme.json_data);
-      const normalizedConfig = normalizeThemeConfig(themeConfig);
-      const isDark = isThemeConfigDark(normalizedConfig);
+      const forceMode = getEffectiveForceMode(themeConfig);
+      const isDark = forceMode ? forceMode === 'dark' : globalIsDark;
+      const normalizedConfig = normalizeThemeConfig(
+        applyThemeMode(themeConfig, isDark),
+      );
       const {
         common: { theme: bootstrapTheme },
       } = getBootstrapData();
@@ -64,7 +72,7 @@ export default function CrudThemeProvider({
       logging.warn('Failed to load dashboard theme:', error);
       return { dashboardTheme: null, fontUrls: undefined };
     }
-  }, [theme?.json_data]);
+  }, [theme?.json_data, globalIsDark]);
 
   useEffect(() => {
     if (!dashboardTheme || !fontUrls?.length) return undefined;
@@ -88,7 +96,9 @@ export default function CrudThemeProvider({
   }
 
   return (
-    <dashboardTheme.SupersetThemeProvider>
+    // The page-wide styles come from the global theme; this provider styles
+    // only the dashboard so it doesn't repaint the page around it.
+    <dashboardTheme.SupersetThemeProvider withGlobalStyles={false}>
       {children}
     </dashboardTheme.SupersetThemeProvider>
   );

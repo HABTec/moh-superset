@@ -21,7 +21,9 @@ import { css, styled } from '@apache-superset/core/theme';
 export const Pill = styled.div`
   ${({ theme }) => css`
     display: flex;
-    color: ${theme.colorBgBase};
+    color: ${
+      /* eslint-disable-line no-restricted-syntax -- badge text, not a surface */ theme.colorBgBase
+    };
     background: ${theme.colorText};
     border-radius: 1em;
     vertical-align: text-top;
@@ -36,7 +38,9 @@ export const Pill = styled.div`
 
     svg {
       position: relative;
-      color: ${theme.colorBgBase};
+      color: ${
+        /* eslint-disable-line no-restricted-syntax -- badge text, not a surface */ theme.colorBgBase
+      };
       width: 1em;
       height: 1em;
       display: inline-block;

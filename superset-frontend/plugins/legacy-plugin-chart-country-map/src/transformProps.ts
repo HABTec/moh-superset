@@ -17,9 +17,11 @@
  * under the License.
  */
 import { ChartProps, getValueFormatter } from '@superset-ui/core';
+import { isThemeDark } from '@apache-superset/core/theme';
 
 export default function transformProps(chartProps: ChartProps) {
-  const { width, height, formData, queriesData, datasource } = chartProps;
+  const { width, height, formData, queriesData, datasource, theme } =
+    chartProps;
   const {
     linearColorScheme,
     numberFormat,
@@ -58,6 +60,7 @@ export default function transformProps(chartProps: ChartProps) {
     numberFormat, // left for backward compatibility
     colorScheme,
     sliceId,
+    isDarkMode: isThemeDark(theme),
     formatter,
   };
 }

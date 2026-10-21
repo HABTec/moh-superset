@@ -268,3 +268,19 @@ test('Arrow key navigation switches focus between indicators', () => {
   });
   expect(firstIndicator).toHaveFocus();
 });
+
+test('Opens the popover on click so touch screens can reach it', async () => {
+  const props = createProps();
+  props.popoverVisible = false;
+
+  render(
+    <DetailsPanel {...props}>
+      <div data-test="details-panel-content">Content</div>
+    </DetailsPanel>,
+    { useRedux: true },
+  );
+
+  userEvent.click(screen.getByTestId('details-panel-content'));
+
+  expect(props.setPopoverVisible).toHaveBeenCalledWith(true);
+});

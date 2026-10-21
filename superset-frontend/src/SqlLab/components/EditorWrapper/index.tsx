@@ -322,12 +322,14 @@ const EditorWrapper = ({
           width: 100% !important;
         }
 
-        .ace_content,
+        /* Editor surface rules are scoped to SQL Lab so they don't override
+           the other editors on the page (CSS, JSON, Markdown, theme editor) */
+        .SqlEditor .ace_content,
         .SqlEditor .sql-container .ace_gutter {
-          background-color: ${theme.colorBgBase} !important;
+          background-color: ${theme.colorBgContainer} !important;
         }
 
-        .ace_gutter::after {
+        .SqlEditor .ace_gutter::after {
           content: '';
           position: absolute;
           top: 0;
@@ -338,9 +340,9 @@ const EditorWrapper = ({
           background-color: ${theme.colorBorder};
         }
 
-        .ace_gutter,
-        .ace_scroller {
-          background-color: ${theme.colorBgBase} !important;
+        .SqlEditor .ace_gutter,
+        .SqlEditor .ace_scroller {
+          background-color: ${theme.colorBgContainer} !important;
         }
 
         .ace_autocomplete {

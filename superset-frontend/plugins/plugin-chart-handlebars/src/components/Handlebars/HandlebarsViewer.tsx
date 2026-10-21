@@ -31,6 +31,18 @@ export interface HandlebarsViewerProps {
   data: any;
 }
 
+/**
+ * Removes the indentation at the start of each line of a rendered template.
+ * The result is read as Markdown, where a line indented by four or more
+ * spaces after a blank line is a code block. A value with no data (for
+ * example a metric that is NULL) leaves a blank line in indented HTML, and the
+ * tags after it then showed as text, such as a stray "</div>".
+ * @param html - The rendered template
+ * @returns The template without leading spaces or tabs on any line
+ */
+export const removeLineIndentation = (html: string): string =>
+  html.replace(/^[ \t]+/gm, '');
+
 export const HandlebarsViewer = ({
   templateSource,
   data,
@@ -49,7 +61,7 @@ export const HandlebarsViewer = ({
     try {
       const template = Handlebars.compile(templateSource);
       const result = template(data);
-      setRenderedTemplate(result);
+      setRenderedTemplate(removeLineIndentation(result));
       setError('');
     } catch (error) {
       setRenderedTemplate('');

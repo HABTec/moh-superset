@@ -42,6 +42,7 @@ import {
   getBuckets,
   getBreakPointColorScaler,
   getColorBreakpointsBuckets,
+  isMetricMissing,
   isMetricOutOfZeroToHundred,
   TRANSPARENT_COLOR_ARRAY,
 } from '../../utils';
@@ -57,7 +58,10 @@ import {
 import { TooltipProps } from '../../components/Tooltip';
 import { GetLayerTypeParams } from '../../factory';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
-import { DEFAULT_DECKGL_COLOR } from '../../utilities/Shared_DeckGL';
+import {
+  DEFAULT_DECKGL_COLOR,
+  DEFAULT_NO_DATA_COLOR,
+} from '../../utilities/Shared_DeckGL';
 import {
   createTooltipContent,
   CommonTooltipRows,
@@ -161,6 +165,7 @@ export const getLayer = function ({
   const sc: { r: number; g: number; b: number; a: number } =
     fd.stroke_color_picker;
   const defaultBreakpointColor = fd.default_breakpoint_color;
+  const noDataBreakpointColor = fd.no_data_color ?? DEFAULT_NO_DATA_COLOR;
   let data = [...payload.data.features];
 
   if (fd.js_data_mutator) {
@@ -204,7 +209,16 @@ export const getLayer = function ({
             DEFAULT_DECKGL_COLOR.b,
             DEFAULT_DECKGL_COLOR.a * 255,
           ];
+      const noDataColor: Color = [
+        noDataBreakpointColor.r,
+        noDataBreakpointColor.g,
+        noDataBreakpointColor.b,
+        (noDataBreakpointColor.a ?? 1) * 255,
+      ];
       baseColorScaler = data => {
+        if (isMetricMissing(accessor(data))) {
+          return noDataColor;
+        }
         if (isMetricOutOfZeroToHundred(accessor(data))) {
           return outOfRangeColor;
         }
@@ -465,6 +479,7 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
       ? getColorBreakpointsBuckets(
           formData.color_breakpoints,
           formData.default_breakpoint_color ?? DEFAULT_DECKGL_COLOR,
+          formData.no_data_color ?? DEFAULT_NO_DATA_COLOR,
         )
       : getBuckets(formData, payload.data.features, accessor);
 

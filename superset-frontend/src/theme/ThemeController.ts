@@ -21,6 +21,8 @@ import {
   type SupersetThemeConfig,
   type ThemeControllerOptions,
   type ThemeStorage,
+  applyThemeMode,
+  getEffectiveForceMode,
   isThemeConfigDark,
   Theme,
   ThemeMode,
@@ -103,6 +105,13 @@ export class ThemeController {
   private loadedFontUrls: Set<string> = new Set();
 
   private initialMode: ThemeMode | undefined;
+
+  // Mode shown by previewMode() for printing or exporting; null otherwise
+  private previewingMode: ThemeMode | null = null;
+
+  // Number of previews still in use (e.g. two chart exports at once); the
+  // user's theme comes back only when the last one is released
+  private previewCount = 0;
 
   constructor({
     storage = new LocalStorageAdapter(),
@@ -219,16 +228,8 @@ export class ThemeController {
   ): AnyThemeConfig | null {
     // For dashboard context, prioritize dashboard CRUD theme
     if (forDashboard && this.dashboardCrudTheme) {
-      // Dashboard CRUD themes should be merged with base theme
-      const normalizedTheme = this.normalizeTheme(this.dashboardCrudTheme);
-      const isDarkMode = isThemeConfigDark(normalizedTheme);
-      const baseTheme = isDarkMode ? this.darkTheme : this.defaultTheme;
-
-      if (baseTheme) {
-        const mergedTheme = Theme.fromConfig(normalizedTheme, baseTheme);
-        return mergedTheme.toSerializedConfig();
-      }
-      return normalizedTheme;
+      // Dashboard CRUD themes are merged with the base theme for the user's mode
+      return this.layerOnBaseTheme(this.dashboardCrudTheme, this.currentMode);
     }
 
     // For global context or when no dashboard theme, use mode-based theme
@@ -246,9 +247,10 @@ export class ThemeController {
     themeId: string,
   ): Promise<Theme | null> {
     try {
-      // Check if we already have this dashboard theme cached
-      if (this.dashboardThemes.has(themeId)) {
-        return this.dashboardThemes.get(themeId)!;
+      // Cached per mode, so switching light/dark builds the matching theme
+      const cacheKey = `${themeId}:${this.resolveMode(this.currentMode)}`;
+      if (this.dashboardThemes.has(cacheKey)) {
+        return this.dashboardThemes.get(cacheKey)!;
       }
 
       // Use the enhanced fetchCrudTheme method which includes validation if feature flag is enabled
@@ -257,10 +259,12 @@ export class ThemeController {
       if (themeConfig) {
         // Controller creates and owns the dashboard theme
         const { Theme } = await import('@apache-superset/core/theme');
-        const normalizedConfig = this.normalizeTheme(themeConfig);
 
-        // Determine if this is a dark theme and get appropriate base
-        const isDarkMode = isThemeConfigDark(normalizedConfig);
+        // Follow the user's mode unless the theme sets forceMode
+        const isDarkMode = this.isDarkForTheme(themeConfig, this.currentMode);
+        const normalizedConfig = this.normalizeTheme(
+          applyThemeMode(themeConfig, isDarkMode),
+        );
         const baseTheme = isDarkMode ? this.darkTheme : this.defaultTheme;
 
         const dashboardTheme = Theme.fromConfig(
@@ -274,7 +278,7 @@ export class ThemeController {
         this.loadFonts(fontUrls);
 
         // Cache the theme for reuse
-        this.dashboardThemes.set(themeId, dashboardTheme);
+        this.dashboardThemes.set(cacheKey, dashboardTheme);
 
         return dashboardTheme;
       }
@@ -290,7 +294,9 @@ export class ThemeController {
    * @param themeId - The dashboard theme ID to clear
    */
   public clearDashboardTheme(themeId: string): void {
-    this.dashboardThemes.delete(themeId);
+    Array.from(this.dashboardThemes.keys())
+      .filter(key => key.startsWith(`${themeId}:`))
+      .forEach(key => this.dashboardThemes.delete(key));
   }
 
   /**
@@ -312,7 +318,9 @@ export class ThemeController {
    * Takes into account SYSTEM mode and returns the actual resolved preference.
    */
   public getCurrentModeResolved(): 'dark' | 'light' {
-    const activeTheme = this.getThemeForMode(this.currentMode);
+    const activeTheme = this.getThemeForMode(
+      this.previewingMode ?? this.currentMode,
+    );
     if (activeTheme) {
       const normalizedTheme = this.normalizeTheme(activeTheme);
       return isThemeConfigDark(normalizedTheme) ? 'dark' : 'light';
@@ -343,18 +351,11 @@ export class ThemeController {
   public setThemeMode(mode: ThemeMode): void {
     this.validateModeUpdatePermission(mode);
 
-    if (
-      this.currentMode === mode &&
-      !this.devThemeOverride &&
-      !this.crudThemeId
-    )
-      return;
+    if (this.currentMode === mode && !this.crudThemeId) return;
 
-    // Clear any local overrides when explicitly selecting a theme mode
-    // This ensures the selected mode takes effect and provides clear UX
-    this.devThemeOverride = null;
+    // An applied theme (devThemeOverride) is kept and re-rendered in the new
+    // mode; clearLocalOverrides() is the way to remove it.
     this.crudThemeId = null;
-    this.storage.removeItem(STORAGE_KEYS.DEV_THEME_OVERRIDE);
     this.storage.removeItem(STORAGE_KEYS.CRUD_THEME_ID);
 
     const theme: AnyThemeConfig | null = this.getThemeForMode(mode);
@@ -432,6 +433,37 @@ export class ThemeController {
 
     const mergedTheme = this.getThemeForMode(this.currentMode);
     if (mergedTheme) this.updateTheme(mergedTheme);
+  }
+
+  /**
+   * Shows a mode for a moment without saving it, for printing or exporting
+   * (for example, light output while the user works in dark mode).
+   * @param mode - The mode to show
+   * @returns A function that puts back the user's own theme
+   */
+  public previewMode(mode: ThemeMode): () => void {
+    const preview = this.getThemeForMode(mode);
+    if (!preview) return () => {};
+
+    this.previewCount += 1;
+    if (this.previewingMode !== mode) {
+      this.previewingMode = mode;
+      this.applyTheme(preview);
+      this.notifyListeners();
+    }
+
+    let restored = false;
+    return () => {
+      if (restored) return;
+      restored = true;
+      this.previewCount -= 1;
+      if (this.previewCount > 0) return;
+      this.previewingMode = null;
+      const current = this.getThemeForMode(this.currentMode);
+      if (!current) return;
+      this.applyTheme(current);
+      this.notifyListeners();
+    };
   }
 
   /**
@@ -723,16 +755,9 @@ export class ThemeController {
    */
   private getThemeForMode(mode: ThemeMode): AnyThemeConfig | null {
     if (this.devThemeOverride) {
-      const normalizedOverride = this.normalizeTheme(this.devThemeOverride);
-      const isDarkMode = isThemeConfigDark(normalizedOverride);
-      const baseTheme = isDarkMode ? this.darkTheme : this.defaultTheme;
-
-      if (baseTheme) {
-        const mergedTheme = Theme.fromConfig(normalizedOverride, baseTheme);
-        return mergedTheme.toSerializedConfig();
-      }
-
-      return normalizedOverride;
+      // An applied theme (Themes > Apply, or the TV player) sits on top of
+      // the user's mode, unless the theme sets forceMode
+      return this.layerOnBaseTheme(this.devThemeOverride, mode);
     }
 
     let resolvedMode: ThemeMode = mode;
@@ -745,6 +770,48 @@ export class ThemeController {
     if (resolvedMode === ThemeMode.DARK) return this.darkTheme;
 
     return this.defaultTheme;
+  }
+
+  /**
+   * Resolves a mode to light or dark. SYSTEM follows the operating system, and
+   * everything is light when no dark theme is available.
+   */
+  private resolveMode(mode: ThemeMode): ThemeMode.DEFAULT | ThemeMode.DARK {
+    if (!this.darkTheme) return ThemeMode.DEFAULT;
+    if (mode === ThemeMode.SYSTEM)
+      return ThemeController.getSystemPreferredMode();
+    return mode === ThemeMode.DARK ? ThemeMode.DARK : ThemeMode.DEFAULT;
+  }
+
+  /**
+   * Whether a theme layered on the global one renders dark: its forceMode
+   * (explicit, or implied by its own background/text colours), otherwise the
+   * user's mode.
+   */
+  private isDarkForTheme(theme: AnyThemeConfig, mode: ThemeMode): boolean {
+    const forceMode = getEffectiveForceMode(theme);
+    if (forceMode) return forceMode === 'dark';
+    return this.resolveMode(mode) === ThemeMode.DARK;
+  }
+
+  /**
+   * Sets a theme to the right light/dark mode and merges it over the matching
+   * base theme (THEME_DEFAULT or THEME_DARK).
+   */
+  private layerOnBaseTheme(
+    theme: AnyThemeConfig,
+    mode: ThemeMode,
+  ): AnyThemeConfig {
+    const isDarkMode = this.isDarkForTheme(theme, mode);
+    const normalizedTheme = this.normalizeTheme(
+      applyThemeMode(theme, isDarkMode),
+    );
+    const baseTheme = isDarkMode ? this.darkTheme : this.defaultTheme;
+
+    if (baseTheme) {
+      return Theme.fromConfig(normalizedTheme, baseTheme).toSerializedConfig();
+    }
+    return normalizedTheme;
   }
 
   /**

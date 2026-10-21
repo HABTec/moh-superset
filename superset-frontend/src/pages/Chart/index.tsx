@@ -126,7 +126,11 @@ const getDashboardContextFormData = (search: string) => {
     Object.assign(dashboardContextWithFilters, {
       dashboardId,
     });
-    return dashboardContextWithFilters;
+    return {
+      formData: dashboardContextWithFilters,
+      dataMask,
+      activeFilters,
+    };
   }
   return null;
 };
@@ -161,11 +165,19 @@ export default function ExplorePage() {
             return;
           }
 
+          // A filter configuration means the dashboard's native filters are
+          // rendered in Explore and drive the query from the data mask, so they
+          // must not be baked into the form data as well.
+          const hasExploreFilterBar = Boolean(
+            result.native_filter_configuration?.length,
+          );
+
           const formData = dashboardContextFormData
             ? getFormDataWithDashboardContext(
                 result.form_data,
-                dashboardContextFormData,
+                dashboardContextFormData.formData,
                 saveAction,
+                { includeNativeFilters: !hasExploreFilterBar },
               )
             : result.form_data;
 
@@ -190,6 +202,12 @@ export default function ExplorePage() {
               form_data: formData,
               saveAction,
               chartStates,
+              ...(dashboardContextFormData?.dataMask && {
+                dataMask: dashboardContextFormData.dataMask,
+              }),
+              ...(dashboardContextFormData?.activeFilters && {
+                activeFilters: dashboardContextFormData.activeFilters,
+              }),
             }),
           );
         })

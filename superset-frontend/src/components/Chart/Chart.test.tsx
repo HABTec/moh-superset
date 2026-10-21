@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { render, screen } from 'spec/helpers/testing-library';
+import { render, screen, userEvent } from 'spec/helpers/testing-library';
 import '@testing-library/jest-dom';
 import { PLACEHOLDER_DATASOURCE } from 'src/dashboard/constants';
 import { ResourceStatus } from 'src/hooks/apiResources/apiResources';
@@ -85,4 +85,49 @@ test('shows loading spinner for client-side errors without errors array when dat
 
   expect(screen.getByRole('status')).toBeInTheDocument();
   expect(screen.queryByText(/Some client-side error/)).not.toBeInTheDocument();
+});
+
+const networkFailure = {
+  chartStatus: 'failed' as const,
+  queriesResponse: [
+    {
+      errors: [
+        {
+          error_type: 'GENERIC_BACKEND_ERROR',
+          message: 'Network error',
+          level: 'error',
+        },
+      ],
+    },
+  ],
+};
+
+test('a failed dashboard chart offers Retry, which re-runs its query', async () => {
+  render(
+    <Chart
+      {...baseProps}
+      {...(networkFailure as object)}
+      dashboardId={8}
+      datasetsStatus={ResourceStatus.Complete}
+    />,
+    { useRedux: true },
+  );
+
+  expect(screen.getByText('Unable to load this visual.')).toBeInTheDocument();
+  await userEvent.click(screen.getByTestId('chart-retry'));
+  expect(mockActions.postChartFormData).toHaveBeenCalledWith(
+    baseProps.formData,
+    false,
+    undefined,
+    1,
+    8,
+    undefined,
+  );
+});
+
+test('a failed chart in Explore has no Retry button', () => {
+  render(<Chart {...baseProps} {...(networkFailure as object)} />, {
+    useRedux: true,
+  });
+  expect(screen.queryByTestId('chart-retry')).not.toBeInTheDocument();
 });

@@ -23,6 +23,7 @@ import {
   Theme,
   normalizeThemeConfig,
   isThemeConfigDark,
+  useThemeMode,
 } from '@apache-superset/core/theme';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import CrudThemeProvider from './CrudThemeProvider';
@@ -31,6 +32,7 @@ jest.mock('@apache-superset/core/theme', () => ({
   ...jest.requireActual('@apache-superset/core/theme'),
   normalizeThemeConfig: jest.fn((config: unknown) => config),
   isThemeConfigDark: jest.fn(() => false),
+  useThemeMode: jest.fn(() => false),
 }));
 
 jest.mock('src/utils/getBootstrapData', () => ({
@@ -48,6 +50,9 @@ const mockNormalizeThemeConfig = normalizeThemeConfig as jest.MockedFunction<
 >;
 const mockIsThemeConfigDark = isThemeConfigDark as jest.MockedFunction<
   typeof isThemeConfigDark
+>;
+const mockUseThemeMode = useThemeMode as jest.MockedFunction<
+  typeof useThemeMode
 >;
 
 type BootstrapData = ReturnType<typeof getBootstrapData>;
@@ -74,6 +79,7 @@ beforeEach(() => {
     config => config as ReturnType<typeof normalizeThemeConfig>,
   );
   mockIsThemeConfigDark.mockReturnValue(false);
+  mockUseThemeMode.mockReturnValue(false);
   mockGetBootstrapData.mockReturnValue(mockBootstrap());
   // Clean up font style elements from previous tests
   document
@@ -122,7 +128,11 @@ test('wraps children with SupersetThemeProvider when valid theme data is provide
   );
   expect(screen.getByText('Dashboard Content')).toBeInTheDocument();
   expect(screen.getByTestId('dashboard-theme-provider')).toBeInTheDocument();
-  expect(Theme.fromConfig).toHaveBeenCalledWith(themeConfig, expect.anything());
+  // The user is in light mode, so the theme is set to the light algorithm
+  expect(Theme.fromConfig).toHaveBeenCalledWith(
+    { ...themeConfig, algorithm: 'default' },
+    expect.anything(),
+  );
 });
 
 test('creates theme from inline json_data via Theme.fromConfig', () => {
@@ -141,7 +151,10 @@ test('creates theme from inline json_data via Theme.fromConfig', () => {
   expect(screen.getByText('Dashboard Content')).toBeInTheDocument();
   // No API call can happen — CrudThemeProvider has no fetch/SupersetClient imports.
   // Theme is created synchronously from the inline json_data prop.
-  expect(Theme.fromConfig).toHaveBeenCalledWith(themeConfig, expect.anything());
+  expect(Theme.fromConfig).toHaveBeenCalledWith(
+    { ...themeConfig, algorithm: 'default' },
+    expect.anything(),
+  );
 });
 
 test('falls back to rendering children without theme wrapper when json_data is invalid JSON', () => {
@@ -208,23 +221,24 @@ test('merges dashboard theme with default base theme from bootstrap data', () =>
   );
 });
 
-test('uses dark base theme when dashboard theme config is dark', () => {
+test("follows the user's dark mode when the theme does not set forceMode", () => {
   const bootstrapDark = {
     algorithm: 'dark',
     token: { colorPrimary: '#base-dark' },
   };
   mockGetBootstrapData.mockReturnValue(mockBootstrap({ dark: bootstrapDark }));
-  mockIsThemeConfigDark.mockReturnValue(true);
+  mockUseThemeMode.mockReturnValue(true);
 
+  // A theme saved as light still follows the user into dark mode
   const themeConfig = {
-    algorithm: 'dark',
-    token: { colorPrimary: '#custom-dark' },
+    algorithm: 'default',
+    token: { colorPrimary: '#custom' },
   };
   render(
     <CrudThemeProvider
       theme={{
         id: 1,
-        theme_name: 'Dark Theme',
+        theme_name: 'Branded Theme',
         json_data: JSON.stringify(themeConfig),
       }}
     >
@@ -232,7 +246,68 @@ test('uses dark base theme when dashboard theme config is dark', () => {
     </CrudThemeProvider>,
   );
 
-  expect(Theme.fromConfig).toHaveBeenCalledWith(themeConfig, bootstrapDark);
+  expect(Theme.fromConfig).toHaveBeenCalledWith(
+    { ...themeConfig, algorithm: 'dark' },
+    bootstrapDark,
+  );
+});
+
+test('uses the dark base when the theme sets forceMode dark, even in light mode', () => {
+  const bootstrapDark = {
+    algorithm: 'dark',
+    token: { colorPrimary: '#base-dark' },
+  };
+  mockGetBootstrapData.mockReturnValue(mockBootstrap({ dark: bootstrapDark }));
+  mockUseThemeMode.mockReturnValue(false);
+
+  render(
+    <CrudThemeProvider
+      theme={{
+        id: 1,
+        theme_name: 'Dark Theme',
+        json_data: JSON.stringify({
+          forceMode: 'dark',
+          token: { colorPrimary: '#custom-dark' },
+        }),
+      }}
+    >
+      <div>Dashboard Content</div>
+    </CrudThemeProvider>,
+  );
+
+  // forceMode is not an Ant Design setting, so it is removed
+  expect(Theme.fromConfig).toHaveBeenCalledWith(
+    { algorithm: 'dark', token: { colorPrimary: '#custom-dark' } },
+    bootstrapDark,
+  );
+});
+
+test('stays light when the theme sets forceMode light, even in dark mode', () => {
+  const bootstrapDefault = { token: { colorPrimary: '#base-default' } };
+  mockGetBootstrapData.mockReturnValue(
+    mockBootstrap({ default: bootstrapDefault }),
+  );
+  mockUseThemeMode.mockReturnValue(true);
+
+  render(
+    <CrudThemeProvider
+      theme={{
+        id: 1,
+        theme_name: 'Boardroom TV',
+        json_data: JSON.stringify({
+          forceMode: 'light',
+          token: { fontSize: 22 },
+        }),
+      }}
+    >
+      <div>Dashboard Content</div>
+    </CrudThemeProvider>,
+  );
+
+  expect(Theme.fromConfig).toHaveBeenCalledWith(
+    { algorithm: 'default', token: { fontSize: 22 } },
+    bootstrapDefault,
+  );
 });
 
 test('injects font URLs as CSS @import rules', () => {

@@ -45,7 +45,7 @@ from marshmallow import ValidationError
 from werkzeug.wrappers import Response as WerkzeugResponse
 from werkzeug.wsgi import FileWrapper
 
-from superset import db, is_feature_enabled
+from superset import db, is_feature_enabled, moh_tab_access
 from superset.charts.schemas import ChartEntityResponseSchema
 from superset.commands.dashboard.copy import CopyDashboardCommand
 from superset.commands.dashboard.create import CreateDashboardCommand
@@ -518,7 +518,7 @@ class DashboardRestApi(CustomTagsOptimizationMixin, BaseSupersetModelRestApi):
         else:
             schema = self.dashboard_get_response_schema
 
-        result = schema.dump(dash)
+        result = moh_tab_access.restrict_dashboard_result(dash, schema.dump(dash))
         add_extra_log_payload(
             dashboard_id=dash.id, action=f"{self.__class__.__name__}.get"
         )
@@ -622,7 +622,10 @@ class DashboardRestApi(CustomTagsOptimizationMixin, BaseSupersetModelRestApi):
             tabs = DashboardDAO.get_tabs_for_dashboard(id_or_slug)
             native_filters = DashboardDAO.get_native_filter_configuration(id_or_slug)
 
-            result = self.tab_schema.dump(tabs)
+            result = moh_tab_access.restrict_tabs_result(
+                DashboardDAO.get_by_id_or_slug(id_or_slug),
+                self.tab_schema.dump(tabs),
+            )
             result["native_filters"] = native_filters
 
             return self.response(200, result=result)
@@ -679,7 +682,14 @@ class DashboardRestApi(CustomTagsOptimizationMixin, BaseSupersetModelRestApi):
         """
         try:
             charts = DashboardDAO.get_charts_for_dashboard(id_or_slug)
-            result = [self.chart_entity_response_schema.dump(chart) for chart in charts]
+            hidden = moh_tab_access.hidden_chart_ids(
+                DashboardDAO.get_by_id_or_slug(id_or_slug)
+            )
+            result = [
+                self.chart_entity_response_schema.dump(chart)
+                for chart in charts
+                if chart.id not in hidden
+            ]
             return self.response(200, result=result)
         except DashboardAccessDeniedError:
             return self.response_403()

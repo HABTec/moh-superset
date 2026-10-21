@@ -186,7 +186,7 @@ export function getCellColor(
   keys: string[],
   aggValue: string | number | null,
   cellColorFormatters: Record<string, ColorFormatters> | undefined,
-  cellBackgroundColor = supersetTheme.colorBgBase,
+  cellBackgroundColor = supersetTheme.colorBgContainer,
 ): ResolvedColorFormatterResult {
   if (!cellColorFormatters) return { backgroundColor: undefined };
 
@@ -882,7 +882,7 @@ export function TableRenderer(props: TableRendererProps) {
         highlightedHeaderCells,
         cellColorFormatters,
         dateFormatters,
-        cellBackgroundColor = supersetTheme.colorBgBase,
+        cellBackgroundColor = supersetTheme.colorBgContainer,
         activeHeaderBackgroundColor = supersetTheme.colorPrimaryBg,
       } = tableOptions;
 
@@ -1228,7 +1228,7 @@ export function TableRenderer(props: TableRendererProps) {
         highlightedHeaderCells,
         cellColorFormatters,
         dateFormatters,
-        cellBackgroundColor = supersetTheme.colorBgBase,
+        cellBackgroundColor = supersetTheme.colorBgContainer,
         cellTextColor = supersetTheme.colorPrimaryText,
         activeHeaderBackgroundColor = supersetTheme.colorPrimaryBg,
       } = tableOptions;

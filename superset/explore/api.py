@@ -85,8 +85,18 @@ class ExploreRestApi(BaseSupersetApi):
             name: datasource_id
           - in: query
             schema:
-              type: string
+              type: integer
             name: datasource_type
+          - in: query
+            schema:
+              type: integer
+            name: dashboard_id
+            description: >-
+              Id of the dashboard this Explore session was opened from. When
+              given, the dashboard's native filter configuration is included
+              in the response so Explore can render it. Ignored, and no
+              configuration returned, when the dashboard is unknown or the
+              user cannot read it.
           responses:
             200:
               description: Returns the initial context.
@@ -112,6 +122,7 @@ class ExploreRestApi(BaseSupersetApi):
                 datasource_id=request.args.get("datasource_id", type=int),
                 datasource_type=request.args.get("datasource_type", type=str),
                 slice_id=request.args.get("slice_id", type=int),
+                dashboard_id=request.args.get("dashboard_id", type=int),
             )
             result = GetExploreCommand(params).run()
             if not result:

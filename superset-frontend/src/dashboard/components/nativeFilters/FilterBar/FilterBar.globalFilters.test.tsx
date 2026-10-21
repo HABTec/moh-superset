@@ -22,6 +22,7 @@ import {
   createStore,
   render,
   screen,
+  waitFor,
   within,
 } from 'spec/helpers/testing-library';
 import fetchMock from 'fetch-mock';
@@ -29,9 +30,13 @@ import reducerIndex from 'spec/helpers/reducerIndex';
 import { stateWithoutNativeFilters } from 'spec/fixtures/mockStore';
 import { Preset } from '@superset-ui/core';
 import { SelectFilterPlugin } from 'src/filters/components';
-import { FilterBarOrientation } from 'src/dashboard/types';
+import { FilterBarOrientation, RootState } from 'src/dashboard/types';
+import { requestFilterBarClear } from 'src/dashboard/actions/dashboardState';
 import { resetAssignedOrgUnitCacheForTests } from 'src/filters/components/OrgUnitTree/useAssignedOrgUnit';
 import FilterBar from '.';
+
+const getDashboardState = (store: { getState: () => unknown }) =>
+  store.getState() as RootState;
 
 class MainPreset extends Preset {
   constructor() {
@@ -462,4 +467,93 @@ test('does not show an unavailable Period row when the current tab has one in sc
   renderOpenFilterBar();
   await screen.findByTestId('period-card', {}, { timeout: 5000 });
   expect(screen.queryByTestId('period-unavailable')).not.toBeInTheDocument();
+});
+
+// Without tabs every filter is in scope, as on a single-page dashboard.
+function renderTabFreeFilterBar(filterConfiguration = filters) {
+  const store = createStore(
+    {
+      ...state,
+      dashboardInfo: {
+        ...state.dashboardInfo,
+        metadata: { native_filter_configuration: filterConfiguration },
+      },
+      dashboardLayout: {
+        past: [],
+        future: [],
+        present: {
+          ROOT_ID: { id: 'ROOT_ID', type: 'ROOT', children: ['GRID_ID'] },
+          GRID_ID: {
+            id: 'GRID_ID',
+            type: 'GRID',
+            children: [],
+            parents: ['ROOT_ID'],
+          },
+        },
+      },
+    },
+    reducerIndex,
+  );
+  render(
+    <FilterBar
+      orientation={FilterBarOrientation.Vertical}
+      verticalConfig={{
+        width: 280,
+        height: 600,
+        offset: 0,
+        filtersOpen: true,
+        toggleFiltersBar: jest.fn(),
+      }}
+    />,
+    { store, useDnd: true, useRedux: true, useRouter: true },
+  );
+  return store;
+}
+
+test("applies a chart empty state's Clear filters request", async () => {
+  const store = renderTabFreeFilterBar();
+  await screen.findByTestId('period-card', {}, { timeout: 5000 });
+
+  act(() => {
+    store.dispatch(requestFilterBarClear());
+  });
+
+  await waitFor(() =>
+    expect(
+      getDashboardState(store).dataMask.year?.filterState?.value,
+    ).toBeUndefined(),
+  );
+  expect(
+    getDashboardState(store).dataMask.quarter?.filterState?.value,
+  ).toBeUndefined();
+  expect(getDashboardState(store).dashboardState.filterBarClearRequested).toBe(
+    false,
+  );
+});
+
+test('a Clear filters request keeps required filters', async () => {
+  const requiredYear = {
+    ...year,
+    controlValues: { enableEmptyFilter: true },
+  };
+  const store = renderTabFreeFilterBar([
+    facilityType,
+    quarter,
+    orgUnit,
+    requiredYear,
+  ]);
+  await screen.findByTestId('period-card', {}, { timeout: 5000 });
+
+  act(() => {
+    store.dispatch(requestFilterBarClear());
+  });
+
+  await waitFor(() =>
+    expect(
+      getDashboardState(store).dataMask.quarter?.filterState?.value,
+    ).toBeUndefined(),
+  );
+  expect(getDashboardState(store).dataMask.year?.filterState?.value).toEqual([
+    '2018',
+  ]);
 });

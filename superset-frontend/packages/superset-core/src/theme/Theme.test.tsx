@@ -427,7 +427,8 @@ test('Theme base theme integration merges base theme tokens with empty user them
 
   const theme = Theme.fromConfig(userTheme, baseTheme);
 
-  expect(theme.theme.colorPrimary).toBe('#2893B3');
+  // Ant Design returns colours in lower-case hex
+  expect(theme.theme.colorPrimary).toBe('#2893b3');
   expect(theme.theme.colorError).toBe('#e04355');
   expect(theme.theme.fontFamily).toBe('Inter, Helvetica');
 
@@ -518,7 +519,7 @@ test('Theme base theme integration works with real-world Superset base theme con
 
   // Test light mode
   const lightTheme = Theme.fromConfig(themeDefault, supersetBaseTheme);
-  expect(lightTheme.theme.colorPrimary).toBe('#2893B3');
+  expect(lightTheme.theme.colorPrimary).toBe('#2893b3');
   expect(lightTheme.theme.fontFamily).toBe("'Inter', Helvetica, Arial");
 
   // Test dark mode
@@ -669,7 +670,7 @@ test('Theme base theme integration setConfig replaces theme config entirely (doe
 
   const theme = Theme.fromConfig({}, baseTheme);
 
-  expect(theme.theme.colorPrimary).toBe('#2893B3');
+  expect(theme.theme.colorPrimary).toBe('#2893b3');
   expect(theme.theme.fontFamily).toBe('Inter');
 
   // Update config (simulating theme change)
@@ -718,14 +719,26 @@ test('Theme base theme integration minimal theme preserves ALL base theme tokens
 
   const theme = Theme.fromConfig(minimalTheme, baseTheme);
 
-  // User's override should apply
-  expect(theme.theme.colorPrimary).toBe('#ff05dd');
+  // Colour seeds (the user's override and the base theme's) reach the theme
+  // as Ant Design's dark-adjusted values, the same values antd components use
+  const darkTokens = antdThemeImport.getDesignToken({
+    algorithm: antdThemeImport.darkAlgorithm,
+    token: {
+      colorPrimary: '#ff05dd',
+      colorError: '#e04355',
+      colorWarning: '#fcc700',
+      colorSuccess: '#5ac189',
+      colorInfo: '#66bcfe',
+    },
+  });
+  expect(theme.theme.colorPrimary).toBe(darkTokens.colorPrimary);
+  expect(theme.theme.colorPrimary).not.toBe('#ff05dd');
+  expect(theme.theme.colorError).toBe(darkTokens.colorError);
+  expect(theme.theme.colorWarning).toBe(darkTokens.colorWarning);
+  expect(theme.theme.colorSuccess).toBe(darkTokens.colorSuccess);
+  expect(theme.theme.colorInfo).toBe(darkTokens.colorInfo);
 
-  // ALL base theme tokens should be preserved
-  expect(theme.theme.colorError).toBe('#e04355');
-  expect(theme.theme.colorWarning).toBe('#fcc700');
-  expect(theme.theme.colorSuccess).toBe('#5ac189');
-  expect(theme.theme.colorInfo).toBe('#66bcfe');
+  // ALL non-colour base theme tokens should be preserved
   expect(theme.theme.fontFamily).toBe('Inter, Helvetica');
   expect(theme.theme.fontSize).toBe(14);
   expect(theme.theme.borderRadius).toBe(4);
@@ -908,4 +921,31 @@ test('colorLink is preserved in setConfig when explicitly set', () => {
 
   expect(theme.theme.colorPrimary).toBe('#f759ab');
   expect(theme.theme.colorLink).toBe('#ff0000');
+});
+
+test('Theme dark mode: colorLink defaults to the dark-adjusted primary, not the raw light value', () => {
+  const theme = Theme.fromConfig({
+    token: { colorPrimary: '#2893B3' },
+    algorithm: antdThemeImport.darkAlgorithm,
+  });
+  const expected = antdThemeImport.getDesignToken({
+    algorithm: antdThemeImport.darkAlgorithm,
+    token: { colorPrimary: '#2893B3', colorLink: '#2893B3' },
+  });
+
+  expect(theme.theme.colorPrimary).toBe(expected.colorPrimary);
+  expect(theme.theme.colorLink).toBe(expected.colorLink);
+  expect(theme.theme.colorLink).not.toBe('#2893b3');
+});
+
+test('Theme keeps Superset-only tokens that Ant Design does not know', () => {
+  const theme = Theme.fromConfig({
+    token: {
+      colorPrimary: '#1a5cff',
+      brandLogoAlt: 'Ministry of Health',
+    } as Record<string, unknown>,
+    algorithm: antdThemeImport.darkAlgorithm,
+  });
+
+  expect(theme.theme.brandLogoAlt).toBe('Ministry of Health');
 });
