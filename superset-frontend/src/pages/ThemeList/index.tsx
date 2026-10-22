@@ -19,7 +19,7 @@
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { t } from '@apache-superset/core/translation';
-import { SupersetClient } from '@superset-ui/core';
+import { SupersetClient, getClientErrorObject } from '@superset-ui/core';
 import { Alert } from '@apache-superset/core/components';
 import { styled } from '@apache-superset/core/theme';
 import {
@@ -39,6 +39,7 @@ import { useThemeContext } from 'src/theme/ThemeProvider';
 import SubMenu, { SubMenuProps } from 'src/features/home/SubMenu';
 import handleResourceExport from 'src/utils/export';
 import getBootstrapData from 'src/utils/getBootstrapData';
+import type { BootstrapThemeDataConfig } from 'src/types/bootstrapTypes';
 import {
   ModifiedInfo,
   ListView,
@@ -146,6 +147,10 @@ function ThemesList({
 
   const canSetSystemThemes =
     canEdit && (themeData as any)?.enableUiThemeAdministration;
+  // "Set as system dark" is offered only when the server has dark mode enabled
+  const canSetSystemDark =
+    canSetSystemThemes &&
+    (themeData as Partial<BootstrapThemeDataConfig>).darkModeEnabled !== false;
 
   const [themeCurrentlyDeleting, setThemeCurrentlyDeleting] =
     useState<ThemeObject | null>(null);
@@ -284,9 +289,10 @@ function ThemesList({
             addSuccessToast(
               t('"%s" is now the system default theme', theme.theme_name),
             );
-          } catch (err: any) {
+          } catch (err) {
+            const { error, message } = await getClientErrorObject(err);
             addDangerToast(
-              t('Failed to set system default theme: %s', err.message),
+              t('Failed to set system default theme: %s', message || error),
             );
           }
         },
@@ -310,9 +316,10 @@ function ThemesList({
             addSuccessToast(
               t('"%s" is now the system dark theme', theme.theme_name),
             );
-          } catch (err: any) {
+          } catch (err) {
+            const { error, message } = await getClientErrorObject(err);
             addDangerToast(
-              t('Failed to set system dark theme: %s', err.message),
+              t('Failed to set system dark theme: %s', message || error),
             );
           }
         },
@@ -332,9 +339,10 @@ function ThemesList({
           await unsetSystemDefaultTheme();
           refreshData();
           addSuccessToast(t('System default theme removed'));
-        } catch (err: any) {
+        } catch (err) {
+          const { error, message } = await getClientErrorObject(err);
           addDangerToast(
-            t('Failed to remove system default theme: %s', err.message),
+            t('Failed to remove system default theme: %s', message || error),
           );
         }
       },
@@ -352,9 +360,10 @@ function ThemesList({
           await unsetSystemDarkTheme();
           refreshData();
           addSuccessToast(t('System dark theme removed'));
-        } catch (err: any) {
+        } catch (err) {
+          const { error, message } = await getClientErrorObject(err);
           addDangerToast(
-            t('Failed to remove system dark theme: %s', err.message),
+            t('Failed to remove system dark theme: %s', message || error),
           );
         }
       },
@@ -485,7 +494,7 @@ function ThemesList({
                   onClick: () => handleUnsetSystemDefault(),
                 }
               : null,
-            canSetSystemThemes && !original.is_system_dark
+            canSetSystemDark && !original.is_system_dark
               ? {
                   label: 'set-dark-action',
                   tooltip: t('Set as default dark theme'),
@@ -538,6 +547,7 @@ function ThemesList({
       hasDevOverride,
       appliedThemeId,
       canSetSystemThemes,
+      canSetSystemDark,
       addDangerToast,
       handleThemeApply,
       handleBulkThemeExport,

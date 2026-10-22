@@ -392,7 +392,7 @@ test('cellStyle uses caller-provided surface color for adaptive contrast', () =>
     {
       wrapper: makeThemeWrapper({
         ...supersetTheme,
-        colorBgBase: '#ffffff',
+        colorBgContainer: '#ffffff',
       }),
     },
   );
@@ -415,7 +415,7 @@ test('cellStyle uses caller-provided surface color for adaptive contrast', () =>
     {
       wrapper: makeThemeWrapper({
         ...supersetTheme,
-        colorBgBase: '#000000',
+        colorBgContainer: '#141414',
       }),
     },
   );
@@ -436,7 +436,7 @@ test('cellStyle uses caller-provided surface color for adaptive contrast', () =>
     color: '',
     '--ag-cell-value-color': getExpectedTextColor(
       { backgroundColor },
-      '#000000',
+      '#141414',
     ),
   });
   expect(getCellStyleResult(lightCellStyle)).not.toEqual(

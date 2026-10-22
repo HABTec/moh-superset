@@ -72,7 +72,10 @@ import {
   EventHandlers,
 } from '../types';
 import { DEFAULT_LOCALE } from '../constants';
-import { mergeEchartsThemeOverrides } from '../utils/themeOverrides';
+import {
+  applyAxisThemeToAxisLists,
+  mergeEchartsThemeOverrides,
+} from '../utils/themeOverrides';
 
 // Define this interface here to avoid creating a dependency back to superset-frontend,
 // TODO: to move the type to @superset-ui/core
@@ -782,7 +785,7 @@ function Echart(
 
       const themedEchartOptions = mergeEchartsThemeOverrides(
         baseTheme,
-        echartOptions,
+        applyAxisThemeToAxisLists(echartOptions, baseTheme),
         globalOverrides,
         chartOverrides,
         animationOverride,

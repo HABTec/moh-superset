@@ -4,6 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ featured.title if featured else 'MoH Analytics Portal' }}</title>
+  {% if config['THEME_DARK'] %}
+  <script>
+    // Same light/dark choice as the rest of the portal (see spa.html), made
+    // before the page paints so it doesn't flash light first
+    (function () {
+      try {
+        var mode = localStorage.getItem('superset-theme-mode') ||
+          {{ config.get('THEME_DEFAULT_MODE', 'system') | tojson }};
+        var dark = mode === 'dark' ||
+          (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var override = localStorage.getItem('superset-dev-theme-override');
+        var forceMode = override ? (JSON.parse(override) || {}).forceMode : null;
+        if (forceMode === 'light' || forceMode === 'dark') dark = forceMode === 'dark';
+        document.documentElement.setAttribute('data-theme-mode', dark ? 'dark' : 'light');
+      } catch (e) {}
+    })();
+  </script>
+  {% endif %}
   <style>
     :root {
       --accent: #1a5cff;
@@ -13,6 +31,30 @@
       --tile-bg: #eef4ff;
       --tile-border: #d6e3ff;
       --page: #ffffff;
+      --line: #d6e3ff;
+      --line-soft: #eef0f5;
+      --tile-shadow: rgba(26, 92, 255, 0.18);
+    }
+    /* Dark mode, matching the dashboards: black page, #141414 cards, light text */
+    html[data-theme-mode="dark"] {
+      color-scheme: dark;
+      --accent: #6b8fdc;
+      --accent-dark: #9db8ee;
+      --navy: rgba(255, 255, 255, 0.85);
+      --muted: rgba(255, 255, 255, 0.65);
+      --tile-bg: #141414;
+      --tile-border: #303030;
+      --page: #000000;
+      --line: #303030;
+      --line-soft: #262626;
+      --tile-shadow: rgba(0, 0, 0, 0.6);
+    }
+    /* The logo has dark lettering on a transparent background; in dark mode
+       it sits on a white plate that fits inside its usual box */
+    html[data-theme-mode="dark"] header.topbar .logo-img {
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #ffffff;
     }
     * { box-sizing: border-box; }
     body {
@@ -38,7 +80,7 @@
     header.topbar .brand-text {
       line-height: 1.1;
       padding-left: 18px;
-      border-left: 1px solid #d6e3ff;
+      border-left: 1px solid var(--line);
     }
     header.topbar .brand-text .t2 {
       font-size: 0.8rem;
@@ -92,7 +134,7 @@
     }
     .tile:hover {
       transform: translateY(-4px);
-      box-shadow: 0 14px 32px rgba(26, 92, 255, 0.18);
+      box-shadow: 0 14px 32px var(--tile-shadow);
       border-color: var(--accent);
     }
     .tile h3 {
@@ -145,7 +187,7 @@
       max-width: 1000px;
       margin: 0 auto 72px;
       padding: 24px;
-      border-top: 1px solid #eef0f5;
+      border-top: 1px solid var(--line-soft);
     }
     .others h2 {
       font-size: 1rem;
@@ -211,11 +253,29 @@
     nav.appnav .divider {
       width: 1px;
       height: 22px;
-      background: #d6e3ff;
+      background: var(--line);
     }
     nav.appnav a.logout {
       color: var(--muted);
       font-weight: 500;
+    }
+    /* Light/Dark switch, styled like the nav links */
+    nav.appnav .mode-toggle {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font: inherit;
+      color: var(--navy);
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 6px 0;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    nav.appnav .mode-toggle:hover,
+    nav.appnav .mode-toggle:focus-visible {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
     }
 
     /* ── Hamburger (hidden on desktop) ─────────────────────────────────── */
@@ -273,6 +333,14 @@
       }
       nav.appnav a:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
       nav.appnav a.logout { color: rgba(255,255,255,0.5); font-size: 1rem; }
+      nav.appnav .mode-toggle {
+        color: #fff;
+        font-size: 1.3rem;
+        font-weight: 700;
+        padding: 18px 24px;
+        border-bottom: none;
+        width: 100%;
+      }
       nav.appnav .divider { display: none; }
 
       /* Close button inside open nav */
@@ -347,6 +415,9 @@
     {% if current_user and current_user.is_authenticated %}
       <a href="/guide/">User Guide</a>
       <a href="/feedback/">Feedback</a>
+      {% if config['THEME_DARK'] %}
+      <button type="button" class="mode-toggle" id="modeToggle" aria-pressed="false">Dark mode</button>
+      {% endif %}
       <a href="/superset/welcome/">{{ current_user.first_name or current_user.username }}</a>
       <a class="logout" href="/logout/">Sign out</a>
     {% else %}
@@ -377,26 +448,6 @@
       </div>
       <div class="view-link">
         <span>open assistant</span>
-        <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
-      </div>
-    </a>
-{% endmacro %}
-
-{% macro reports_tile() %}
-    <a class="tile" href="/reports/" title="Open Reports">
-      <h3>Reports</h3>
-      <p class="subtitle">Generate recurring Ministry reports</p>
-      <div class="tile-icon">
-        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M16 8 H40 L50 18 V56 H16 Z"/>
-          <path d="M40 8 V18 H50"/>
-          <line x1="23" y1="30" x2="43" y2="30"/>
-          <line x1="23" y1="38" x2="43" y2="38"/>
-          <line x1="23" y1="46" x2="36" y2="46"/>
-        </svg>
-      </div>
-      <div class="view-link">
-        <span>open reports</span>
         <span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span>
       </div>
     </a>
@@ -485,7 +536,6 @@
     </a>
 {% endif %}
   {{ ai_assistant_tile() }}
-  {{ reports_tile() }}
   </div>
 {% elif featured %}
   <div class="tile-grid">
@@ -495,12 +545,10 @@
       <div class="view-link"><span>Open</span><span class="arrow"><img src="/moh-static/arrow.png" alt="→"></span></div>
     </a>
     {{ ai_assistant_tile() }}
-    {{ reports_tile() }}
   </div>
 {% else %}
   <div class="tile-grid">
     {{ ai_assistant_tile() }}
-    {{ reports_tile() }}
   </div>
   <div class="empty">No dashboards yet. <a href="/dashboard/list/">Create one</a> to get started.</div>
 {% endif %}
@@ -534,6 +582,32 @@
         nav.classList.remove('open');
         document.body.style.overflow = '';
       }
+    });
+  })();
+
+  // Light/Dark switch. The choice is saved where the rest of the portal reads
+  // it, so dashboards open in the same mode.
+  (function () {
+    var button = document.getElementById('modeToggle');
+    if (!button) return;
+    var root = document.documentElement;
+    var isDark = function () {
+      return root.getAttribute('data-theme-mode') === 'dark';
+    };
+    var syncLabel = function () {
+      button.textContent = isDark() ? 'Light mode' : 'Dark mode';
+      button.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
+    };
+    syncLabel();
+    button.addEventListener('click', function () {
+      var next = isDark() ? 'default' : 'dark';
+      try {
+        localStorage.setItem('superset-theme-mode', next);
+      } catch (e) {
+        return; // storage blocked: the choice couldn't be kept
+      }
+      root.setAttribute('data-theme-mode', next === 'dark' ? 'dark' : 'light');
+      syncLabel();
     });
   })();
 </script>

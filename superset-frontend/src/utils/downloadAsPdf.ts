@@ -23,6 +23,7 @@ import { t } from '@apache-superset/core/translation';
 import { logging } from '@apache-superset/core/utils';
 import { addWarningToast } from 'src/components/MessageToasts/actions';
 import getBootstrapData from 'src/utils/getBootstrapData';
+import { runInLightMode } from 'src/theme/lightModeExport';
 
 const pdfCompressionLevel = getBootstrapData().common.pdf_compression_level;
 
@@ -50,30 +51,37 @@ export default function downloadAsPdf(
   isExactSelector = false,
 ) {
   return (event: SyntheticEvent) => {
-    const elementToPrint = isExactSelector
-      ? document.querySelector(selector)
-      : event.currentTarget.closest(selector);
+    // currentTarget is only set while the event is being dispatched
+    const { currentTarget } = event;
+    // PDFs are always light (see runInLightMode). The element is looked up
+    // after the switch, since a dashboard with its own theme re-renders then.
+    return runInLightMode(() => {
+      const elementToPrint = isExactSelector
+        ? document.querySelector(selector)
+        : currentTarget.closest(selector);
 
-    if (!elementToPrint) {
-      return addWarningToast(
-        t('PDF download failed, please refresh and try again.'),
-      );
-    }
+      if (!elementToPrint) {
+        addWarningToast(
+          t('PDF download failed, please refresh and try again.'),
+        );
+        return undefined;
+      }
 
-    const options = {
-      margin: 10,
-      compression: pdfCompressionLevel,
-      filename: `${generateFileStem(description)}.pdf`,
-      image: { type: 'jpeg', quality: 1 },
-      html2canvas: { scale: 2 },
-      excludeClassNames: ['header-controls'],
-    };
-    return domToPdf(elementToPrint, options)
-      .then(() => {
-        // nothing to be done
-      })
-      .catch((e: Error) => {
-        logging.error('PDF generation failed', e);
-      });
+      const options = {
+        margin: 10,
+        compression: pdfCompressionLevel,
+        filename: `${generateFileStem(description)}.pdf`,
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: { scale: 2 },
+        excludeClassNames: ['header-controls'],
+      };
+      return domToPdf(elementToPrint, options)
+        .then(() => {
+          // nothing to be done
+        })
+        .catch((e: Error) => {
+          logging.error('PDF generation failed', e);
+        });
+    });
   };
 }

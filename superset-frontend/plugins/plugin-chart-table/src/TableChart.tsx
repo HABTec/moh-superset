@@ -96,6 +96,7 @@ import DataTable, {
 } from './DataTable';
 import Styles from './Styles';
 import { formatColumnValue } from './utils/formatValue';
+import blendColors from './utils/blendColors';
 import { PAGE_SIZE_OPTIONS, SERVER_PAGE_SIZE_OPTIONS } from './consts';
 import { updateTableOwnState } from './DataTable/utils/externalAPIs';
 import getScrollBarSize from './DataTable/utils/getScrollBarSize';
@@ -1125,8 +1126,11 @@ export default function TableChart<D extends DataRecord = DataRecord>(
                 ? basicColorColumnFormatters[row.index][column.key]?.mainArrow
                 : '';
           }
+          // Odd rows (index 0, 2, ...) carry the stripe tint from Styles.tsx
           const rowSurfaceColor =
-            row.index % 2 === 0 ? theme.colorBgLayout : theme.colorBgBase;
+            row.index % 2 === 0
+              ? blendColors(theme.colorFillTertiary, theme.colorBgContainer)
+              : theme.colorBgContainer;
           const resolvedTextColor = getTextColorForBackground(
             { backgroundColor, color },
             rowSurfaceColor,

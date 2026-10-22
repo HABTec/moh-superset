@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { mergeEchartsThemeOverrides } from './themeOverrides';
+import {
+  applyAxisThemeToAxisLists,
+  mergeEchartsThemeOverrides,
+} from './themeOverrides';
 
 // =============================================================================
 // Basic Deep Merge Behavior
@@ -459,4 +462,63 @@ test('works with the full Echart.tsx merge pattern', () => {
     data: [4, 5, 6],
     itemStyle: { opacity: 0.8, borderRadius: 4 },
   });
+});
+
+type ThemedAxis = {
+  name?: string;
+  axisLabel: { color: string };
+  splitLine: { show?: boolean; lineStyle: { color: string } };
+};
+
+const darkAxisTheme = {
+  yAxis: {
+    axisLabel: { color: 'rgba(255,255,255,0.65)' },
+    splitLine: { lineStyle: { color: 'rgba(253,253,253,0.12)' } },
+  },
+};
+
+test('applyAxisThemeToAxisLists gives each axis in a list the theme style', () => {
+  const options = {
+    yAxis: [
+      { type: 'value', name: 'Cases' },
+      { type: 'value', name: 'Rate', splitLine: { show: false } },
+    ],
+  };
+
+  const result = applyAxisThemeToAxisLists(
+    options,
+    darkAxisTheme,
+  ) as unknown as { yAxis: ThemedAxis[] };
+
+  expect(result.yAxis[0].splitLine.lineStyle.color).toBe(
+    'rgba(253,253,253,0.12)',
+  );
+  expect(result.yAxis[1].splitLine.lineStyle.color).toBe(
+    'rgba(253,253,253,0.12)',
+  );
+  // The chart's own settings win over the theme style
+  expect(result.yAxis[1].splitLine.show).toBe(false);
+  expect(result.yAxis[0].name).toBe('Cases');
+  expect(result.yAxis[0].axisLabel.color).toBe('rgba(255,255,255,0.65)');
+});
+
+test('applyAxisThemeToAxisLists leaves single axes and missing themes alone', () => {
+  const single = { yAxis: { type: 'value' } };
+  expect(applyAxisThemeToAxisLists(single, darkAxisTheme)).toBe(single);
+
+  const list = { yAxis: [{ type: 'value' }] };
+  expect(applyAxisThemeToAxisLists(list, {})).toBe(list);
+});
+
+test('a Mixed-style chart keeps theme grid colours after the full merge', () => {
+  const options = { yAxis: [{ type: 'value' }, { type: 'value' }] };
+
+  const merged = mergeEchartsThemeOverrides(
+    darkAxisTheme,
+    applyAxisThemeToAxisLists(options, darkAxisTheme),
+  );
+
+  (merged.yAxis as ThemedAxis[]).forEach(axis =>
+    expect(axis.splitLine.lineStyle.color).toBe('rgba(253,253,253,0.12)'),
+  );
 });

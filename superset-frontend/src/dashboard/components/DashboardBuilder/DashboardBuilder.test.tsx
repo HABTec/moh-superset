@@ -159,6 +159,25 @@ describe('DashboardBuilder', () => {
     expect(stickyContainer).toHaveClass('dashboard dashboard--editing');
   });
 
+  test('keeps responsive sizing for viewing but turns it off while editing', () => {
+    const pilotDashboard = { ...mockState.dashboardInfo, id: 8 };
+    const viewing = setup({ dashboardInfo: pilotDashboard });
+    expect(document.body).toHaveClass('moh-responsive-dashboard');
+    expect(viewing.getByTestId('dashboard-content-wrapper')).toHaveClass(
+      'dashboard--responsive-mode',
+    );
+    viewing.unmount();
+
+    const editing = setup({
+      dashboardInfo: pilotDashboard,
+      dashboardState: { ...mockState.dashboardState, editMode: true },
+    });
+    expect(document.body).not.toHaveClass('moh-responsive-dashboard');
+    expect(editing.getByTestId('dashboard-content-wrapper')).not.toHaveClass(
+      'dashboard--responsive-mode',
+    );
+  });
+
   test('should render a DragDroppable DashboardHeader', () => {
     const { queryByTestId } = setup();
     const header = queryByTestId('dashboard-header-container');

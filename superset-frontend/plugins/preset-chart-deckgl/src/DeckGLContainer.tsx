@@ -28,11 +28,22 @@ import {
   isValidElement,
 } from 'react';
 import { isEqual } from 'lodash';
-import { Map as MapLibreMap } from 'react-map-gl/maplibre';
-import { Map as MapboxMap } from 'react-map-gl/mapbox';
+import {
+  Map as MapLibreMap,
+  NavigationControl as MapLibreNavigationControl,
+} from 'react-map-gl/maplibre';
+import {
+  Map as MapboxMap,
+  NavigationControl as MapboxNavigationControl,
+} from 'react-map-gl/mapbox';
 import mapboxgl from 'mapbox-gl';
 import type { Layer } from '@deck.gl/core';
 import { JsonObject, JsonValue, usePrevious } from '@superset-ui/core';
+import {
+  Button,
+  Icons,
+  Tooltip as ControlTooltip,
+} from '@superset-ui/core/components';
 import { styled, useTheme } from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
 import DeckGLOverlayMapLibre from './components/DeckGLOverlayMapLibre';
@@ -45,6 +56,18 @@ const TICK = 250; // milliseconds
 
 const DEFAULT_MAP_STYLE =
   'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+
+// Maps sit inside scrollable dashboards: a plain scroll keeps scrolling the
+// page and Ctrl/Cmd + scroll zooms the map (two fingers pan it on touch), so
+// the map never traps the page scroll.
+const COOPERATIVE_GESTURES = true;
+
+const ResetViewButton = styled.div`
+  position: absolute;
+  top: ${({ theme }) => theme.sizeUnit * 2.5}px;
+  left: ${({ theme }) => theme.sizeUnit * 2.5}px;
+  z-index: 1;
+`;
 
 export type DeckGLContainerProps = {
   viewport: Viewport;
@@ -94,6 +117,11 @@ export const DeckGLContainer = memo(
       setViewState(evt.viewState as Viewport);
       setLastUpdate(Date.now());
     }, []);
+
+    const resetView = useCallback(() => {
+      setViewState(props.viewport);
+      setLastUpdate(Date.now());
+    }, [props.viewport]);
 
     const layers = useCallback(() => {
       // Support for layer factory
@@ -165,8 +193,10 @@ export const DeckGLContainer = memo(
               onMove={onMove}
               mapStyle={mapStyle}
               style={{ width, height }}
+              cooperativeGestures={COOPERATIVE_GESTURES}
             >
               <DeckGLOverlayMapbox layers={layers()} />
+              <MapboxNavigationControl position="top-right" />
             </MapboxMap>
           ) : (
             <MapLibreMap
@@ -174,10 +204,24 @@ export const DeckGLContainer = memo(
               onMove={onMove}
               mapStyle={mapStyle}
               style={{ width, height }}
+              cooperativeGestures={COOPERATIVE_GESTURES}
             >
               <DeckGLOverlayMapLibre layers={layers()} />
+              <MapLibreNavigationControl position="top-right" />
             </MapLibreMap>
           )}
+          <ResetViewButton>
+            <ControlTooltip title={t('Reset view')}>
+              <Button
+                buttonSize="xsmall"
+                buttonStyle="secondary"
+                icon={<Icons.ExpandOutlined iconSize="s" />}
+                aria-label={t('Reset view')}
+                data-test="deckgl-reset-view"
+                onClick={resetView}
+              />
+            </ControlTooltip>
+          </ResetViewButton>
           {children}
         </div>
         {renderTooltip(tooltip)}

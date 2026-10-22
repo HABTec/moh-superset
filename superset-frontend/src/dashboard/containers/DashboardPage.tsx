@@ -48,6 +48,7 @@ import {
 } from 'src/dashboard/components/nativeFilters/FilterBar/keyValue';
 import DashboardContainer from 'src/dashboard/containers/Dashboard';
 import CrudThemeProvider from 'src/components/CrudThemeProvider';
+import { usePrintInLightMode } from 'src/theme/usePrintInLightMode';
 import type { DashboardChartStates } from 'src/dashboard/types/chartState';
 
 import { nanoid } from 'nanoid';
@@ -59,6 +60,7 @@ import {
   focusStyle,
   headerStyles,
   chartHeaderStyles,
+  printStyles,
 } from '../styles';
 import SyncDashboardState, {
   getDashboardContextLocalStorage,
@@ -271,6 +273,8 @@ export const DashboardPage: FC<PageProps> = ({ idOrSlug }: PageProps) => {
   const relevantDataMask = useSelector(selectRelevantDatamask);
   const activeFilters = useSelector(selectActiveFilters);
 
+  usePrintInLightMode();
+
   if (error) throw error; // caught in error boundary
 
   const globalStyles = useMemo(
@@ -280,6 +284,7 @@ export const DashboardPage: FC<PageProps> = ({ idOrSlug }: PageProps) => {
       chartContextMenuStyles(theme),
       focusStyle(theme),
       chartHeaderStyles(theme),
+      printStyles(theme),
     ],
     [theme],
   );

@@ -24,7 +24,10 @@ import pytest
 
 from superset.common.chart_data import ChartDataResultFormat, ChartDataResultType
 from superset.common.db_query_status import QueryStatus
-from superset.common.query_context_processor import QueryContextProcessor
+from superset.common.query_context_processor import (
+    merge_frames_on_first_column,
+    QueryContextProcessor,
+)
 from superset.utils.core import GenericDataType
 
 
@@ -109,7 +112,7 @@ def test_get_data_csv(mock_df_to_escaped_csv, processor, mock_query_context):
     result = processor.get_data(df, coltypes)
     assert result == "col1,col2\n1,a\n2,b\n3,c\n"
     mock_df_to_escaped_csv.assert_called_once_with(
-        df, index=False, encoding="utf-8-sig"
+        df, index=False, encoding="utf-8-sig", float_format="%.15g"
     )
 
 
@@ -185,7 +188,7 @@ def test_get_data_empty_dataframe_csv(
     result = processor.get_data(df, coltypes)
     assert result == "col1,col2\n"
     mock_df_to_escaped_csv.assert_called_once_with(
-        df, index=False, encoding="utf-8-sig"
+        df, index=False, encoding="utf-8-sig", float_format="%.15g"
     )
 
 
@@ -1726,3 +1729,137 @@ def test_get_df_payload_no_warning_when_not_memory_limited() -> None:
                     result = processor.get_df_payload(query_obj, force_cached=False)
 
     assert result["warning"] is None
+
+
+def test_merge_frames_joins_queries_on_the_x_axis_in_chart_order() -> None:
+    performance = pd.DataFrame(
+        {
+            "Month": ["02-Nehase", "01-Hamle", "03-Meskerem"],
+            "Performance": [97.8, 96.7, 95.0],
+        }
+    )
+    target = pd.DataFrame(
+        {"Month": ["01-Hamle", "04-Tikimt", "02-Nehase"], "Target": [97, 97, 98]}
+    )
+
+    merged, coltypes = merge_frames_on_first_column(
+        [
+            (performance, [GenericDataType.STRING, GenericDataType.NUMERIC]),
+            (target, [GenericDataType.STRING, GenericDataType.NUMERIC]),
+        ]
+    )
+
+    assert list(merged.columns) == ["Month", "Performance", "Target"]
+    assert merged["Month"].tolist() == [
+        "02-Nehase",
+        "01-Hamle",
+        "03-Meskerem",
+        "04-Tikimt",
+    ]
+    assert merged["Target"].tolist()[:2] == [98, 97]
+    assert np.isnan(merged["Target"].tolist()[2])
+    assert coltypes == [
+        GenericDataType.STRING,
+        GenericDataType.NUMERIC,
+        GenericDataType.NUMERIC,
+    ]
+
+
+def test_merge_frames_names_repeated_columns_after_their_query() -> None:
+    first = pd.DataFrame({"Month": ["01-Hamle"], "Value": [1]})
+    second = pd.DataFrame({"Month": ["01-Hamle"], "Value": [2]})
+    types = [GenericDataType.STRING, GenericDataType.NUMERIC]
+
+    merged, _ = merge_frames_on_first_column([(first, types), (second, types)])
+
+    assert list(merged.columns) == ["Month", "Value", "Value (Query B)"]
+
+
+def test_merge_frames_needs_a_shared_first_column() -> None:
+    types = [GenericDataType.STRING, GenericDataType.NUMERIC]
+    by_month = pd.DataFrame({"Month": ["01-Hamle"], "Value": [1]})
+    by_region = pd.DataFrame({"Region": ["Amhara"], "Value": [2]})
+
+    assert merge_frames_on_first_column([(by_month, types), (by_region, types)]) is None
+
+
+def test_merge_frames_skips_queries_without_data() -> None:
+    types = [GenericDataType.STRING, GenericDataType.NUMERIC]
+    by_month = pd.DataFrame({"Month": ["01-Hamle"], "Value": [1]})
+
+    merged, coltypes = merge_frames_on_first_column(
+        [(by_month, types), (pd.DataFrame(), [])]
+    )
+    assert merged.equals(by_month)
+    assert coltypes == types
+
+    empty, empty_types = merge_frames_on_first_column(
+        [(pd.DataFrame(), []), (pd.DataFrame(), [])]
+    )
+    assert empty.empty
+    assert empty_types == []
+
+
+def _payload_for_two_queries(
+    processor: QueryContextProcessor,
+    mock_query_context: MagicMock,
+    viz_type: str,
+) -> dict[str, Any]:
+    frames = [
+        pd.DataFrame({"Month": ["01-Hamle", "02-Nehase"], "Performance": [96.7, 97.8]}),
+        pd.DataFrame({"Month": ["01-Hamle", "02-Nehase"], "Target": [97.5, 97.5]}),
+    ]
+    queries = []
+    for _ in frames:
+        query = MagicMock(columns=["Month"], post_processing=[], result_type=None)
+        query.to_dict.return_value = {}
+        queries.append(query)
+    mock_query_context.queries = queries
+    mock_query_context.cache_values = {"queries": [{}, {}]}
+    mock_query_context.form_data = {"viz_type": viz_type}
+    mock_query_context.result_format = ChartDataResultFormat.CSV
+    mock_query_context.result_type = ChartDataResultType.FULL
+
+    def run_query(result_type, query_context, query_obj, force_cached):
+        df = frames[queries.index(query_obj)].copy()
+        coltypes = [GenericDataType.STRING, GenericDataType.NUMERIC]
+        return {
+            "colnames": list(df.columns),
+            "coltypes": coltypes,
+            "rowcount": len(df),
+            "data": processor.get_data(df, coltypes),
+        }
+
+    with patch(
+        "superset.common.query_context_processor.get_query_results",
+        side_effect=run_query,
+    ):
+        return processor.get_payload()
+
+
+def test_mixed_chart_csv_export_is_one_table(processor, mock_query_context):
+    payload = _payload_for_two_queries(
+        processor, mock_query_context, "mixed_timeseries"
+    )
+
+    assert len(payload["queries"]) == 1
+    result = payload["queries"][0]
+    assert result["colnames"] == ["Month", "Performance", "Target"]
+    assert result["rowcount"] == 2
+    assert result["data"].lstrip("\ufeff").splitlines() == [
+        "Month,Performance,Target",
+        "01-Hamle,96.7,97.5",
+        "02-Nehase,97.8,97.5",
+    ]
+    assert processor._export_frames is None
+
+
+def test_other_multi_query_csv_exports_keep_one_file_per_query(
+    processor, mock_query_context
+):
+    payload = _payload_for_two_queries(processor, mock_query_context, "table")
+
+    assert len(payload["queries"]) == 2
+    assert payload["queries"][1]["data"].lstrip("\ufeff").splitlines()[0] == (
+        "Month,Target"
+    )

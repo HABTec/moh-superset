@@ -115,17 +115,25 @@ export function commonLayerProps({
     };
   } else if (emitCrossFilters) {
     onClick = (data: PickingInfo, event: any) => {
-      const crossFilters = getCrossFilterDataMask({
-        data,
-        filterState,
-        formData,
-      });
-
       // deck.gl v9 event shape: { type, offsetCenter, srcEvent, tapCount }.
       // Older code checked event.leftButton / event.rightButton which no
       // longer exist; dispatch on event.type and the underlying MouseEvent
       // button instead.
       const srcEvent = event?.srcEvent;
+      // Ctrl/Cmd-click adds or removes a feature from the selection. Touch
+      // devices have no modifier key, so every tap toggles instead.
+      const additive = Boolean(
+        srcEvent?.ctrlKey ||
+        srcEvent?.metaKey ||
+        srcEvent?.pointerType === 'touch',
+      );
+      const crossFilters = getCrossFilterDataMask({
+        data,
+        filterState,
+        formData,
+        additive,
+      });
+
       const isContextMenu =
         event?.type === 'contextmenu' || srcEvent?.button === 2;
       const isLeftClick =

@@ -21,10 +21,14 @@ from typing import Optional
 from sqlalchemy import update
 
 from superset.commands.base import BaseCommand
-from superset.commands.theme.exceptions import ThemeNotFoundError
+from superset.commands.theme.exceptions import (
+    ThemeNotDarkError,
+    ThemeNotFoundError,
+)
 from superset.daos.theme import ThemeDAO
 from superset.extensions import db
 from superset.models.core import Theme
+from superset.utils import json
 from superset.utils.decorators import on_error, transaction
 
 logger = logging.getLogger(__name__)
@@ -90,6 +94,8 @@ class SetSystemDarkThemeCommand(BaseCommand):
         self._theme = ThemeDAO.find_by_id(self._theme_id)
         if not self._theme:
             raise ThemeNotFoundError()
+        if not is_dark_theme_json(self._theme.json_data):
+            raise ThemeNotDarkError()
 
 
 class ClearSystemDefaultThemeCommand(BaseCommand):
@@ -124,3 +130,16 @@ class ClearSystemDarkThemeCommand(BaseCommand):
     def validate(self) -> None:
         # No validation needed for clearing
         pass
+
+
+def is_dark_theme_json(json_data: Optional[str]) -> bool:
+    """Return True when the theme JSON selects Ant Design's dark algorithm."""
+    try:
+        theme_config = json.loads(json_data or "{}")
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(theme_config, dict):
+        return False
+    algorithm = theme_config.get("algorithm")
+    algorithms = algorithm if isinstance(algorithm, list) else [algorithm]
+    return "dark" in algorithms

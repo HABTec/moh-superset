@@ -39,6 +39,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -619,11 +620,18 @@ def _data_freshness(section: ReportSection, org_unit_id: str, database) -> str |
     return row[0].isoformat() if row and row[0] else None
 
 
+# Period keys are alphanumeric ("201812", "2018NovQ4"); anything else is
+# rejected before it reaches SQL parameters or the rendered page.
+_PERIOD_KEY = re.compile(r"^[0-9A-Za-z]{4,16}$")
+
+
 def _report_payload(
     section: ReportSection,
     requested_org_unit: str | None,
     requested_period: str | None,
 ) -> dict[str, Any]:
+    if requested_period and not _PERIOD_KEY.match(requested_period):
+        abort(400, "Invalid period.")
     database = _get_database()
     scope = _resolve_user_scope()
     org_unit_id, org_unit_level, org_unit_name, clamped = _resolve_effective_org_unit(
@@ -647,10 +655,19 @@ def _report_payload(
             "period": None,
             "clamped": clamped,
             "kpis": [],
+            "periodUnavailable": False,
+            "latestPeriod": None,
             "dataAsOf": None,
         }
     fiscal_year = _fiscal_year_for_period(period, database)
     kpis = _top_indicators(section, org_unit_id, period, database)
+    # A period asked for explicitly (link, bookmark, export) that has no data
+    # must be reported as unavailable, not rendered as an empty report that
+    # still carries the requested period in its title.
+    period_unavailable = bool(requested_period) and not kpis
+    latest_period = (
+        _latest_period(section, org_unit_id, database) if period_unavailable else None
+    )
     # Every KPI gets its own trend and regional breakdown, not just the
     # first — a report meant to be read start to finish (especially once
     # printed) should not need a selector to see the other three.
@@ -671,6 +688,8 @@ def _report_payload(
         "fiscalYear": fiscal_year,
         "clamped": clamped,
         "kpis": kpis,
+        "periodUnavailable": period_unavailable,
+        "latestPeriod": latest_period,
         "dataAsOf": _data_freshness(section, org_unit_id, database),
     }
 
@@ -684,6 +703,23 @@ def _payload_from_request(section: ReportSection) -> dict[str, Any]:
     return _report_payload(
         section, request.args.get("org_unit"), request.args.get("period")
     )
+
+
+def _period_unavailable_message(payload: dict[str, Any]) -> str:
+    latest = payload.get("latestPeriod")
+    suffix = f" The latest period with data is {latest}." if latest else ""
+    return (
+        f"No data for period {payload.get('period')} and "
+        f"{payload['orgUnit']['name']}.{suffix}"
+    )
+
+
+def _export_payload_or_abort(section: ReportSection) -> dict[str, Any]:
+    """Payload for a file export; refuse rather than export an empty report."""
+    payload = _payload_from_request(section)
+    if payload.get("periodUnavailable"):
+        abort(404, _period_unavailable_message(payload))
+    return payload
 
 
 @moh_reports_bp.route("/")
@@ -742,7 +778,7 @@ def report_export_csv(code: str):
     if (denied := _require_login()) is not None:
         return denied
     section = _get_report_section(code)
-    payload = _payload_from_request(section)
+    payload = _export_payload_or_abort(section)
     buffer = io.StringIO()
     csv.writer(buffer).writerows(_export_rows(payload))
     response = Response(buffer.getvalue(), mimetype="text/csv")
@@ -761,7 +797,7 @@ def report_export_xlsx(code: str):
     except ImportError:
         abort(503, "Excel export requires the openpyxl package.")
     section = _get_report_section(code)
-    payload = _payload_from_request(section)
+    payload = _export_payload_or_abort(section)
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = section.title[:31]
@@ -793,6 +829,7 @@ def report_export_pdf(code: str):
     if (denied := _require_login()) is not None:
         return denied
     section = _get_report_section(code)  # validate before spending a browser launch
+    _export_payload_or_abort(section)
     try:
         from playwright.sync_api import (
             sync_playwright,  # pylint: disable=import-outside-toplevel

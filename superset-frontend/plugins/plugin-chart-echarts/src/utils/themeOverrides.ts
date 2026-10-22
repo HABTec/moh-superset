@@ -87,3 +87,40 @@ export function mergeEchartsThemeOverrides<T = any>(...sources: any[]): T {
 
   return mergeWith({}, ...sources, customizer);
 }
+
+const AXIS_KEYS = ['xAxis', 'yAxis'] as const;
+
+/**
+ * Gives every axis in an axis list its own copy of the theme's axis style.
+ *
+ * mergeEchartsThemeOverrides replaces arrays, so when a chart defines a list
+ * of axes (for example the Mixed chart's two y-axes) the theme's single axis
+ * style would be dropped and ECharts would fall back to its light defaults,
+ * such as #E0E6F1 grid lines in dark mode. Each axis keeps its own settings,
+ * which win over the theme style.
+ *
+ * @param options - The chart's ECharts options
+ * @param baseTheme - The theme-derived ECharts options (single-axis style)
+ * @returns The options with themed axis lists, or the same object if unchanged
+ */
+export function applyAxisThemeToAxisLists<T extends Record<string, unknown>>(
+  options: T,
+  baseTheme: Record<string, unknown>,
+): T {
+  let result = options;
+  AXIS_KEYS.forEach(axisKey => {
+    const axes = options?.[axisKey];
+    const axisTheme = baseTheme?.[axisKey];
+    if (Array.isArray(axes) && isPlainObject(axisTheme)) {
+      result = {
+        ...result,
+        [axisKey]: axes.map(axis =>
+          isPlainObject(axis)
+            ? mergeEchartsThemeOverrides(axisTheme, axis)
+            : axis,
+        ),
+      };
+    }
+  });
+  return result;
+}

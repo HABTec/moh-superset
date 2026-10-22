@@ -25,6 +25,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@apache-superset/core/translation';
 import {
   ContextMenuFilters,
+  ensureIsArray,
   FilterState,
   HandlerFunction,
   JsonObject,
@@ -42,6 +43,7 @@ import {
   getBuckets,
   getBreakPointColorScaler,
   getColorBreakpointsBuckets,
+  isMetricMissing,
   isMetricOutOfZeroToHundred,
   TRANSPARENT_COLOR_ARRAY,
 } from '../../utils';
@@ -57,7 +59,10 @@ import {
 import { TooltipProps } from '../../components/Tooltip';
 import { GetLayerTypeParams } from '../../factory';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
-import { DEFAULT_DECKGL_COLOR } from '../../utilities/Shared_DeckGL';
+import {
+  DEFAULT_DECKGL_COLOR,
+  DEFAULT_NO_DATA_COLOR,
+} from '../../utilities/Shared_DeckGL';
 import {
   createTooltipContent,
   CommonTooltipRows,
@@ -136,13 +141,17 @@ function isRegionBoundaryFeature(d: JsonObject): boolean {
     d.extraProps && typeof d.extraProps === 'object'
       ? (d.extraProps as Record<string, unknown>)
       : undefined;
-  const hasWoredaProp = 'woreda' in d || (extraProps != null && 'woreda' in extraProps);
-  const hasZoneProp = 'zone' in d || (extraProps != null && 'zone' in extraProps);
+  const hasWoredaProp =
+    'woreda' in d || (extraProps != null && 'woreda' in extraProps);
+  const hasZoneProp =
+    'zone' in d || (extraProps != null && 'zone' in extraProps);
   if (!hasWoredaProp && !hasZoneProp) {
     return false;
   }
 
-  return isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'));
+  return (
+    isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'))
+  );
 }
 
 export const getLayer = function ({
@@ -161,6 +170,7 @@ export const getLayer = function ({
   const sc: { r: number; g: number; b: number; a: number } =
     fd.stroke_color_picker;
   const defaultBreakpointColor = fd.default_breakpoint_color;
+  const noDataBreakpointColor = fd.no_data_color ?? DEFAULT_NO_DATA_COLOR;
   let data = [...payload.data.features];
 
   if (fd.js_data_mutator) {
@@ -204,7 +214,16 @@ export const getLayer = function ({
             DEFAULT_DECKGL_COLOR.b,
             DEFAULT_DECKGL_COLOR.a * 255,
           ];
+      const noDataColor: Color = [
+        noDataBreakpointColor.r,
+        noDataBreakpointColor.g,
+        noDataBreakpointColor.b,
+        (noDataBreakpointColor.a ?? 1) * 255,
+      ];
       baseColorScaler = data => {
+        if (isMetricMissing(accessor(data))) {
+          return noDataColor;
+        }
         if (isMetricOutOfZeroToHundred(accessor(data))) {
           return outOfRangeColor;
         }
@@ -236,10 +255,18 @@ export const getLayer = function ({
       (baseColorScaler(d) as [number, number, number, number]) ||
       TRANSPARENT_COLOR_ARRAY;
     const polygonPoints = getPointsFromPolygon(d);
+    const selectedValues = ensureIsArray(filterState?.value).map(String);
+    const crossFilterCol = fd.cross_filter_column;
+    const feature = d as JsonObject;
+    const dimensionVal = crossFilterCol
+      ? (feature[crossFilterCol] ?? feature.extraProps?.[crossFilterCol])
+      : undefined;
 
     const isPolygonFilterSelected =
-      JSON.stringify(polygonPoints).replaceAll(' ', '') ===
-      filterState?.value?.[0];
+      selectedValues.includes(
+        JSON.stringify(polygonPoints).replaceAll(' ', ''),
+      ) ||
+      (dimensionVal != null && selectedValues.includes(String(dimensionVal)));
 
     if (filterState?.value && !isPolygonFilterSelected) {
       baseColor[3] /= 3;
@@ -465,6 +492,7 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
       ? getColorBreakpointsBuckets(
           formData.color_breakpoints,
           formData.default_breakpoint_color ?? DEFAULT_DECKGL_COLOR,
+          formData.no_data_color ?? DEFAULT_NO_DATA_COLOR,
         )
       : getBuckets(formData, payload.data.features, accessor);
 
@@ -480,9 +508,7 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
             ? formData.mapbox_style
             : formData.maplibre_style
         }
-        mapProvider={
-          formData.map_renderer === 'mapbox' ? 'mapbox' : 'maplibre'
-        }
+        mapProvider={formData.map_renderer === 'mapbox' ? 'mapbox' : 'maplibre'}
         width={props.width}
         height={props.height}
       />

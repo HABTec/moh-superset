@@ -327,6 +327,18 @@ PROFILING = False
 # and it's more secure to turn it off in production settings.
 SHOW_STACKTRACE = False
 
+# Replace technical error text (database driver messages, exceptions, internal
+# hosts, error codes) in JSON responses with plain-language messages and a
+# reference code. The original text is logged with that reference.
+ERROR_SANITIZER_ENABLED = True
+# Path prefixes that keep raw errors. SQL Lab and database connection
+# management need the exact database message to fix SQL or connections.
+ERROR_SANITIZER_EXEMPT_PATHS: tuple[str, ...] = (
+    "/api/v1/sqllab/",
+    "/api/v1/query/",
+    "/api/v1/database/",
+)
+
 # Use all X-Forwarded headers when ENABLE_PROXY_FIX is True.
 # When proxying to a different port, set "x_port" to 0 to avoid downstream issues.
 ENABLE_PROXY_FIX = False
@@ -983,8 +995,10 @@ THEME_DARK: Optional[Theme] = {
     },
     "algorithm": "dark",
 }
-# Set to None to disable dark mode and force light mode only
-THEME_DARK: Optional[Theme] = None
+
+# Mode for users who have not chosen one yet: "default" (light), "dark" or
+# "system" (follow the operating system). Only applies when THEME_DARK is set.
+THEME_DEFAULT_MODE: Literal["default", "dark", "system"] = "system"
 
 # Theme behavior and user preference settings
 # To force a single theme on all users, set THEME_DARK = None
@@ -1214,7 +1228,9 @@ ALLOWED_EXTENSIONS = {*EXCEL_EXTENSIONS, *CSV_EXTENSIONS, *COLUMNAR_EXTENSIONS}
 # CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv
 # method.
 # note: index option should not be overridden
-CSV_EXPORT = {"encoding": "utf-8-sig"}
+# float_format "%.15g" writes a float's significant digits only, so 93.5 is
+# not exported as 93.50000000000001 nor 120 as 120.0.
+CSV_EXPORT = {"encoding": "utf-8-sig", "float_format": "%.15g"}
 
 # CSV Streaming: row threshold for using streaming CSV exports
 # When row count >= this threshold, use streaming response instead of loading
@@ -2337,7 +2353,9 @@ GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (Literal["None", "Lax", "Strict
     None
 )
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
-GLOBAL_ASYNC_QUERIES_JWT_SECRET = "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = (
+    "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
+)
 GLOBAL_ASYNC_QUERIES_TRANSPORT: Literal["polling", "ws"] = "polling"
 GLOBAL_ASYNC_QUERIES_POLLING_DELAY = int(
     timedelta(milliseconds=500).total_seconds() * 1000

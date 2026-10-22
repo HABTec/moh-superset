@@ -132,6 +132,11 @@ export function SupersetThemeProvider({
     [themeController],
   );
 
+  const previewMode = useCallback(
+    (mode: ThemeMode) => themeController.previewMode(mode),
+    [themeController],
+  );
+
   const contextValue = useMemo(
     () => ({
       theme: currentTheme,
@@ -148,6 +153,7 @@ export function SupersetThemeProvider({
       canDetectOSPreference,
       createDashboardThemeProvider,
       getAppliedThemeId,
+      previewMode,
     }),
     [
       currentTheme,
@@ -164,6 +170,7 @@ export function SupersetThemeProvider({
       canDetectOSPreference,
       createDashboardThemeProvider,
       getAppliedThemeId,
+      previewMode,
     ],
   );
 
@@ -174,6 +181,14 @@ export function SupersetThemeProvider({
       </currentTheme.SupersetThemeProvider>
     </ThemeContext.Provider>
   );
+}
+
+/**
+ * React hook to use the theme context when it may be absent (for example in
+ * components that are also rendered in isolation); returns null without one.
+ */
+export function useOptionalThemeContext(): ThemeContextType | null {
+  return useContext(ThemeContext);
 }
 
 /**

@@ -18,7 +18,9 @@
  */
 import { fireEvent, render } from 'spec/helpers/testing-library';
 
-import DashboardGrid from 'src/dashboard/components/DashboardGrid';
+import DashboardGrid, {
+  getGridContentPadding,
+} from 'src/dashboard/components/DashboardGrid';
 import newComponentFactory from 'src/dashboard/util/newComponentFactory';
 
 import { DASHBOARD_GRID_TYPE } from 'src/dashboard/util/componentTypes';
@@ -159,4 +161,15 @@ test('should render empty state in both edit and view modes', () => {
 
   expect(editEmptyState).toBeInTheDocument();
   expect(viewEmptyState).toBeInTheDocument();
+});
+
+test('getGridContentPadding matches the GridContent padding breakpoints', () => {
+  expect(getGridContentPadding(375, 4)).toBe(4);
+  expect(getGridContentPadding(575, 4)).toBe(4);
+  expect(getGridContentPadding(576, 4)).toBe(6);
+  expect(getGridContentPadding(768, 4)).toBe(6);
+  expect(getGridContentPadding(769, 4)).toBe(8);
+  expect(getGridContentPadding(992, 4)).toBe(8);
+  expect(getGridContentPadding(993, 4)).toBe(12);
+  expect(getGridContentPadding(1600, 4)).toBe(12);
 });

@@ -162,3 +162,14 @@ class ExploreContextSchema(Schema):
     message = fields.String(
         metadata={"description": "Any message related to the processed request."}
     )
+    native_filter_configuration = fields.List(
+        fields.Raw,
+        metadata={
+            "description": (
+                "Native filter configuration of the dashboard the Explore "
+                "session was opened from, when one was requested and the user "
+                "can read it."
+            )
+        },
+        allow_none=True,
+    )

@@ -513,6 +513,8 @@ export interface ThemeContextType {
   canDetectOSPreference: () => boolean;
   createDashboardThemeProvider: (themeId: string) => Promise<Theme | null>;
   getAppliedThemeId: () => number | null;
+  /** Shows a mode without saving it; call the returned function to undo */
+  previewMode: (mode: ThemeMode) => () => void;
 }
 
 /**

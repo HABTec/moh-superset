@@ -512,3 +512,55 @@ describe('Polygon buildQuery', () => {
     });
   });
 });
+
+const mapFormData: DeckPolygonFormData = {
+  datasource: '1__table',
+  viz_type: 'deck_polygon',
+  line_column: 'geometry_geojson',
+  metric: 'AVG(target_achievement_pct)',
+  js_columns: ['layer_type', 'region', 'woreda'],
+};
+
+test('chart queries keep the polygon column and the region outline rows', () => {
+  const [query] = buildQuery(mapFormData).queries;
+
+  expect(query.columns).toContain('geometry_geojson');
+  expect(query.filters).not.toContainEqual({
+    col: 'layer_type',
+    op: '!=',
+    val: 'region',
+  });
+});
+
+test.each(['csv', 'xlsx'])(
+  '%s exports leave out the polygon column and the region outline rows',
+  resultFormat => {
+    const [query] = buildQuery({
+      ...mapFormData,
+      result_format: resultFormat,
+    }).queries;
+
+    expect(query.columns).not.toContain('geometry_geojson');
+    expect(query.columns).toEqual(
+      expect.arrayContaining(['layer_type', 'region', 'woreda']),
+    );
+    expect(query.filters).toContainEqual({
+      col: 'layer_type',
+      op: '!=',
+      val: 'region',
+    });
+  },
+);
+
+test('exports without a layer_type column add no region filter', () => {
+  const [query] = buildQuery({
+    ...mapFormData,
+    js_columns: ['woreda'],
+    result_format: 'csv',
+  }).queries;
+
+  expect(query.columns).not.toContain('geometry_geojson');
+  expect(query.filters).not.toContainEqual(
+    expect.objectContaining({ col: 'layer_type' }),
+  );
+});

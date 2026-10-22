@@ -50,7 +50,9 @@ export const GlobalStyles = () => {
         }
 
         body {
-          background-color: ${theme.colorBgBase};
+          background-color: ${
+            /* eslint-disable-line no-restricted-syntax -- page body, same as the page background */ theme.colorBgBase
+          };
           color: ${theme.colorText};
           -webkit-font-smoothing: antialiased;
           margin: 0;

@@ -51,6 +51,8 @@ import {
   SET_DASHBOARD_SHARED_LABELS_COLORS_SYNCABLE,
   SET_DASHBOARD_SHARED_LABELS_COLORS_SYNCED,
   TOGGLE_NATIVE_FILTERS_BAR,
+  REQUEST_FILTER_BAR_CLEAR,
+  FILTER_BAR_CLEAR_HANDLED,
   UPDATE_CHART_STATE,
   REMOVE_CHART_STATE,
   RESTORE_CHART_STATES,
@@ -104,6 +106,7 @@ interface DashboardStateShape {
   datasetsStatus?: string;
   overwriteConfirmMetadata?: JsonObject;
   nativeFiltersBarOpen?: boolean;
+  filterBarClearRequested?: boolean;
   chartStates?: Record<string, ChartStateEntry>;
   css?: string;
   preselectNativeFilters?: JsonObject;
@@ -421,6 +424,18 @@ export default function dashboardStateReducer(
       return {
         ...state,
         nativeFiltersBarOpen: action.isOpen,
+      };
+    },
+    [REQUEST_FILTER_BAR_CLEAR](): DashboardStateShape {
+      return {
+        ...state,
+        filterBarClearRequested: true,
+      };
+    },
+    [FILTER_BAR_CLEAR_HANDLED](): DashboardStateShape {
+      return {
+        ...state,
+        filterBarClearRequested: false,
       };
     },
     [UPDATE_CHART_STATE](): DashboardStateShape {

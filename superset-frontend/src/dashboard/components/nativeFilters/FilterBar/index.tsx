@@ -61,12 +61,14 @@ import { useTabId } from 'src/hooks/useTabId';
 import { logEvent } from 'src/logger/actions';
 import { LOG_ACTIONS_CHANGE_DASHBOARD_FILTER } from 'src/logger/LogUtils';
 import { FilterBarOrientation, RootState } from 'src/dashboard/types';
+import { filterBarClearHandled } from 'src/dashboard/actions/dashboardState';
 import { UserWithPermissionsAndRoles } from 'src/types/bootstrapTypes';
 import { isChartCustomization } from '../FiltersConfigModal/utils';
 import { checkIsApplyDisabled, getFiltersToApply } from './utils';
 import { extractLabel } from '../selectors';
 import { FiltersBarProps } from './types';
 import {
+  useActiveCrossFilterIds,
   useAllAppliedDataMask,
   useFilters,
   useFilterUpdates,
@@ -163,9 +165,11 @@ const FilterBar: FC<FiltersBarProps> = ({
   verticalConfig,
   hidden = false,
   mobile = false,
+  waitForCharts = true,
 }) => {
   const history = useHistory();
   const dataMaskApplied: DataMaskStateWithId = useAllAppliedDataMask();
+  const activeCrossFilterIds = useActiveCrossFilterIds();
 
   const [dataMaskSelected, setDataMaskSelected] =
     useImmer<DataMaskStateWithId>(dataMaskApplied);
@@ -519,6 +523,18 @@ const FilterBar: FC<FiltersBarProps> = ({
       }
     });
 
+    // Cross-filters (e.g. a region clicked on a map, filtering on
+    // geometry_geojson) apply immediately when set, so they are removed
+    // immediately too, exactly as the "x" on a cross-filter tag does.
+    activeCrossFilterIds.forEach(chartId => {
+      dispatch(
+        updateDataMask(chartId, {
+          extraFormData: { filters: [] },
+          filterState: { value: null, selectedValues: null },
+        }),
+      );
+    });
+
     const allDataMasks = { ...dataMaskSelected, ...dataMaskApplied };
     const hasCustomizationDataMasks = Object.keys(allDataMasks).some(key =>
       isChartCustomization(key),
@@ -556,6 +572,7 @@ const FilterBar: FC<FiltersBarProps> = ({
     chartCustomizationValues,
     clearAllTriggers,
     dispatch,
+    activeCrossFilterIds,
   ]);
 
   const handleClearAllComplete = useCallback((filterId: string) => {
@@ -565,6 +582,43 @@ const FilterBar: FC<FiltersBarProps> = ({
       return newTriggers;
     });
   }, []);
+
+  // A chart's empty state can ask for "Clear filters". Clear and apply in
+  // one step: write the cleared value straight to each in-scope filter's
+  // applied state (the selection syncs from it) and reset the controls the
+  // way Clear all does. Required filters keep their value — clearing them
+  // would leave the charts with nothing they are allowed to query.
+  const filterBarClearRequested = useSelector<RootState, boolean>(state =>
+    Boolean(state.dashboardState.filterBarClearRequested),
+  );
+
+  useEffect(() => {
+    if (!filterBarClearRequested) return;
+    dispatch(filterBarClearHandled());
+    dispatch(logEvent(LOG_ACTIONS_CHANGE_DASHBOARD_FILTER, {}));
+    setUpdateKey(1);
+
+    const triggers: Record<string, boolean> = {};
+    nativeFilterValues.forEach(filter => {
+      if (
+        !inScopeFilterIds.has(filter.id) ||
+        filter.controlValues?.enableEmptyFilter
+      ) {
+        return;
+      }
+      dispatch(
+        updateDataMask(filter.id, {
+          filterState: {
+            value:
+              filter.filterType === 'filter_range' ? [null, null] : undefined,
+          },
+          extraFormData: {},
+        }),
+      );
+      triggers[filter.id] = true;
+    });
+    setClearAllTriggers(prev => ({ ...prev, ...triggers }));
+  }, [dispatch, filterBarClearRequested, inScopeFilterIds, nativeFilterValues]);
 
   useFilterUpdates(dataMaskSelected, setDataMaskSelected);
 
@@ -599,7 +653,7 @@ const FilterBar: FC<FiltersBarProps> = ({
       !hasClearedChartCustomizations) ||
     hasMissingRequiredChartCustomization;
 
-  const isInitialized = useInitialization();
+  const isInitialized = useInitialization(waitForCharts);
 
   const actions = useMemo(
     () => (
@@ -614,6 +668,7 @@ const FilterBar: FC<FiltersBarProps> = ({
         isApplyDisabled={isApplyDisabled}
         chartCustomizationItems={chartCustomizationValues}
         hasOutOfScopeRequiredFilters={hasOutOfScopeRequiredFilters}
+        hasActiveCrossFilters={activeCrossFilterIds.length > 0}
       />
     ),
     [
@@ -626,6 +681,7 @@ const FilterBar: FC<FiltersBarProps> = ({
       isApplyDisabled,
       chartCustomizationValues,
       hasOutOfScopeRequiredFilters,
+      activeCrossFilterIds,
     ],
   );
 

@@ -308,8 +308,7 @@ export default function transformProps(chartProps: EchartsGanttChartProps) {
         symbol: ['none', 'none'],
         lineStyle: {
           type: 'dashed',
-          // eslint-disable-next-line theme-colors/no-literal-colors
-          color: '#dbe0ea',
+          color: theme.colorSplit,
         },
         label: {
           show: false,

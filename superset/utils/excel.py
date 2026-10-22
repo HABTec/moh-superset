@@ -49,6 +49,13 @@ def df_to_excel(df: pd.DataFrame, **kwargs: Any) -> Any:
     # pylint: disable=abstract-class-instantiated
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, **kwargs)
+        # Columns as wide as their content: at Excel's default width, large
+        # numbers show in scientific notation (3E+09) and long names are cut.
+        # The header row stays in view while scrolling.
+        for worksheet in writer.sheets.values():
+            worksheet.autofit()
+            if kwargs.get("header", True):
+                worksheet.freeze_panes(1, 0)
 
     return output.getvalue()
 
@@ -70,9 +77,9 @@ def apply_column_types(
                 # if the number is too large, convert it to a string
                 # Excel does not support numbers larger than 10^15
                 df[column] = df[column].apply(
-                    lambda x: str(x)
-                    if isinstance(x, (int, float)) and abs(x) > 10**15
-                    else x
+                    lambda x: (
+                        str(x) if isinstance(x, (int, float)) and abs(x) > 10**15 else x
+                    )
                 )
             except ValueError:
                 df[column] = df[column].astype(str)

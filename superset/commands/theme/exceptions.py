@@ -41,3 +41,9 @@ class SystemThemeInUseError(CommandException):
 
 class ThemeAdministrationDisabledError(CommandException):
     message = _("UI theme administration is not enabled.")
+
+
+class ThemeNotDarkError(CommandException):
+    message = _(
+        "Only a theme that uses the dark algorithm can be the system dark theme."
+    )

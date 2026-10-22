@@ -19,7 +19,7 @@
 import { ChartProps } from '@superset-ui/core';
 
 export default function transformProps(chartProps: ChartProps) {
-  const { width, height, formData, queriesData } = chartProps;
+  const { width, height, formData, queriesData, theme } = chartProps;
   const {
     colorScheme,
     dateTimeFormat,
@@ -39,5 +39,6 @@ export default function transformProps(chartProps: ChartProps) {
     useAreaProportions: roseAreaProportion,
     useRichTooltip: richTooltip,
     sliceId,
+    textColor: theme?.colorText,
   };
 }

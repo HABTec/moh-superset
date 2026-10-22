@@ -39,8 +39,11 @@ import {
   QueryFormData,
   SuperChart,
   ClientErrorObject,
+  DataRecordValue,
+  ExtraFormData,
   getClientErrorObject,
   isChartCustomization,
+  QueryObjectFilterClause,
 } from '@superset-ui/core';
 import { styled, useTheme } from '@apache-superset/core/theme';
 import { useDispatch, useSelector } from 'react-redux';
@@ -75,6 +78,11 @@ import { FilterControlProps } from './types';
 import { getFormData } from '../../utils';
 import { useFilterDependencies, useTransitiveParentIds } from './state';
 import { useFilterOutlined } from '../useFilterOutlined';
+import {
+  ParentValues,
+  getCascadeClearedValue,
+  shouldClearForParentChange,
+} from './cascadeReset';
 
 const HEIGHT = 32;
 
@@ -238,7 +246,7 @@ const FilterValue: FC<FilterValueProps> = ({
     if (filterType !== 'filter_org_unit_tree' || !allNativeFilters) {
       return undefined;
     }
-    const filters: Array<{ col: string; op: string; val: unknown }> = [];
+    const filters: QueryObjectFilterClause[] = [];
     Object.values(allNativeFilters).forEach(candidate => {
       if (
         !candidate ||
@@ -267,11 +275,7 @@ const FilterValue: FC<FilterValueProps> = ({
       if (fromExtra.length) {
         fromExtra.forEach(item => {
           // Normalize to cbmp_type so OrgUnitTree recognizes the values.
-          filters.push({
-            col: 'cbmp_type',
-            op: String(item.op || 'IN'),
-            val: item.val,
-          });
+          filters.push({ ...item, col: 'cbmp_type' });
         });
         return;
       }
@@ -279,7 +283,11 @@ const FilterValue: FC<FilterValueProps> = ({
       if (value == null || (Array.isArray(value) && value.length === 0)) {
         return;
       }
-      filters.push({ col: 'cbmp_type', op: 'IN', val: value });
+      filters.push({
+        col: 'cbmp_type',
+        op: 'IN',
+        val: (Array.isArray(value) ? value : [value]) as DataRecordValue[],
+      });
     });
     return filters.length ? { filters } : { filters: [] };
   }, [filterType, allNativeFilters, dataMaskSelected, id]);
@@ -356,8 +364,8 @@ const FilterValue: FC<FilterValueProps> = ({
     // reloads as soon as CBMP changes (no cascade-parent config / Apply needed).
     if (cbmpLiveExtra) {
       const existing =
-        (newFormData.extra_form_data as { filters?: unknown[] } | undefined)
-          ?.filters || [];
+        (newFormData.extra_form_data as ExtraFormData | undefined)?.filters ||
+        [];
       newFormData.extra_form_data = {
         ...((newFormData.extra_form_data as object) || {}),
         filters: [...existing, ...(cbmpLiveExtra.filters || [])],
@@ -510,6 +518,59 @@ const FilterValue: FC<FilterValueProps> = ({
     [filter, onFilterSelectionChange],
   );
 
+  // A dependent filter's selection is only meaningful for the ancestor values
+  // it was made under (e.g. Quarter=Q3 for Year=2018), so clear it whenever
+  // the user changes or clears any ancestor.
+  const parentValues = useMemo<ParentValues>(
+    () =>
+      Object.fromEntries(
+        transitiveParentIds.map(pId => [
+          pId,
+          dataMaskSelected?.[pId]?.filterState?.value,
+        ]),
+      ),
+    [transitiveParentIds, dataMaskSelected],
+  );
+  const ownValue = filter.dataMask?.filterState?.value;
+  const prevParentValuesRef = useRef<ParentValues>(parentValues);
+  const prevOwnValueRef = useRef<unknown>(ownValue);
+  // Remounts the plugin so its internal selection state drops the old value.
+  const [cascadeResetKey, setCascadeResetKey] = useState(0);
+
+  useEffect(() => {
+    const prevParentValues = prevParentValuesRef.current;
+    const prevOwnValue = prevOwnValueRef.current;
+    prevParentValuesRef.current = parentValues;
+    prevOwnValueRef.current = ownValue;
+
+    // "Clear all" resets every filter itself.
+    if (isCustomization || clearAllTrigger) {
+      return;
+    }
+    if (
+      shouldClearForParentChange({
+        prevParentValues,
+        parentValues,
+        prevOwnValue,
+        ownValue,
+      })
+    ) {
+      const clearedValue = getCascadeClearedValue(filterType);
+      prevOwnValueRef.current = clearedValue;
+      onFilterSelectionChange(filter, {
+        extraFormData: {},
+        filterState: {
+          ...filter.dataMask?.filterState,
+          value: clearedValue,
+          label: undefined,
+        },
+      });
+      setCascadeResetKey(key => key + 1);
+    }
+    // Only ancestor/own value transitions should trigger a reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentValues, ownValue]);
+
   const setFocusedFilter = useCallback(() => {
     if (isCustomization) {
       return;
@@ -625,6 +686,7 @@ const FilterValue: FC<FilterValueProps> = ({
     </Flex>
   ) : (
     <SuperChart
+      key={cascadeResetKey}
       height={HEIGHT}
       width={RESPONSIVE_WIDTH}
       showOverflow={showOverflow}

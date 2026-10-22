@@ -24,7 +24,7 @@ import pandas as pd
 from flask import current_app
 from flask_babel import gettext as _
 
-from superset.common.chart_data import ChartDataResultFormat
+from superset.common.chart_data import ChartDataResultFormat, ChartDataResultType
 from superset.common.db_query_status import QueryStatus
 from superset.common.query_actions import get_query_results
 from superset.common.utils.query_cache_manager import QueryCacheManager
@@ -62,6 +62,56 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Charts drawing several queries against one shared x-axis. Their CSV and
+# Excel exports are a single table, as in the chart, rather than a zip holding
+# one file per query.
+MERGED_FILE_EXPORT_VIZ_TYPES = frozenset({"mixed_timeseries"})
+
+
+def merge_frames_on_first_column(
+    frames: list[tuple[pd.DataFrame, list[GenericDataType]]],
+) -> tuple[pd.DataFrame, list[GenericDataType]] | None:
+    """
+    Joins result frames on the first column they all share, keeping the row
+    order of the first frame and appending values only later frames hold.
+
+    A column whose name is already taken gets the query's letter, as the chart
+    legend shows it, e.g. "Target (Query B)". Frames without columns (no data)
+    are skipped. Returns None when the frames do not share their first column
+    or are indexed, so the caller can fall back to separate files.
+
+    :param frames: (frame, column types) per query, in query order
+    :return: the joined frame and its column types, or None
+    """
+    lettered = [
+        (chr(ord("A") + idx), df, coltypes)
+        for idx, (df, coltypes) in enumerate(frames)
+        if len(df.columns)
+    ]
+    if not lettered:
+        return pd.DataFrame(), []
+    if any(not isinstance(df.index, pd.RangeIndex) for _, df, _ in lettered):
+        return None
+    key = lettered[0][1].columns[0]
+    if any(df.columns[0] != key for _, df, _ in lettered):
+        return None
+
+    _, merged, merged_types = lettered[0]
+    merged_types = list(merged_types)
+    for letter, df, coltypes in lettered[1:]:
+        renames = {
+            column: f"{column} (Query {letter})"
+            for column in df.columns[1:]
+            if column in merged.columns
+        }
+        df = df.rename(columns=renames)
+        merged = merged.merge(df, on=key, how="left")
+        only_here = df[~df[key].isin(merged[key])]
+        if len(only_here):
+            merged = pd.concat([merged, only_here], ignore_index=True)
+        merged_types += list(coltypes[1:])
+    return merged, merged_types
+
 
 class QueryContextProcessor:
     """
@@ -75,6 +125,10 @@ class QueryContextProcessor:
     def __init__(self, query_context: QueryContext):
         self._query_context = query_context
         self._qc_datasource = query_context.datasource
+        # Result frames kept while a merged CSV or Excel export is being built.
+        self._export_frames: list[tuple[pd.DataFrame, list[GenericDataType]]] | None = (
+            None
+        )
 
     cache_type: ClassVar[str] = "df"
     enforce_numerical_metrics: ClassVar[bool] = True
@@ -259,25 +313,75 @@ class QueryContextProcessor:
         self, df: pd.DataFrame, coltypes: list[GenericDataType]
     ) -> str | list[dict[str, Any]]:
         if self._query_context.result_format in ChartDataResultFormat.table_like():
-            include_index = not isinstance(df.index, pd.RangeIndex)
             columns = list(df.columns)
             verbose_map = self._qc_datasource.data.get("verbose_map", {})
             if verbose_map:
                 df.columns = [verbose_map.get(column, column) for column in columns]
 
-            result = None
-            if self._query_context.result_format == ChartDataResultFormat.CSV:
-                result = csv.df_to_escaped_csv(
-                    df, index=include_index, **current_app.config["CSV_EXPORT"]
-                )
-            elif self._query_context.result_format == ChartDataResultFormat.XLSX:
-                excel.apply_column_types(df, coltypes)
-                result = excel.df_to_excel(
-                    df, index=include_index, **current_app.config["EXCEL_EXPORT"]
-                )
-            return result or ""
+            if self._export_frames is not None:
+                self._export_frames.append((df.copy(), list(coltypes)))
+            return self._to_export_file(df, coltypes)
 
         return df.to_dict(orient="records")
+
+    def _to_export_file(self, df: pd.DataFrame, coltypes: list[GenericDataType]) -> Any:
+        """
+        Serializes a result frame into the requested file: CSV text or Excel
+        workbook bytes.
+        """
+        include_index = not isinstance(df.index, pd.RangeIndex)
+        result = None
+        if self._query_context.result_format == ChartDataResultFormat.CSV:
+            result = csv.df_to_escaped_csv(
+                df, index=include_index, **current_app.config["CSV_EXPORT"]
+            )
+        elif self._query_context.result_format == ChartDataResultFormat.XLSX:
+            excel.apply_column_types(df, coltypes)
+            result = excel.df_to_excel(
+                df, index=include_index, **current_app.config["EXCEL_EXPORT"]
+            )
+        return result or ""
+
+    def _merges_file_exports(self) -> bool:
+        """
+        Whether this request's CSV or Excel export is one table built from all of
+        its queries rather than a zip with one file per query.
+        """
+        form_data = self._query_context.form_data or {}
+        return (
+            self._query_context.result_format in ChartDataResultFormat.table_like()
+            and self._query_context.result_type == ChartDataResultType.FULL
+            and len(self._query_context.queries) > 1
+            and form_data.get("viz_type") in MERGED_FILE_EXPORT_VIZ_TYPES
+        )
+
+    def _merge_file_exports(
+        self,
+        query_results: list[dict[str, Any]],
+        frames: list[tuple[pd.DataFrame, list[GenericDataType]]],
+    ) -> list[dict[str, Any]]:
+        """
+        Replaces the per-query files with one file joining the queries' tables on
+        their shared first column, the chart's x-axis. The query results are
+        returned unchanged when the tables do not share that column.
+        """
+        if len(frames) != len(query_results) or any(
+            query.get("error") for query in query_results
+        ):
+            return query_results
+        merged = merge_frames_on_first_column(frames)
+        if merged is None:
+            return query_results
+        df, coltypes = merged
+        return [
+            {
+                **query_results[0],
+                "colnames": list(df.columns),
+                "coltypes": coltypes,
+                "rowcount": len(df),
+                "data": self._to_export_file(df, coltypes),
+            }
+        ]
 
     def _prepare_contribution_totals(self) -> tuple[list[int], int | None]:
         """
@@ -363,15 +467,25 @@ class QueryContextProcessor:
                 )
             ]
 
-        query_results = [
-            get_query_results(
-                query_obj.result_type or self._query_context.result_type,
-                self._query_context,
-                query_obj,
-                force_cached,
-            )
-            for query_obj in self._query_context.queries
-        ]
+        merge_file_exports = self._merges_file_exports()
+        if merge_file_exports:
+            self._export_frames = []
+        try:
+            query_results = [
+                get_query_results(
+                    query_obj.result_type or self._query_context.result_type,
+                    self._query_context,
+                    query_obj,
+                    force_cached,
+                )
+                for query_obj in self._query_context.queries
+            ]
+            if merge_file_exports and self._export_frames is not None:
+                query_results = self._merge_file_exports(
+                    query_results, self._export_frames
+                )
+        finally:
+            self._export_frames = None
 
         return_value = {"queries": query_results}
 

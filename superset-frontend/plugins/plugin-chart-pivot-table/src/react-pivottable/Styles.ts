@@ -34,7 +34,7 @@ export const Styles = styled.div<{ isDashboardEditMode: boolean }>`
     }
 
     table thead {
-      background-color: ${theme.colorBgBase};
+      background-color: ${theme.colorBgContainer};
       position: ${isDashboardEditMode ? 'inherit' : 'sticky'};
       top: 0;
     }
@@ -55,12 +55,12 @@ export const Styles = styled.div<{ isDashboardEditMode: boolean }>`
     table.pvtTable tbody tr.pvtRowTotals {
       position: ${isDashboardEditMode ? 'inherit' : 'sticky'};
       bottom: 0;
-      background-color: ${theme.colorBgBase};
+      background-color: ${theme.colorBgContainer};
     }
 
     table.pvtTable tbody tr.pvtRowTotals th,
     table.pvtTable tbody tr.pvtRowTotals td {
-      background-color: ${theme.colorBgBase};
+      background-color: ${theme.colorBgContainer};
     }
 
     table.pvtTable thead tr:last-of-type th,
@@ -111,7 +111,7 @@ export const Styles = styled.div<{ isDashboardEditMode: boolean }>`
     table.pvtTable tbody tr td {
       color: ${theme.colorPrimaryText};
       padding: ${theme.sizeUnit}px;
-      background-color: ${theme.colorBgBase};
+      background-color: ${theme.colorBgContainer};
       border-top: 1px solid ${theme.colorSplit};
       border-left: 1px solid ${theme.colorSplit};
       vertical-align: top;

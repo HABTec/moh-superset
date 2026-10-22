@@ -256,6 +256,27 @@ test('should increment the depth of its children', () => {
 });
 
 // eslint-disable-next-line no-restricted-globals -- TODO: Migrate from describe blocks
+test('lets chart slots shrink to narrow screens only when not editing', () => {
+  const target = { target: /dragdroppable:not\(\.empty-droptarget\)/ };
+
+  const { container, unmount } = setup({ editMode: false });
+  expect(container.querySelector('.grid-row')).toHaveStyleRule(
+    'min-width',
+    '0',
+    target,
+  );
+  unmount();
+
+  // While editing, a resized chart must push its neighbours rather than
+  // spill over them, so its slot keeps its natural width.
+  const editing = setup({ editMode: true });
+  expect(editing.container.querySelector('.grid-row')).not.toHaveStyleRule(
+    'min-width',
+    '0',
+    target,
+  );
+});
+
 describe('visibility handling for intersection observers', () => {
   const mockIntersectionObserver = jest.fn();
   const mockObserve = jest.fn();

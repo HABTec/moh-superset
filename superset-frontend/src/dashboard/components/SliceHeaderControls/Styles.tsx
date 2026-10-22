@@ -20,7 +20,7 @@ import { css, SupersetTheme } from '@apache-superset/core/theme';
 
 export const fullscreenStyles = (theme: SupersetTheme) => css`
   [data-test='dashboard-component-chart-holder']:fullscreen {
-    background-color: ${theme.colorBgBase};
+    background-color: ${theme.colorBgLayout};
     width: 100vw;
     height: 100vh;
     box-sizing: border-box;

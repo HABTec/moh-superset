@@ -24,6 +24,10 @@ from flask_babel import lazy_gettext as _
 from sqlalchemy.exc import SQLAlchemyError
 
 from superset.commands.base import BaseCommand
+from superset.commands.dashboard.exceptions import (
+    DashboardAccessDeniedError,
+    DashboardNotFoundError,
+)
 from superset.commands.explore.form_data.get import GetFormDataCommand
 from superset.commands.explore.form_data.parameters import (
     CommandParameters as FormDataCommandParameters,
@@ -31,6 +35,7 @@ from superset.commands.explore.form_data.parameters import (
 from superset.commands.explore.parameters import CommandParameters
 from superset.commands.explore.permalink.get import GetExplorePermalinkCommand
 from superset.connectors.sqla.models import BaseDatasource, SqlaTable
+from superset.daos.dashboard import DashboardDAO
 from superset.daos.datasource import DatasourceDAO
 from superset.daos.exceptions import DatasourceNotFound
 from superset.exceptions import SupersetException
@@ -58,6 +63,35 @@ class GetExploreCommand(BaseCommand, ABC):
         self._datasource_id = params.datasource_id
         self._datasource_type = params.datasource_type
         self._slice_id = params.slice_id
+        self._dashboard_id = params.dashboard_id
+
+    def _get_native_filter_configuration(self) -> list[dict[str, Any]] | None:
+        """
+        Return the native filter configuration of the dashboard Explore was
+        opened from, so Explore can render the same filters the dashboard
+        offers. Returns None whenever the context is unknown or the user
+        cannot read the dashboard, which keeps the response unchanged for
+        callers that do not pass a dashboard.
+        """
+        if self._dashboard_id is None:
+            return None
+
+        try:
+            # get_by_id_or_slug performs the access check for us
+            dashboard = DashboardDAO.get_by_id_or_slug(self._dashboard_id)
+        except (DashboardNotFoundError, DashboardAccessDeniedError):
+            return None
+
+        try:
+            metadata = json.loads(dashboard.json_metadata or "{}")
+        except (TypeError, ValueError):
+            logger.warning(
+                "Could not parse json_metadata for dashboard %s", dashboard.id
+            )
+            return None
+
+        configuration = metadata.get("native_filter_configuration")
+        return configuration if isinstance(configuration, list) else None
 
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def run(self) -> Optional[dict[str, Any]]:  # noqa: C901
@@ -183,6 +217,8 @@ class GetExploreCommand(BaseCommand, ABC):
         }
         if permalink_chart_state:
             result["chartState"] = permalink_chart_state
+        if native_filter_configuration := self._get_native_filter_configuration():
+            result["native_filter_configuration"] = native_filter_configuration
         return result
 
     def validate(self) -> None:

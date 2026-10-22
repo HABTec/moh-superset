@@ -92,11 +92,17 @@ const GridRow = styled.div<{ editMode: boolean; responsiveLayout: boolean }>`
     box-sizing: border-box;
     height: fit-content;
 
-    & > .dragdroppable:not(.empty-droptarget) {
-      min-width: 0;
-      max-width: 100%;
-      flex-shrink: 1;
-    }
+    /* Viewing only: lets charts squeeze to narrow screens. While editing,
+       a chart being resized must push its neighbours instead; letting its
+       slot shrink makes the chart spill over the next one. */
+    ${!editMode &&
+    css`
+      & > .dragdroppable:not(.empty-droptarget) {
+        min-width: 0;
+        max-width: 100%;
+        flex-shrink: 1;
+      }
+    `}
 
     & > :not(:last-child):not(.hover-menu) {
       ${!editMode &&
