@@ -327,6 +327,18 @@ PROFILING = False
 # and it's more secure to turn it off in production settings.
 SHOW_STACKTRACE = False
 
+# Replace technical error text (database driver messages, exceptions, internal
+# hosts, error codes) in JSON responses with plain-language messages and a
+# reference code. The original text is logged with that reference.
+ERROR_SANITIZER_ENABLED = True
+# Path prefixes that keep raw errors. SQL Lab and database connection
+# management need the exact database message to fix SQL or connections.
+ERROR_SANITIZER_EXEMPT_PATHS: tuple[str, ...] = (
+    "/api/v1/sqllab/",
+    "/api/v1/query/",
+    "/api/v1/database/",
+)
+
 # Use all X-Forwarded headers when ENABLE_PROXY_FIX is True.
 # When proxying to a different port, set "x_port" to 0 to avoid downstream issues.
 ENABLE_PROXY_FIX = False

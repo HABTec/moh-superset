@@ -18,10 +18,12 @@
  */
 
 import { ClientErrorObject, SupersetError } from '@superset-ui/core';
+import { t } from '@apache-superset/core/translation';
 import { FC } from 'react';
 import { useChartOwnerNames } from 'src/hooks/apiResources';
 import { ErrorMessageWithStackTrace } from 'src/components';
 import { ChartSource } from 'src/types/ChartSource';
+import { sanitizeErrorMessage } from 'src/utils/sanitizeErrorMessage';
 
 export type Props = {
   chartId: number;
@@ -32,21 +34,33 @@ export type Props = {
   stackTrace?: string;
 } & Omit<ClientErrorObject, 'error'>;
 
-const DEFAULT_CHART_ERROR = 'Data error';
+const DEFAULT_CHART_ERROR = t("Couldn't load this visual");
 
-export const ChartErrorMessage: FC<Props> = ({ chartId, error, ...props }) => {
+export const ChartErrorMessage: FC<Props> = ({
+  chartId,
+  error,
+  subtitle,
+  // Stack traces are developer detail and are never shown in a chart.
+  stackTrace: _stackTrace,
+  ...props
+}) => {
   // fetches the chart owners and adds them to the extra data of the error message
   const { result: owners } = useChartOwnerNames(chartId);
 
-  // don't mutate props
+  // don't mutate props; `engine_name` would reveal the database type
+  const { engine_name: _engineName, ...extra } = error?.extra ?? {};
   const ownedError = error && {
     ...error,
-    extra: { ...error.extra, owners },
+    message: sanitizeErrorMessage(error.message),
+    extra: { ...extra, owners },
   };
 
   return (
     <ErrorMessageWithStackTrace
       {...props}
+      subtitle={
+        typeof subtitle === 'string' ? sanitizeErrorMessage(subtitle) : subtitle
+      }
       error={ownedError}
       title={DEFAULT_CHART_ERROR}
       closable={false}

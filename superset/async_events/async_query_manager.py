@@ -30,6 +30,7 @@ from superset.async_events.cache_backend import (
 )
 from superset.utils import json
 from superset.utils.core import get_user_id
+from superset.utils.error_sanitizer import sanitize_errors
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +296,12 @@ class AsyncQueryManager:
         if "job_id" not in job_metadata:
             raise AsyncQueryJobException("No job ID specified")
 
+        if "errors" in kwargs:
+            # Job events can be relayed to the browser without passing through
+            # Flask (websocket transport), so clean them before storing.
+            kwargs["errors"] = sanitize_errors(
+                kwargs["errors"], context=f"async job {job_metadata['job_id']}"
+            )
         updates = {"status": status, **kwargs}
         event_data = {"data": json.dumps({**job_metadata, **updates})}
 

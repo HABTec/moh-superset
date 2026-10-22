@@ -61,7 +61,10 @@ import {
 import { useIsAutoRefreshing } from 'src/dashboard/contexts/AutoRefreshContext';
 
 import SliceHeader from '../../SliceHeader';
-import ChartFooter, { findPercentOverHundred } from '../../ChartFooter';
+import ChartFooter, {
+  ADJUSTED_DENOMINATOR_TAB_ID,
+  findPercentOverHundred,
+} from '../../ChartFooter';
 import MissingChart from '../../MissingChart';
 
 import {
@@ -873,8 +876,19 @@ const Chart = (props: ChartProps) => {
     boundActionCreators.logEvent,
   ]);
 
+  // Charts on the Adjusted Denominator tab are the explanation the footer
+  // links to, so the footer is redundant there.
+  const isOnAdjustedDenominatorTab = useSelector((state: RootState) =>
+    Boolean(
+      state.dashboardLayout?.present?.[props.componentId]?.parents?.includes(
+        ADJUSTED_DENOMINATOR_TAB_ID,
+      ),
+    ),
+  );
+
   const showPercentFooter = useMemo(
     () =>
+      !isOnAdjustedDenominatorTab &&
       chartStatus !== 'loading' &&
       chartStatus !== 'failed' &&
       findPercentOverHundred({
@@ -882,7 +896,13 @@ const Chart = (props: ChartProps) => {
         formData: formData as unknown as Record<string, unknown>,
         queriesResponse: queriesResponse as { data?: unknown }[] | null,
       }),
-    [chartStatus, formData, props.sliceName, queriesResponse],
+    [
+      isOnAdjustedDenominatorTab,
+      chartStatus,
+      formData,
+      props.sliceName,
+      queriesResponse,
+    ],
   );
 
   // The footer takes its height from the chart body, like the header does.

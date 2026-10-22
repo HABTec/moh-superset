@@ -58,8 +58,42 @@ describe('ChartErrorMessage', () => {
     });
     render(<ChartErrorMessage {...defaultProps} />);
 
-    expect(screen.getByText('Data error')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load this visual")).toBeInTheDocument();
     expect(screen.getByText('Test subtitle')).toBeInTheDocument();
+  });
+
+  test('replaces technical error text with a generic message', () => {
+    mockUseChartOwnerNames.mockReturnValue({
+      result: null,
+      status: ResourceStatus.Loading,
+      error: null,
+    });
+    render(
+      <ChartErrorMessage
+        {...defaultProps}
+        subtitle="Error: HTTPDriver for http://127.0.0.1:8123 returned response code 408) Code: 159. DB::Exception: Timeout exceeded"
+        stackTrace="Traceback (most recent call last): File app.py, line 3"
+      />,
+    );
+
+    expect(
+      screen.getByText('Something went wrong while loading this.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/127\.0\.0\.1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Traceback/)).not.toBeInTheDocument();
+  });
+
+  test('keeps a friendly server message with its reference', () => {
+    mockUseChartOwnerNames.mockReturnValue({
+      result: null,
+      status: ResourceStatus.Loading,
+      error: null,
+    });
+    const friendly =
+      'This took too long to load. Try narrowing the filters, then try again. (Reference: 7F3A9C01)';
+    render(<ChartErrorMessage {...defaultProps} subtitle={friendly} />);
+
+    expect(screen.getByText(friendly)).toBeInTheDocument();
   });
 
   test('renders the error message that is passed in from the error', () => {

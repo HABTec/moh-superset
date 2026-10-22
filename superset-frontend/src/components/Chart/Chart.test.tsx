@@ -113,7 +113,7 @@ test('a failed dashboard chart offers Retry, which re-runs its query', async () 
     { useRedux: true },
   );
 
-  expect(screen.getByText('Unable to load this visual.')).toBeInTheDocument();
+  expect(screen.getByText("Couldn't load this visual")).toBeInTheDocument();
   await userEvent.click(screen.getByTestId('chart-retry'));
   expect(mockActions.postChartFormData).toHaveBeenCalledWith(
     baseProps.formData,

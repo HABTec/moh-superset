@@ -19,6 +19,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import logging
+import re
 import typing
 import uuid
 from datetime import datetime, timezone
@@ -43,6 +44,7 @@ from superset.exceptions import (
 )
 from superset.superset_typing import FlaskResponse
 from superset.utils import core as utils, json
+from superset.utils.error_sanitizer import ErrorSanitizer
 from superset.utils.log import get_logger_from_status
 from superset.views.utils import redirect_to_login
 
@@ -287,11 +289,67 @@ def handle_api_exception(
     return functools.update_wrapper(wraps, f)
 
 
+# Successful JSON responses only need scanning when they carry error fields
+# (e.g. async job events or per-query errors in a chart data payload).
+ERROR_FIELD_PATTERN = re.compile(
+    rb'"(?:errors?|error_message|stacktrace|stack_trace)"\s*:\s*["\[{]'
+)
+
+# SQL Lab and database connection management keep raw database errors: the
+# people using them need the exact message to fix their SQL or connection.
+DEFAULT_ERROR_SANITIZER_EXEMPT_PATHS = (
+    "/api/v1/sqllab/",
+    "/api/v1/query/",
+    "/api/v1/database/",
+)
+
+
+def sanitize_error_response(app: Flask, response: Response) -> Response:
+    """
+    Replace technical error text in a JSON response with plain-language
+    messages. See ``superset.utils.error_sanitizer``.
+    """
+    if (
+        not app.config.get("ERROR_SANITIZER_ENABLED", True)
+        or response.mimetype != "application/json"
+        or response.is_streamed
+        or response.direct_passthrough
+    ):
+        return response
+
+    exempt = app.config.get(
+        "ERROR_SANITIZER_EXEMPT_PATHS", DEFAULT_ERROR_SANITIZER_EXEMPT_PATHS
+    )
+    if request.path.startswith(tuple(exempt)):
+        return response
+
+    data = response.get_data()
+    if response.status_code < 400 and not ERROR_FIELD_PATTERN.search(data):
+        return response
+
+    try:
+        payload = json.loads(data)
+    except (ValueError, TypeError):
+        return response
+
+    sanitizer = ErrorSanitizer(context=request.path)
+    cleaned = sanitizer.sanitize(payload)
+    if sanitizer.changed:
+        response.set_data(
+            json.dumps(cleaned, default=json.json_iso_dttm_ser, ignore_nan=True)
+        )
+    return response
+
+
 def set_app_error_handlers(app: Flask) -> None:  # noqa: C901
     """
     Set up error handlers for the Flask app
     Refer to SIP-40 and SIP-41 for more details on the error handling strategy
     """
+
+    @app.after_request
+    def sanitize_errors(response: Response) -> Response:
+        return sanitize_error_response(app, response)
 
     @app.errorhandler(SupersetErrorException)
     def show_superset_error(ex: SupersetErrorException) -> FlaskResponse:

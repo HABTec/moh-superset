@@ -185,7 +185,7 @@ const RetryRow = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: ${({ theme }) => theme.sizeUnit * 4}px;
+  padding: ${({ theme }) => theme.sizeUnit * 4}px 0;
 `;
 
 const MessageSpan = styled.span`
@@ -389,7 +389,6 @@ class Chart extends PureComponent<ChartProps, {}> {
           {this.props.dashboardId && (
             // A failed request is not "no data": offer to try it again.
             <RetryRow>
-              <MessageSpan>{t('Unable to load this visual.')}</MessageSpan>
               <Button
                 buttonStyle="secondary"
                 buttonSize="small"

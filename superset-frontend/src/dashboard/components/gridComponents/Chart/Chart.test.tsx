@@ -27,6 +27,7 @@ import mockDatasource from 'spec/fixtures/mockDatasource';
 import chartQueries, {
   sliceId as queryId,
 } from 'spec/fixtures/mockChartQueries';
+import { ADJUSTED_DENOMINATOR_TAB_ID } from '../../ChartFooter';
 import Chart from './Chart';
 
 let capturedChartContainerProps: Record<string, unknown> = {};
@@ -523,6 +524,28 @@ test('omits the footer when coverage stays within 100%', () => {
   const { queryByTestId } = setup(
     { sliceName: 'Full Immunization Coverage' },
     withCoverageResult(99.5),
+  );
+
+  expect(queryByTestId('chart-footer')).not.toBeInTheDocument();
+});
+
+test('omits the footer on charts inside the Adjusted Denominator tab', () => {
+  const { queryByTestId } = setup(
+    { sliceName: 'Full Immunization Coverage' },
+    {
+      ...withCoverageResult(120.16),
+      dashboardLayout: {
+        present: {
+          test: {
+            id: 'test',
+            type: 'CHART',
+            parents: ['ROOT_ID', 'TABS-1', ADJUSTED_DENOMINATOR_TAB_ID],
+          },
+        },
+        past: [],
+        future: [],
+      },
+    },
   );
 
   expect(queryByTestId('chart-footer')).not.toBeInTheDocument();
