@@ -78,6 +78,11 @@ import { FilterControlProps } from './types';
 import { getFormData } from '../../utils';
 import { useFilterDependencies, useTransitiveParentIds } from './state';
 import { useFilterOutlined } from '../useFilterOutlined';
+import {
+  ParentValues,
+  getCascadeClearedValue,
+  shouldClearForParentChange,
+} from './cascadeReset';
 
 const HEIGHT = 32;
 
@@ -513,6 +518,59 @@ const FilterValue: FC<FilterValueProps> = ({
     [filter, onFilterSelectionChange],
   );
 
+  // A dependent filter's selection is only meaningful for the ancestor values
+  // it was made under (e.g. Quarter=Q3 for Year=2018), so clear it whenever
+  // the user changes or clears any ancestor.
+  const parentValues = useMemo<ParentValues>(
+    () =>
+      Object.fromEntries(
+        transitiveParentIds.map(pId => [
+          pId,
+          dataMaskSelected?.[pId]?.filterState?.value,
+        ]),
+      ),
+    [transitiveParentIds, dataMaskSelected],
+  );
+  const ownValue = filter.dataMask?.filterState?.value;
+  const prevParentValuesRef = useRef<ParentValues>(parentValues);
+  const prevOwnValueRef = useRef<unknown>(ownValue);
+  // Remounts the plugin so its internal selection state drops the old value.
+  const [cascadeResetKey, setCascadeResetKey] = useState(0);
+
+  useEffect(() => {
+    const prevParentValues = prevParentValuesRef.current;
+    const prevOwnValue = prevOwnValueRef.current;
+    prevParentValuesRef.current = parentValues;
+    prevOwnValueRef.current = ownValue;
+
+    // "Clear all" resets every filter itself.
+    if (isCustomization || clearAllTrigger) {
+      return;
+    }
+    if (
+      shouldClearForParentChange({
+        prevParentValues,
+        parentValues,
+        prevOwnValue,
+        ownValue,
+      })
+    ) {
+      const clearedValue = getCascadeClearedValue(filterType);
+      prevOwnValueRef.current = clearedValue;
+      onFilterSelectionChange(filter, {
+        extraFormData: {},
+        filterState: {
+          ...filter.dataMask?.filterState,
+          value: clearedValue,
+          label: undefined,
+        },
+      });
+      setCascadeResetKey(key => key + 1);
+    }
+    // Only ancestor/own value transitions should trigger a reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentValues, ownValue]);
+
   const setFocusedFilter = useCallback(() => {
     if (isCustomization) {
       return;
@@ -628,6 +686,7 @@ const FilterValue: FC<FilterValueProps> = ({
     </Flex>
   ) : (
     <SuperChart
+      key={cascadeResetKey}
       height={HEIGHT}
       width={RESPONSIVE_WIDTH}
       showOverflow={showOverflow}

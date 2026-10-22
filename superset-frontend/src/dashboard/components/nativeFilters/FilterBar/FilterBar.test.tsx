@@ -552,6 +552,73 @@ test('Clear All stages filter_select clear without dispatching until Apply', asy
   updateDataMaskSpy.mockRestore();
 });
 
+test('Clear All removes cross-filters such as a map region selection', async () => {
+  const filterId = 'NATIVE_FILTER-clear-cross';
+  const mapChartId = 18;
+  const updateDataMaskSpy = jest.spyOn(dataMaskActions, 'updateDataMask');
+  const selectFilter = createFilter({
+    id: filterId,
+    name: 'Region',
+    filterType: 'filter_select',
+    targets: [{ datasetId: 7, column: { name: 'region' } }],
+    defaultDataMask: { filterState: { value: null }, extraFormData: {} },
+    chartsInScope: [mapChartId],
+  });
+  const state = {
+    ...stateWithoutNativeFilters,
+    dashboardInfo: {
+      id: 1,
+      dash_edit_perm: true,
+      filterBarOrientation: FilterBarOrientation.Vertical,
+      metadata: {
+        native_filter_configuration: [selectFilter],
+        chart_configuration: {},
+      },
+    },
+    dashboardState: {
+      ...stateWithoutNativeFilters.dashboardState,
+      activeTabs: ['ROOT_ID'],
+    },
+    dataMask: {
+      [filterId]: createDataMask(filterId, null),
+      [mapChartId]: {
+        id: mapChartId,
+        filterState: { value: ['[[38.7,9.0]]'] },
+        extraFormData: {
+          filters: [
+            { col: 'geometry_geojson', op: 'IN', val: ['[[38.7,9.0]]'] },
+          ],
+        },
+      },
+    },
+    nativeFilters: {
+      filters: { [filterId]: selectFilter },
+      filtersState: {},
+    },
+  };
+
+  renderFilterBar(createOpenedBarProps(), state);
+  await act(async () => {
+    jest.advanceTimersByTime(300);
+  });
+
+  const clearBtn = screen.getByTestId(getTestId('clear-button'));
+  expect(clearBtn).not.toBeDisabled();
+  await act(async () => {
+    userEvent.click(clearBtn);
+  });
+
+  expect(updateDataMaskSpy).toHaveBeenCalledWith(String(mapChartId), {
+    extraFormData: { filters: [] },
+    filterState: { value: null, selectedValues: null },
+  });
+  expect(updateDataMaskSpy).not.toHaveBeenCalledWith(
+    filterId,
+    expect.anything(),
+  );
+  updateDataMaskSpy.mockRestore();
+});
+
 test('Clear All stages filter_range clear with [null, null], dispatched on Apply', async () => {
   fetchMock.post('glob:*/api/v1/chart/data', {
     result: [{ data: [{ min: 0, max: 100 }] }],

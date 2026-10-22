@@ -68,6 +68,7 @@ import { checkIsApplyDisabled, getFiltersToApply } from './utils';
 import { extractLabel } from '../selectors';
 import { FiltersBarProps } from './types';
 import {
+  useActiveCrossFilterIds,
   useAllAppliedDataMask,
   useFilters,
   useFilterUpdates,
@@ -168,6 +169,7 @@ const FilterBar: FC<FiltersBarProps> = ({
 }) => {
   const history = useHistory();
   const dataMaskApplied: DataMaskStateWithId = useAllAppliedDataMask();
+  const activeCrossFilterIds = useActiveCrossFilterIds();
 
   const [dataMaskSelected, setDataMaskSelected] =
     useImmer<DataMaskStateWithId>(dataMaskApplied);
@@ -521,6 +523,18 @@ const FilterBar: FC<FiltersBarProps> = ({
       }
     });
 
+    // Cross-filters (e.g. a region clicked on a map, filtering on
+    // geometry_geojson) apply immediately when set, so they are removed
+    // immediately too, exactly as the "x" on a cross-filter tag does.
+    activeCrossFilterIds.forEach(chartId => {
+      dispatch(
+        updateDataMask(chartId, {
+          extraFormData: { filters: [] },
+          filterState: { value: null, selectedValues: null },
+        }),
+      );
+    });
+
     const allDataMasks = { ...dataMaskSelected, ...dataMaskApplied };
     const hasCustomizationDataMasks = Object.keys(allDataMasks).some(key =>
       isChartCustomization(key),
@@ -558,6 +572,7 @@ const FilterBar: FC<FiltersBarProps> = ({
     chartCustomizationValues,
     clearAllTriggers,
     dispatch,
+    activeCrossFilterIds,
   ]);
 
   const handleClearAllComplete = useCallback((filterId: string) => {
@@ -653,6 +668,7 @@ const FilterBar: FC<FiltersBarProps> = ({
         isApplyDisabled={isApplyDisabled}
         chartCustomizationItems={chartCustomizationValues}
         hasOutOfScopeRequiredFilters={hasOutOfScopeRequiredFilters}
+        hasActiveCrossFilters={activeCrossFilterIds.length > 0}
       />
     ),
     [
@@ -665,6 +681,7 @@ const FilterBar: FC<FiltersBarProps> = ({
       isApplyDisabled,
       chartCustomizationValues,
       hasOutOfScopeRequiredFilters,
+      activeCrossFilterIds,
     ],
   );
 

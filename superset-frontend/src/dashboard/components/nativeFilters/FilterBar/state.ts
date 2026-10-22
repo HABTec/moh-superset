@@ -102,6 +102,35 @@ export const useAllAppliedDataMask = () => {
   return allAppliedMask;
 };
 
+/**
+ * Ids of charts emitting an active cross-filter (e.g. a region clicked on a
+ * map). Cross-filter data masks are keyed by the emitting chart's id, so they
+ * are everything that is not a native filter or chart customization.
+ */
+export const useActiveCrossFilterIds = () => {
+  const dataMask = useSelector<RootState, DataMaskStateWithId>(
+    state => state.dataMask,
+  );
+
+  return useMemo(
+    () =>
+      Object.values(dataMask)
+        .filter((item: DataMaskWithId) => {
+          const id = String(item.id);
+          const value = item.filterState?.value;
+          return (
+            !id.startsWith(NATIVE_FILTER_PREFIX) &&
+            !id.startsWith(CHART_CUSTOMIZATION_PREFIX) &&
+            !id.startsWith(LEGACY_GROUPBY_PREFIX) &&
+            value != null &&
+            !(Array.isArray(value) && value.length === 0)
+          );
+        })
+        .map((item: DataMaskWithId) => String(item.id)),
+    [dataMask],
+  );
+};
+
 export const useFilterUpdates = (
   dataMaskSelected: DataMaskState,
   setDataMaskSelected: (arg0: (arg0: DataMaskState) => void) => void,
