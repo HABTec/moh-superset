@@ -23,6 +23,7 @@ import { GeoJsonLayer, GeoJsonLayerProps } from '@deck.gl/layers';
 import { Feature, Geometry, GeoJsonProperties } from 'geojson';
 import geojsonExtent from '@mapbox/geojson-extent';
 import {
+  ensureIsArray,
   FilterState,
   HandlerFunction,
   JsonObject,
@@ -122,14 +123,24 @@ function setTooltipContent(o: JsonObject) {
   );
 }
 
-const getFillColor = (feature: JsonObject, filterStateValue: unknown[]) => {
+const getFillColor = (
+  feature: JsonObject,
+  filterStateValue: unknown[],
+  crossFilterColumn?: string | null,
+) => {
   const baseColor = feature?.properties?.fillColor;
 
   if (filterStateValue) {
-    if (
+    const selected = ensureIsArray(filterStateValue);
+    const dimensionVal = crossFilterColumn
+      ? feature?.properties?.[crossFilterColumn]
+      : undefined;
+    const isSelected =
       JSON.stringify(feature.geometry.coordinates) ===
-      JSON.stringify(filterStateValue?.[0])
-    ) {
+        JSON.stringify(selected[0]) ||
+      (dimensionVal != null &&
+        selected.some(val => String(val) === String(dimensionVal)));
+    if (isSelected) {
       return HIGHLIGHT_COLOR_ARRAY;
     }
 
@@ -323,7 +334,7 @@ export const getLayer: GetLayerType<GeoJsonLayer> = function ({
     filled: fd.filled,
     stroked: fd.stroked,
     getFillColor: (feature: JsonObject) =>
-      getFillColor(feature, filterState?.value),
+      getFillColor(feature, filterState?.value, fd.cross_filter_column),
     getLineColor,
     getLineWidth: fd.line_width || 1,
     pointRadiusScale: fd.point_radius_scale,

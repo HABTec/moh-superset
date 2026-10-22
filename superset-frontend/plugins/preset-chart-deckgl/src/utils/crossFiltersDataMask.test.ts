@@ -765,3 +765,101 @@ describe('getCrossFilterDataMask', () => {
     expect(dataMask).toStrictEqual(expected);
   });
 });
+
+const regionFormData = {
+  ...formData,
+  line_column: 'geometry_geojson',
+  cross_filter_column: 'region',
+};
+
+const pickRegion = (region: string) =>
+  ({
+    ...pickingData,
+    object: {
+      polygon: [
+        [38.7, 9.0],
+        [38.8, 9.0],
+        [38.8, 9.1],
+        [38.7, 9.0],
+      ],
+      region,
+      extraProps: {},
+    },
+  }) as unknown as PickingInfo;
+
+test('additive click adds a region to the selection as an IN filter', () => {
+  const result = getCrossFilterDataMask({
+    formData: regionFormData,
+    data: pickRegion('Oromia'),
+    filterState: { value: ['Amhara'] },
+    additive: true,
+  });
+
+  expect(result?.dataMask).toStrictEqual({
+    extraFormData: {
+      filters: [{ col: 'region', op: 'IN', val: ['Amhara', 'Oromia'] }],
+    },
+    filterState: { value: ['Amhara', 'Oromia'] },
+  });
+});
+
+test('additive click on a selected region removes it from the selection', () => {
+  const result = getCrossFilterDataMask({
+    formData: regionFormData,
+    data: pickRegion('Oromia'),
+    filterState: { value: ['Amhara', 'Oromia'] },
+    additive: true,
+  });
+
+  expect(result?.dataMask).toStrictEqual({
+    extraFormData: {
+      filters: [{ col: 'region', op: '==', val: 'Amhara' }],
+    },
+    filterState: { value: ['Amhara'] },
+  });
+});
+
+test('additive click on the last selected region clears the selection', () => {
+  const result = getCrossFilterDataMask({
+    formData: regionFormData,
+    data: pickRegion('Amhara'),
+    filterState: { value: ['Amhara'] },
+    additive: true,
+  });
+
+  expect(result?.dataMask).toStrictEqual({
+    extraFormData: { filters: [] },
+    filterState: { value: null },
+  });
+});
+
+test('additive click with nothing selected selects the single region', () => {
+  const result = getCrossFilterDataMask({
+    formData: regionFormData,
+    data: pickRegion('Afar'),
+    filterState: {},
+    additive: true,
+  });
+
+  expect(result?.dataMask).toStrictEqual({
+    extraFormData: {
+      filters: [{ col: 'region', op: '==', val: 'Afar' }],
+    },
+    filterState: { value: ['Afar'] },
+  });
+});
+
+test('plain click with several regions selected narrows to the clicked one', () => {
+  const result = getCrossFilterDataMask({
+    formData: regionFormData,
+    data: pickRegion('Oromia'),
+    filterState: { value: ['Amhara', 'Oromia'] },
+  });
+
+  expect(result?.dataMask).toStrictEqual({
+    extraFormData: {
+      filters: [{ col: 'region', op: '==', val: 'Oromia' }],
+    },
+    filterState: { value: ['Oromia'] },
+  });
+});

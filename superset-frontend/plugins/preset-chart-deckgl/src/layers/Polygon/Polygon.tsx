@@ -25,6 +25,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@apache-superset/core/translation';
 import {
   ContextMenuFilters,
+  ensureIsArray,
   FilterState,
   HandlerFunction,
   JsonObject,
@@ -140,13 +141,17 @@ function isRegionBoundaryFeature(d: JsonObject): boolean {
     d.extraProps && typeof d.extraProps === 'object'
       ? (d.extraProps as Record<string, unknown>)
       : undefined;
-  const hasWoredaProp = 'woreda' in d || (extraProps != null && 'woreda' in extraProps);
-  const hasZoneProp = 'zone' in d || (extraProps != null && 'zone' in extraProps);
+  const hasWoredaProp =
+    'woreda' in d || (extraProps != null && 'woreda' in extraProps);
+  const hasZoneProp =
+    'zone' in d || (extraProps != null && 'zone' in extraProps);
   if (!hasWoredaProp && !hasZoneProp) {
     return false;
   }
 
-  return isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'));
+  return (
+    isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'))
+  );
 }
 
 export const getLayer = function ({
@@ -250,10 +255,18 @@ export const getLayer = function ({
       (baseColorScaler(d) as [number, number, number, number]) ||
       TRANSPARENT_COLOR_ARRAY;
     const polygonPoints = getPointsFromPolygon(d);
+    const selectedValues = ensureIsArray(filterState?.value).map(String);
+    const crossFilterCol = fd.cross_filter_column;
+    const feature = d as JsonObject;
+    const dimensionVal = crossFilterCol
+      ? (feature[crossFilterCol] ?? feature.extraProps?.[crossFilterCol])
+      : undefined;
 
     const isPolygonFilterSelected =
-      JSON.stringify(polygonPoints).replaceAll(' ', '') ===
-      filterState?.value?.[0];
+      selectedValues.includes(
+        JSON.stringify(polygonPoints).replaceAll(' ', ''),
+      ) ||
+      (dimensionVal != null && selectedValues.includes(String(dimensionVal)));
 
     if (filterState?.value && !isPolygonFilterSelected) {
       baseColor[3] /= 3;
@@ -495,9 +508,7 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
             ? formData.mapbox_style
             : formData.maplibre_style
         }
-        mapProvider={
-          formData.map_renderer === 'mapbox' ? 'mapbox' : 'maplibre'
-        }
+        mapProvider={formData.map_renderer === 'mapbox' ? 'mapbox' : 'maplibre'}
         width={props.width}
         height={props.height}
       />

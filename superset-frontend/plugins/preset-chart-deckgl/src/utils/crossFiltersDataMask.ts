@@ -532,14 +532,57 @@ const getGeojsonFilters = ({
   };
 };
 
+type FilterValue = string | number | boolean;
+
+/**
+ * Add the picked value to, or remove it from, the current selection. Only
+ * single-value equality filters (region/feature layers) can be combined into
+ * one `IN` filter; returns null for anything else so the caller falls back to
+ * replacing the selection.
+ */
+const toggleInSelection = (
+  result: FilterResult,
+  filterState?: FilterState,
+): FilterResult | null => {
+  const [clause] = result.filters;
+  const picked = (result.values as FilterValue[])[0];
+  const current = filterState?.value;
+  if (
+    result.filters.length !== 1 ||
+    clause.op !== '==' ||
+    !Array.isArray(current) ||
+    current.length === 0 ||
+    picked == null
+  ) {
+    return null;
+  }
+  const pickedKey = String(picked);
+  const next: FilterValue[] = current.some(
+    (val: FilterValue) => String(val) === pickedKey,
+  )
+    ? current.filter((val: FilterValue) => String(val) !== pickedKey)
+    : [...current, picked];
+
+  let filters: QueryObjectFilterClause[] = [];
+  if (next.length === 1) {
+    filters = [{ col: clause.col, op: '==', val: next[0] }];
+  } else if (next.length > 1) {
+    filters = [{ col: clause.col, op: 'IN', val: next }];
+  }
+  return { ...result, values: next, filters };
+};
+
 export const getCrossFilterDataMask = ({
   data,
   filterState,
   formData,
+  additive = false,
 }: {
   data: PickingInfo;
   filterState?: FilterState;
   formData: LayerFormData;
+  /** Toggle the picked feature in the current selection instead of replacing it. */
+  additive?: boolean;
 }) => {
   let values: FilterState['value'] = [];
   let filters: QueryObjectFilterClause[] = [];
@@ -551,20 +594,38 @@ export const getCrossFilterDataMask = ({
   } else if (formData.spatial?.type) {
     const result = getSpatialFilters({ formData, data, filterState });
     ({ values, filters, customColumnLabel } = result);
-  } else if (formData.line_column) {
-    const result = getLineColumnFilters({ formData, data });
-    ({ values, filters, customColumnLabel } = result);
-  } else if (formData.geojson) {
-    const result = getGeojsonFilters({ formData, data });
+  } else if (formData.line_column || formData.geojson) {
+    const result = formData.line_column
+      ? getLineColumnFilters({ formData, data })
+      : getGeojsonFilters({ formData, data });
+    const toggled = additive ? toggleInSelection(result, filterState) : null;
+    if (toggled) {
+      const hasValues = toggled.values.length > 0;
+      return {
+        dataMask: {
+          extraFormData: { filters: toggled.filters },
+          filterState: {
+            value: hasValues ? toggled.values : null,
+            ...(toggled.customColumnLabel && hasValues
+              ? { customColumnLabel: toggled.customColumnLabel }
+              : {}),
+          },
+        },
+        isCurrentValueSelected: false,
+      } as ContextMenuFilters['crossFilter'];
+    }
     ({ values, filters, customColumnLabel } = result);
   } else {
     throw new Error('No valid spatial configuration found in form data');
   }
 
+  // Clicking the only selected feature again clears the selection; with
+  // several features selected, a plain click narrows to the clicked one.
   const isSelected =
     values &&
+    filterState?.value?.length === values.length &&
     filterState?.value?.every(
-      (val: string, i: number) => val.toString() === values[i].toString(),
+      (val: string, i: number) => val?.toString() === values[i]?.toString(),
     );
 
   if (isSelected) {
