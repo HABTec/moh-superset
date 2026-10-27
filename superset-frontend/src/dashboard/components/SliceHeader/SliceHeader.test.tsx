@@ -102,6 +102,20 @@ jest.mock('src/dashboard/components/FiltersBadge', () => ({
   ),
 }));
 
+let mockSelectedOrgUnit: string | null = null;
+jest.mock('src/dashboard/components/DashboardContext/useGlobalContext', () => {
+  const actual = jest.requireActual(
+    'src/dashboard/components/DashboardContext/useGlobalContext',
+  );
+  return {
+    ...actual,
+    useGlobalContext: (chartId?: number) => ({
+      ...actual.useGlobalContext(chartId),
+      selectedOrgUnit: mockSelectedOrgUnit,
+    }),
+  };
+});
+
 jest.mock('src/dashboard/util/isEmbedded', () => ({
   isEmbedded: jest.fn().mockReturnValue(false),
 }));
@@ -585,6 +599,9 @@ test('Should render RowCountLabel when row limit is hit, and hide it otherwise',
   });
 
   expect(screen.getByTestId('warning')).toBeInTheDocument();
+  expect(screen.getByTestId('row-limit-banner')).toHaveTextContent(
+    'Showing the first 10 rows only. Some data is not displayed.',
+  );
 
   rerender(
     <SliceHeader
@@ -594,6 +611,7 @@ test('Should render RowCountLabel when row limit is hit, and hide it otherwise',
   );
 
   expect(screen.queryByTestId('warning')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('row-limit-banner')).not.toBeInTheDocument();
 
   mockUseUiConfig.mockRestore();
 });
@@ -939,4 +957,31 @@ test('Should NOT show row count warning for table chart with server pagination w
   expect(screen.queryByTestId('warning')).not.toBeInTheDocument();
 
   mockUseUiConfig.mockRestore();
+});
+
+test('Should leave the picked org unit to the context chip, not the title', () => {
+  mockSelectedOrgUnit = 'Amhara Region';
+  (useUiConfig as jest.MockedFunction<typeof useUiConfig>).mockReturnValue({
+    hideTitle: false,
+    hideTab: false,
+    hideNav: false,
+    hideChartControls: false,
+    emitDataMasks: false,
+    showRowLimitWarning: false,
+  });
+  try {
+    render(<SliceHeader {...createProps()} />, {
+      useRedux: true,
+      useRouter: true,
+      initialState,
+    });
+    expect(
+      screen.getByText('Vaccine Candidates per Phase'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Vaccine Candidates per Phase — Amhara Region'),
+    ).not.toBeInTheDocument();
+  } finally {
+    mockSelectedOrgUnit = null;
+  }
 });

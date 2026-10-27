@@ -26,7 +26,13 @@ import {
   useState,
 } from 'react';
 import { t } from '@apache-superset/core/translation';
-import { getExtensionsRegistry, QueryData, VizType } from '@superset-ui/core';
+import {
+  getExtensionsRegistry,
+  getNumberFormatter,
+  QueryData,
+  VizType,
+} from '@superset-ui/core';
+import { Alert } from '@apache-superset/core/components';
 import {
   css,
   styled,
@@ -44,7 +50,11 @@ import ChartContextChip from 'src/dashboard/components/DashboardContext/ChartCon
 import CustomizationsBadge from 'src/dashboard/components/CustomizationsBadge';
 import { RootState } from 'src/dashboard/types';
 import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip';
-import { useDynamicChartTitle } from 'src/dashboard/components/SliceHeader/useDynamicChartTitle';
+import {
+  appendOrgUnitToTitle,
+  useDynamicChartTitle,
+} from 'src/dashboard/components/SliceHeader/useDynamicChartTitle';
+import { useGlobalContext } from 'src/dashboard/components/DashboardContext/useGlobalContext';
 import { DashboardPageIdContext } from 'src/dashboard/containers/DashboardPage';
 import RowCountLabel from 'src/components/RowCountLabel';
 import { Link } from 'react-router-dom';
@@ -78,6 +88,18 @@ const CrossFilterIcon = styled(Icons.ApartmentOutlined)`
     cursor: default;
     color: ${theme.colorPrimary};
     line-height: 1.8;
+  `}
+`;
+
+// Takes a full row under the title so truncation is visible without
+// hovering the warning icon (hover does not exist on touch screens).
+const RowLimitBanner = styled(Alert)`
+  ${({ theme }) => css`
+    flex: 0 0 100%;
+    margin-top: ${theme.sizeUnit}px;
+    padding: ${theme.sizeUnit}px ${theme.sizeUnit * 2}px;
+    font-size: ${theme.fontSizeSM}px;
+    font-weight: ${theme.fontWeightNormal};
   `}
 `;
 
@@ -218,7 +240,11 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
 
     const theme = useTheme();
 
+    const { selectedOrgUnit } = useGlobalContext(slice.slice_id);
+    // The on-screen title leaves the org unit to the context chip below it;
+    // downloaded files still name it, since a file name has no chip.
     const dynamicTitle = useDynamicChartTitle(slice.slice_id, sliceName ?? '');
+    const exportTitle = appendOrgUnitToTitle(dynamicTitle, selectedOrgUnit);
 
     const rowLimit = Number(formData.row_limit ?? 0);
 
@@ -372,7 +398,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
               {!uiConfig.hideChartControls && (
                 <SliceHeaderControls
                   slice={slice}
-                  dynamicTitle={dynamicTitle}
+                  dynamicTitle={exportTitle}
                   isCached={isCached}
                   isExpanded={isExpanded}
                   cachedDttm={cachedDttm}
@@ -410,6 +436,17 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
         </div>
         {!editMode && !uiConfig.hideChartControls && (
           <ChartContextChip chartId={slice.slice_id} />
+        )}
+        {!editMode && showRowLimitWarning && (
+          <RowLimitBanner
+            data-test="row-limit-banner"
+            type="warning"
+            showIcon
+            message={t(
+              'Showing the first %s rows only. Some data is not displayed.',
+              getNumberFormatter()(rowLimit),
+            )}
+          />
         )}
       </ChartHeaderStyles>
     );

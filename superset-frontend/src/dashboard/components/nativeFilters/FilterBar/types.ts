@@ -60,6 +60,12 @@ export interface FiltersBarProps {
   mobile?: boolean;
   orientation: FilterBarOrientation;
   verticalConfig?: VerticalBarConfig;
+  /**
+   * Whether to hold the filters back until the surrounding dashboard charts
+   * have finished loading. Surfaces without dashboard charts, such as Explore,
+   * pass false so the filters are usable immediately. Defaults to true.
+   */
+  waitForCharts?: boolean;
 }
 
 export type HorizontalBarProps = CommonFiltersBarProps & {

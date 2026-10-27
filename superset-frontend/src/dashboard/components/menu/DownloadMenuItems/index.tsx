@@ -49,6 +49,8 @@ export interface UseDownloadMenuItemsProps {
   title: string;
   disabled?: boolean;
   userCanExport?: boolean;
+  /** Owners/editors only; gates the developer-facing exports. */
+  userCanEdit?: boolean;
   canExportImage?: boolean;
 }
 
@@ -64,6 +66,7 @@ export const useDownloadMenuItems = (
     disabled,
     title,
     userCanExport,
+    userCanEdit,
     canExportImage,
   } = props;
 
@@ -197,27 +200,37 @@ export const useDownloadMenuItems = (
         },
       ];
 
-  const exportMenuItems: MenuItem[] = [
-    {
-      key: 'export-yaml',
-      label: t('Export YAML'),
-      onClick: onExportZip,
-    },
-    ...(userCanExport
+  // YAML and example bundles are developer artefacts, so they are kept out
+  // of the briefing exports that readers see.
+  const exportMenuItems: MenuItem[] =
+    userCanExport && userCanEdit
       ? [
+          {
+            key: 'export-yaml',
+            label: t('Export YAML'),
+            onClick: onExportZip,
+          },
           {
             key: 'export-as-example',
             label: t('Export as Example'),
             onClick: onExportAsExample,
           },
         ]
-      : []),
-  ];
+      : [];
 
   const children: MenuItem[] = [
     ...screenshotMenuItems,
-    { type: 'divider', key: 'export-divider' },
-    ...exportMenuItems,
+    ...(exportMenuItems.length
+      ? [
+          { type: 'divider' as const, key: 'export-divider' },
+          {
+            type: 'group' as const,
+            key: 'developer-exports',
+            label: t('For dashboard owners'),
+            children: exportMenuItems,
+          },
+        ]
+      : []),
   ];
 
   return {

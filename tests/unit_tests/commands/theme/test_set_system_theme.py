@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from superset.commands.theme.exceptions import ThemeNotFoundError
+from superset.commands.theme.exceptions import ThemeNotDarkError, ThemeNotFoundError
 from superset.commands.theme.set_system_theme import (
     ClearSystemDarkThemeCommand,
     ClearSystemDefaultThemeCommand,
@@ -91,6 +91,7 @@ class TestSetSystemDarkThemeCommand:
         # Create a mock theme
         mock_theme = MagicMock(spec=Theme)
         mock_theme.id = 2
+        mock_theme.json_data = '{"algorithm": "dark"}'
         mock_dao.find_by_id.return_value = mock_theme
 
         # Mock the update query
@@ -131,6 +132,43 @@ class TestSetSystemDarkThemeCommand:
 
         # Verify the theme was searched for
         mock_dao.find_by_id.assert_called_once_with(999)
+
+    @pytest.mark.parametrize(
+        "json_data",
+        [
+            '{"algorithm": "default"}',
+            '{"token": {"colorPrimary": "#1a5cff"}}',
+            '["dark"]',
+            "{not json",
+            None,
+        ],
+    )
+    @patch("superset.commands.theme.set_system_theme.db.session")
+    @patch("superset.commands.theme.set_system_theme.ThemeDAO")
+    def test_set_system_dark_rejects_non_dark_theme(
+        self, mock_dao, mock_session, json_data
+    ):
+        """A theme that does not use the dark algorithm cannot be system dark"""
+        mock_theme = MagicMock(spec=Theme)
+        mock_theme.id = 5
+        mock_theme.json_data = json_data
+        mock_dao.find_by_id.return_value = mock_theme
+
+        with pytest.raises(ThemeNotDarkError):
+            SetSystemDarkThemeCommand(5).run()
+
+        mock_session.execute.assert_not_called()
+
+    @patch("superset.commands.theme.set_system_theme.db.session")
+    @patch("superset.commands.theme.set_system_theme.ThemeDAO")
+    def test_set_system_dark_accepts_algorithm_list(self, mock_dao, mock_session):
+        """A dark algorithm combined with others (e.g. compact) is accepted"""
+        mock_theme = MagicMock(spec=Theme)
+        mock_theme.id = 6
+        mock_theme.json_data = '{"algorithm": ["dark", "compact"]}'
+        mock_dao.find_by_id.return_value = mock_theme
+
+        assert SetSystemDarkThemeCommand(6).run() == mock_theme
 
 
 class TestClearSystemDefaultThemeCommand:
@@ -211,6 +249,7 @@ class TestSystemThemeConstraints:
         # Create mock themes
         mock_theme_new = MagicMock(spec=Theme)
         mock_theme_new.id = 4
+        mock_theme_new.json_data = '{"algorithm": "dark"}'
         mock_dao.find_by_id.return_value = mock_theme_new
 
         # Mock update to track the SQL

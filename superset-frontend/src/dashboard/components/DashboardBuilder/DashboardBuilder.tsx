@@ -49,7 +49,9 @@ import {
   deleteTopLevelTabs,
   handleComponentDrop,
   clearDashboardHistory,
+  updateComponents,
 } from 'src/dashboard/actions/dashboardLayout';
+import fitOverfullRows from 'src/dashboard/util/fitOverfullRows';
 import { DropResult } from 'src/dashboard/components/dnd/dragDroppableConfig';
 import {
   DASHBOARD_GRID_ID,
@@ -88,8 +90,8 @@ import DashboardWrapper from './DashboardWrapper';
 
 // @z-index-above-dashboard-charts + 1 = 11
 const FiltersPanel = styled.div<{ width: number; hidden: boolean }>`
-  background-color: #e8f2fb;
-  border-right: 2px solid #2893b3;
+  background-color: ${({ theme }) => theme.colorPrimaryBg};
+  border-right: 2px solid ${({ theme }) => theme.colorPrimary};
   box-sizing: border-box;
   grid-column: 1;
   grid-row: 1 / span 2;
@@ -933,14 +935,16 @@ const DashboardBuilder = () => {
     state => state.dashboardInfo,
   );
   const dashboardId = `${dashboardInfo.id}`;
-  const responsiveDashboardEnabled =
-    isResponsiveDashboardEnabled(dashboardInfo);
   const dashboardLayout = useSelector<RootState, DashboardLayout>(
     state => state.dashboardLayout.present,
   );
   const editMode = useSelector<RootState, boolean>(
     state => state.dashboardState.editMode,
   );
+  // Responsive sizing is for viewing only. In edit mode it would override the
+  // grid widths being dragged and lift charts above their resize handles.
+  const responsiveDashboardEnabled =
+    isResponsiveDashboardEnabled(dashboardInfo) && !editMode;
   const canEdit = useSelector<RootState, boolean>(
     ({ dashboardInfo }) => dashboardInfo.dash_edit_perm,
   );
@@ -1060,6 +1064,18 @@ const DashboardBuilder = () => {
     },
     [dispatch],
   );
+
+  // A saved row can be wider than the grid (its widths add up to more than
+  // 12 columns). Viewing hides this by squeezing the row, but the editor's
+  // grid is fixed-width, so the overflow would sit under the builder panel
+  // with its resize handle out of reach. Fit such rows when editing starts.
+  useEffect(() => {
+    if (!editMode) return;
+    const fitted = fitOverfullRows(dashboardLayout);
+    if (Object.keys(fitted).length) {
+      dispatch(updateComponents(fitted));
+    }
+  }, [dashboardLayout, dispatch, editMode]);
 
   const handleDeleteTopLevelTabs = useCallback(() => {
     dispatch(deleteTopLevelTabs());

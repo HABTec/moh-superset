@@ -37,6 +37,13 @@ import {
 } from './types';
 import { normalizeThemeConfig, serializeThemeConfig } from './utils';
 
+const ANTD_TOKEN_KEYS = new Set<string>(allowedAntdTokens);
+
+// One Emotion cache for the whole app. Class names are hashes of the CSS, so
+// styles from different themes never collide, and a style already inserted is
+// not inserted again when the theme changes or a themed dashboard remounts.
+const supersetEmotionCache = createCache({ key: 'superset' });
+
 export class Theme {
   // Forward-compat: TS 6.0 enforces strictPropertyInitialization here;
   // both fields are assigned via setConfig() during construction, so we
@@ -133,11 +140,21 @@ export class Theme {
         echartsOptionsOverridesByChartType?: Record<string, any>;
       };
 
+    // Ant Design has already applied the config's own colour tokens, adjusted
+    // for the dark algorithm where needed. Laying the raw values back on top
+    // would put light colours into dark mode, so only Superset-specific tokens
+    // (brand, fonts, extra sizes) are added here.
+    const supersetOnlyTokens = Object.fromEntries(
+      Object.entries(antdConfig.token ?? {}).filter(
+        ([key]) => !ANTD_TOKEN_KEYS.has(key),
+      ),
+    );
+
     // Set the base theme properties
     this.antdConfig = antdConfig;
     this.theme = {
       ...tokens, // First apply Ant Design computed tokens
-      ...antdConfig.token, // Then override with our custom tokens
+      ...supersetOnlyTokens, // Then add tokens Ant Design doesn't know
       // Include Superset-specific properties from top-level config
       ...(echartsOptionsOverrides && { echartsOptionsOverrides }),
       ...(echartsOptionsOverridesByChartType && {
@@ -146,11 +163,7 @@ export class Theme {
     } as SupersetTheme;
 
     // Update the providers with the fully formed theme
-    this.updateProviders(
-      this.theme,
-      this.antdConfig,
-      createCache({ key: 'superset' }),
-    );
+    this.updateProviders(this.theme, this.antdConfig, supersetEmotionCache);
   }
 
   /**
@@ -202,7 +215,19 @@ export class Theme {
     // Overridden at runtime by SupersetThemeProvider using setThemeState
   }
 
-  SupersetThemeProvider({ children }: { children: React.ReactNode }) {
+  /**
+   * Provides this theme to its children.
+   * @param withGlobalStyles - Paint page-wide styles (html, body). Nested
+   *   providers, such as a dashboard's own theme, pass false so they style only
+   *   their own content and don't repaint the page around them.
+   */
+  SupersetThemeProvider({
+    children,
+    withGlobalStyles = true,
+  }: {
+    children: React.ReactNode;
+    withGlobalStyles?: boolean;
+  }) {
     if (!this.theme || !this.antdConfig) {
       throw new Error('Theme is not initialized.');
     }
@@ -211,7 +236,7 @@ export class Theme {
     const [themeState, setThemeState] = React.useState({
       theme: this.theme,
       antdConfig: this.antdConfig,
-      emotionCache: createCache({ key: 'superset' }),
+      emotionCache: supersetEmotionCache,
     });
 
     this.updateProviders = (theme, antdConfig, emotionCache) => {
@@ -221,7 +246,7 @@ export class Theme {
     return (
       <EmotionCacheProvider value={themeState.emotionCache}>
         <ThemeProvider theme={themeState.theme}>
-          <GlobalStyles />
+          {withGlobalStyles && <GlobalStyles />}
           <ConfigProvider theme={themeState.antdConfig}>
             {children}
           </ConfigProvider>

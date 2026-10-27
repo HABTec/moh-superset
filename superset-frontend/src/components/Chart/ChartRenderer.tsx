@@ -40,11 +40,13 @@ import { t } from '@apache-superset/core/translation';
 import { Logger, LOG_ACTIONS_RENDER_CHART } from 'src/logger/LogUtils';
 import { EmptyState } from '@superset-ui/core/components';
 import { ChartSource } from 'src/types/ChartSource';
+import ChartNoDataState from 'src/dashboard/components/ChartNoDataState';
 import type { Datasource, ChartStatus } from 'src/explore/types';
 import type { Dispatch } from 'redux';
 import ChartContextMenu, {
   ChartContextMenuRef,
 } from './ChartContextMenu/ChartContextMenu';
+import hasNoValidData from './hasNoValidData';
 
 // Types for filter values
 type FilterValue = string | number | boolean | null | undefined;
@@ -480,7 +482,13 @@ class ChartRenderer extends Component<ChartRendererProps, ChartRendererState> {
           )
         : undefined;
     const noResultImage = 'chart.svg';
-    if (
+    const isDashboard = this.props.source === ChartSource.Dashboard;
+    if (isDashboard) {
+      // Dashboards share one actionable empty state across every chart type.
+      noResultsComponent = (
+        <ChartNoDataState chartId={chartId} width={width} height={height} />
+      );
+    } else if (
       (width ?? 0) > BIG_NO_RESULT_MIN_WIDTH &&
       (height ?? 0) > BIG_NO_RESULT_MIN_HEIGHT
     ) {
@@ -518,6 +526,16 @@ class ChartRenderer extends Component<ChartRendererProps, ChartRendererState> {
       currentFormDataExtended?.server_pagination &&
       (hasSearchText || hasAgGridFilters)
     );
+
+    // Rows whose measures are all NULL would draw as a "No data" figure, an
+    // empty map or a "<NULL>" slice that reads like a real result.
+    if (
+      isDashboard &&
+      bypassNoResult &&
+      hasNoValidData(this.mutableQueriesResponse, currentFormDataExtended)
+    ) {
+      return noResultsComponent;
+    }
 
     return (
       <>

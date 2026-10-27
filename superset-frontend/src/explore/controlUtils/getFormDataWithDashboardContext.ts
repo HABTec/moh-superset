@@ -195,16 +195,24 @@ export const getFormDataWithDashboardContext = (
   exploreFormData: QueryFormData,
   dashboardContextFormData: JsonObject,
   saveAction?: string | null,
+  /**
+   * When `includeNativeFilters` is false the dashboard's native filters are
+   * left out of the returned form data. Explore then merges them straight from
+   * the data mask on every query, which is what the Explore filter bar needs
+   * so that changing a value takes effect. Baking them in as well would apply
+   * both the stale and the new value at once. Defaults to true, so callers
+   * without a filter bar keep the previous behaviour.
+   */
+  { includeNativeFilters = true }: { includeNativeFilters?: boolean } = {},
 ) => {
   const filterBoxData = mergeFilterBoxToFormData(
     exploreFormData,
     dashboardContextFormData,
   );
 
-  const nativeFiltersData = mergeNativeFiltersToFormData(
-    exploreFormData,
-    dashboardContextFormData,
-  );
+  const nativeFiltersData = includeNativeFilters
+    ? mergeNativeFiltersToFormData(exploreFormData, dashboardContextFormData)
+    : {};
   const isDeckGLChart =
     exploreFormData.viz_type === 'deck_multi' ||
     dashboardContextFormData.viz_type === 'deck_multi';

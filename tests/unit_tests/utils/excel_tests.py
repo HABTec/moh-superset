@@ -129,3 +129,22 @@ def test_column_data_types_with_large_numeric_values():
         "1100108628127863",
         "18014398509481984",
     ]
+
+
+def test_columns_fit_their_content_and_the_header_stays_in_view() -> None:
+    """
+    Test that columns are widened to their content, so large numbers are not
+    shown in scientific notation, and that the header row is frozen.
+    """
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    df = pd.DataFrame(
+        {"category_option_combo": ["No Disaggregation"], "Value": [3002249810]}
+    )
+    sheet = load_workbook(BytesIO(df_to_excel(df, index=False))).active
+
+    assert sheet.freeze_panes == "A2"
+    assert sheet.column_dimensions["A"].width > len("category_option_combo")
+    assert sheet.column_dimensions["B"].width > len("3002249810")

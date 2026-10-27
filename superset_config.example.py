@@ -25,10 +25,8 @@ from urllib.parse import urlparse as _urlparse
 
 from cachelib.redis import RedisCache
 from celery.schedules import crontab
-from superset.config import (
-    THEME_DARK as _APACHE_THEME_DARK,
-    THEME_DEFAULT as _APACHE_THEME_DEFAULT,
-)
+
+from superset.config import THEME_DEFAULT as _APACHE_THEME_DEFAULT
 
 # -----------------------------------------------------------------------------
 # SECURITY
@@ -45,6 +43,11 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
     "SUPERSET_DATABASE_URI",
     "postgresql+psycopg2://superset:CHANGE_ME@localhost:5432/superset",
 )
+
+# Dashboard layout (position_json) size limit, in characters. Superset's
+# default of 65535 mirrors MySQL TEXT; the Postgres metadata DB stores it as
+# unbounded TEXT, so large multi-tab dashboards need a higher ceiling.
+SUPERSET_DASHBOARD_POSITION_DATA_LIMIT = 1_000_000
 
 # -----------------------------------------------------------------------------
 # EXTERNAL SERVICES
@@ -98,6 +101,39 @@ HTTP_HEADERS = {"X-Frame-Options": "ALLOWALL"}
 ENABLE_CSS_TEMPLATES = True
 
 # -----------------------------------------------------------------------------
+# MARKDOWN / HTML SANITIZATION
+# -----------------------------------------------------------------------------
+HTML_SANITIZATION = True  # keep sanitization on, but extend what's allowed
+HTML_SANITIZATION_SCHEMA_EXTENSIONS = {
+    "attributes": {
+        "*": [
+            "style",
+            "className",
+            "src",
+            "width",
+            "height",
+            "frameborder",
+            "marginwidth",
+            "marginheight",
+            "scrolling",
+        ],
+        "iframe": [
+            "src",
+            "width",
+            "height",
+            "frameborder",
+            "marginwidth",
+            "marginheight",
+            "scrolling",
+        ],
+        # Lets Markdown links open outside the portal (target="_blank"
+        # rel="noopener noreferrer"); without these the sanitizer strips them.
+        "a": ["target", "rel"],
+    },
+    "tagNames": ["iframe"],
+}
+
+# -----------------------------------------------------------------------------
 # BRANDING & IDENTITY
 # -----------------------------------------------------------------------------
 VERSION_STRING = "MoH 6.0"
@@ -109,16 +145,45 @@ LOGO_TOOLTIP = "MoH Analytics Portal"
 LOGO_RIGHT_TEXT = ""
 FAVICONS = [{"href": "/moh-static/moh_icon.png"}]
 
-_MOH_BRAND_TOKENS = {
+# Brand settings shared by the light and dark themes
+_MOH_SHARED_BRAND_TOKENS = {
     "brandLogoUrl": APP_ICON,
     "brandLogoAlt": "Ministry of Health",
     "brandAppName": APP_NAME,
     "brandLogoHref": "/",
     "brandLogoHeight": "32px",
     "brandSpinnerUrl": "/moh-static/moh_icon.png",
+}
+
+# Light colours (WCAG AA on white)
+_MOH_LIGHT_COLOR_TOKENS = {
     "colorPrimary": "#1a5cff",
     "colorLink": "#1a5cff",
+    "colorTextTertiary": "#626B77",
+    "colorWarning": "#8F5D00",
 }
+
+# Dark colours, checked after Ant Design's dark algorithm adjusts them:
+# primary #3d74ff -> #3766dc (white button text 5.13:1, 3.59:1 on cards),
+# link #7aa5ff -> #6b8fdc (5.78:1 on #141414, 5.17:1 on #1f1f1f),
+# tertiary text 6.06:1 / 5.42:1, warning #e8a317 -> #c88e17 (6.44:1 / 5.76:1),
+# error text #ec6b78 (6.09:1 / 5.45:1).
+_MOH_DARK_COLOR_TOKENS = {
+    "colorPrimary": "#3d74ff",
+    "colorLink": "#7aa5ff",
+    "colorTextTertiary": "#8b95a1",
+    "colorWarning": "#e8a317",
+    # Error text only; danger buttons keep the default fill for white text
+    "colorErrorText": "#ec6b78",
+}
+
+_MOH_BRAND_TOKENS = {**_MOH_SHARED_BRAND_TOKENS, **_MOH_LIGHT_COLOR_TOKENS}
+
+# Single switch for dark mode. Keep False until the dark theme has been reviewed.
+MOH_DARK_MODE_ENABLED = False
+
+# Users who have not chosen a mode start in light.
+THEME_DEFAULT_MODE = "default"
 
 THEME_DEFAULT = {
     **_APACHE_THEME_DEFAULT,
@@ -127,10 +192,17 @@ THEME_DEFAULT = {
 
 THEME_DARK = (
     {
-        **_APACHE_THEME_DARK,
-        "token": {**_APACHE_THEME_DARK["token"], **_MOH_BRAND_TOKENS},
+        **_APACHE_THEME_DEFAULT,
+        "algorithm": "dark",
+        "token": {
+            **_APACHE_THEME_DEFAULT["token"],
+            **_MOH_SHARED_BRAND_TOKENS,
+            **_MOH_DARK_COLOR_TOKENS,
+            # Darker selection colour for the SQL editor
+            "colorEditorSelection": "#5c4d1a",
+        },
     }
-    if _APACHE_THEME_DARK
+    if MOH_DARK_MODE_ENABLED
     else None
 )
 
@@ -170,9 +242,7 @@ def _origin_of(url):
 
 _MOH_CSP_DEV_ORIGIN = _origin_of(_MOH_CSP_DEV_ORIGIN)
 _MOH_AI_IFRAME_ORIGIN = _origin_of(_MOH_AI_IFRAME_URL)
-_MOH_CSP_EXTRA_ORIGINS = [
-    o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o
-]
+_MOH_CSP_EXTRA_ORIGINS = [o for o in (_MOH_CSP_DEV_ORIGIN, _MOH_AI_IFRAME_ORIGIN) if o]
 
 _MOH_CSP = {
     "default-src": ["'self'"],
@@ -271,9 +341,52 @@ MOH_LEVEL_ONE_GUEST_USERNAMES = {
     if name.strip()
 }
 
+# Dashboard tabs only level-one users see: {dashboard id: {tab title: [org
+# unit ids whose users (and users below them) may see it too]}}. Everyone else
+# never receives the tab or its charts. Admins and dashboard owners see all.
+# Defaults (superset/moh_tab_access.py) cover dashboard 3; set this to change.
+# MOH_RESTRICTED_TABS = {
+#     3: {"Multi Source": [], "Triangulation": ["G9hDiPNoB7d"]},  # Dire Dawa
+# }
+
 from superset.moh_security_manager import MoHSecurityManager
 
 CUSTOM_SECURITY_MANAGER = MoHSecurityManager
+
+# -----------------------------------------------------------------------------
+# CONTEXT STRIP — source, data as of and reporting completeness per tab
+# -----------------------------------------------------------------------------
+# Served by /api/v1/moh/dhis2/tab-context (superset/moh_context.py). The
+# defaults there cover dashboards 3 (Performance Monitoring) and 8 (Health
+# Intelligence) as they exist today; override only what differs.
+#
+# A DHIS2 month counts as complete — and becomes "Data as of" — once its
+# reporting completeness reaches this percentage. Newer months show as
+# "received so far".
+MOH_COMPLETENESS_THRESHOLD = 80
+# A reporting form counts toward completeness only if it was reported within
+# the latest N months with data; retired forms (e.g. "00 - Monthly common
+# dataset") then stop diluting the figure.
+MOH_ACTIVE_FORM_MONTHS = 3
+# Dashboard ids differ between environments. Map each dashboard's tabs (path
+# prefix, outermost tab first, " / " between levels; the longest match wins)
+# to source keys. Omit to use the defaults in superset/moh_context.py.
+# MOH_CONTEXT_TABS = {
+#     8: [
+#         ("Services Delivery", ["dhis2"]),
+#         ("Services Delivery / Maternal", ["dhis2", "edhs"]),
+#         ("PHEM", ["phem"]),
+#     ],
+# }
+# Add or override sources. "annual"/"snapshot" sources need a read-only
+# SELECT returning one value (a year, a period label, a date).
+# MOH_CONTEXT_SOURCES = {
+#     "phem": {
+#         "label": "PHEM surveillance",
+#         "kind": "annual",
+#         "query": "SELECT max(fiscal_year) FROM moh.disease_surveillance",
+#     },
+# }
 
 # -----------------------------------------------------------------------------
 # LANDING PAGE
@@ -318,7 +431,10 @@ PHC_MONITORING_DASHBOARD_IFRAME_URL = os.environ.get(
 DECKGL_BASE_MAP = [
     ["/moh-static/blank-style.json", "Blank (Ethiopia only)"],
     ["https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", "Light (Carto)"],
-    ["https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json", "Dark (Carto)"],
+    [
+        "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        "Dark (Carto)",
+    ],
     ["https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json", "Streets (Carto)"],
     ["https://tiles.openfreemap.org/styles/liberty", "Liberty (OpenFreeMap)"],
 ]
@@ -332,6 +448,55 @@ DEFAULT_ZOOM = 5.8
 # -----------------------------------------------------------------------------
 MOH_TV_INTERVAL_SECONDS = int(os.environ.get("MOH_TV_INTERVAL_SECONDS", "30"))
 MOH_TV_SLIDES = []
+
+# Optional TV page settings. Every key below has a working default, so none
+# has to be set.
+#
+# Type sizes for a 55-inch 1080p panel viewed from 3 m. The TV page builds its
+# theme override from these (chart text from tv_size_chart, everything else
+# from tv_size_floor) and hands it to the dashboard for the wall only.
+# MOH_TV_TYPE_SCALE_TOKENS = {"tv_size_floor": 22, "tv_size_chart": 24}
+#
+# A full theme JSON, to replace the one built from the tokens above.
+# MOH_TV_THEME = {...}
+#
+# Slides are laid out on this fixed canvas and it is scaled to the screen. A
+# slide taller than the canvas is shrunk to fit and flagged on the label.
+# MOH_TV_CANVAS_WIDTH = 1920
+# MOH_TV_CANVAS_HEIGHT = 1080
+#
+# A slide is skipped when every visible chart is empty or failed, when at
+# least this share of them are, or when it renders nothing. The dwell timer
+# starts once the slide's charts have loaded, waiting at most this many seconds.
+# MOH_TV_SKIP_EMPTY_RATIO = 0.8
+# MOH_TV_READY_TIMEOUT_SECONDS = 25
+# Yengwe identity / context strip (no database edit). Defaults are used if omitted.
+# MOH_TV_MASTHEAD_TITLE = "Ministry of Health"
+# MOH_TV_WORDMARK = "Service Delivery"
+# MOH_TV_GEOGRAPHY = "National · Ethiopia"
+# Period on the mast and strip is the EFY year the visible chart titles name
+# (blank when none does). /data-freshness only feeds the "Data as of" chip.
+# MOH_TV_PERIOD = "2018 EFY"
+# Default when a slide does not name its own source. Service-delivery slides
+# use this; Health Equity / PHEM / Blood / financing / etc. are mapped in code.
+# A slide may also set "source": "EDHS · Survey" in MOH_TV_SLIDES / MOH_TV_GROUPS.
+# MOH_TV_SOURCE = "DHIS2 · Routine"
+#
+# Text that marks a chart as empty. The default covers Superset's no-results
+# message, the Big Number NULL fallbacks and "Not available". Setting this key
+# replaces the whole list, so keep the defaults and append any extras.
+# MOH_TV_EMPTY_MARKERS = [
+#     "No results were returned for this query",
+#     "No data",
+#     "NULL",
+#     "No data after filtering",
+#     "Try applying different filters",
+#     "Not available",
+# ]
+#
+# A slide in MOH_TV_SLIDES / MOH_TV_GROUPS may set "annotation": one sentence,
+# written by the indicator owner, shown at 26 px under the slide title. Leave
+# it out until the owner supplies the copy.
 
 # -----------------------------------------------------------------------------
 # REDIS
@@ -359,6 +524,7 @@ THUMBNAIL_CACHE_CONFIG = {
     **CACHE_CONFIG,
     "CACHE_REDIS_DB": 3,
 }
+
 
 # -----------------------------------------------------------------------------
 # CELERY

@@ -17,6 +17,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from superset.themes.types import ThemeMode
 from superset.views.base import (
     _load_theme_from_model,
@@ -530,6 +532,133 @@ class TestGetThemeBootstrapData:
         assert result["theme"]["enableUiThemeAdministration"] is False
         assert result["theme"]["default"] == {}
         assert result["theme"]["dark"] == {}
+
+    @patch("superset.views.base.app")
+    @patch("superset.views.base.get_config_value")
+    @patch("superset.views.base.ThemeDAO")
+    def test_db_dark_theme_ignored_when_dark_mode_disabled(
+        self,
+        mock_dao,
+        mock_get_config,
+        mock_app,
+    ):
+        """THEME_DARK = None keeps dark mode off even with a system dark theme"""
+        mock_app.config = MagicMock()
+        mock_app.config.get.side_effect = lambda k, d=None: {
+            "ENABLE_UI_THEME_ADMINISTRATION": True,
+        }.get(k, d)
+        mock_get_config.side_effect = lambda k: {
+            "THEME_DEFAULT": {"token": {"colorPrimary": "#config1"}},
+            "THEME_DARK": None,
+        }.get(k)
+        mock_dark_theme = MagicMock()
+        mock_dark_theme.json_data = '{"algorithm": "dark"}'
+        mock_dao.find_system_default.return_value = None
+        mock_dao.find_system_dark.return_value = mock_dark_theme
+
+        result = get_theme_bootstrap_data()
+
+        assert result["theme"]["dark"] == {}
+        assert result["theme"]["darkModeEnabled"] is False
+        mock_dao.find_system_dark.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "configured, expected",
+        [
+            ("default", "default"),
+            ("dark", "dark"),
+            ("system", "system"),
+            ("bogus", "system"),
+            (None, "system"),
+        ],
+    )
+    @patch("superset.views.base.app")
+    @patch("superset.views.base.get_config_value")
+    def test_default_mode_sent_to_client(
+        self, mock_get_config, mock_app, configured, expected
+    ):
+        """THEME_DEFAULT_MODE reaches the client, falling back to system"""
+        settings = {"ENABLE_UI_THEME_ADMINISTRATION": False}
+        if configured is not None:
+            settings["THEME_DEFAULT_MODE"] = configured
+        mock_app.config = MagicMock()
+        mock_app.config.get.side_effect = lambda k, d=None: settings.get(k, d)
+        mock_get_config.side_effect = lambda k: None
+
+        result = get_theme_bootstrap_data()
+
+        assert result["theme"]["defaultMode"] == expected
+
+    @patch("superset.views.base.app")
+    @patch("superset.views.base.get_config_value")
+    @patch("superset.views.base.ThemeDAO")
+    def test_dark_theme_gets_brand_tokens_from_system_default(
+        self,
+        mock_dao,
+        mock_get_config,
+        mock_app,
+    ):
+        """Branding from the system default theme reaches the dark theme"""
+        mock_app.config = MagicMock()
+        mock_app.config.get.side_effect = lambda k, d=None: {
+            "ENABLE_UI_THEME_ADMINISTRATION": True,
+        }.get(k, d)
+        mock_get_config.side_effect = lambda k: {
+            "THEME_DEFAULT": {"token": {"colorPrimary": "#light"}},
+            "THEME_DARK": {
+                "token": {"colorPrimary": "#dark", "brandLogoAlt": "Old"},
+                "algorithm": "dark",
+            },
+        }.get(k)
+        mock_default_theme = MagicMock()
+        mock_default_theme.json_data = (
+            '{"token": {"brandLogoAlt": "HABTech", "fontFamily": "Noto Sans",'
+            ' "colorPrimary": "#db-light"}}'
+        )
+        mock_dao.find_system_default.return_value = mock_default_theme
+        mock_dao.find_system_dark.return_value = None
+
+        result = get_theme_bootstrap_data()
+
+        dark_tokens = result["theme"]["dark"]["token"]
+        assert dark_tokens["brandLogoAlt"] == "HABTech"
+        assert dark_tokens["fontFamily"] == "Noto Sans"
+        # Colours stay dark-specific
+        assert dark_tokens["colorPrimary"] == "#dark"
+        assert result["theme"]["dark"]["algorithm"] == "dark"
+
+    @patch("superset.views.base.app")
+    @patch("superset.views.base.get_config_value")
+    @patch("superset.views.base.ThemeDAO")
+    def test_light_theme_marked_system_dark_is_ignored(
+        self,
+        mock_dao,
+        mock_get_config,
+        mock_app,
+    ):
+        """A light theme flagged as system dark falls back to the config dark theme"""
+        mock_app.config = MagicMock()
+        mock_app.config.get.side_effect = lambda k, d=None: {
+            "ENABLE_UI_THEME_ADMINISTRATION": True,
+        }.get(k, d)
+        mock_get_config.side_effect = lambda k: {
+            "THEME_DEFAULT": {"token": {"colorPrimary": "#light"}},
+            "THEME_DARK": {"token": {"colorPrimary": "#dark"}, "algorithm": "dark"},
+        }.get(k)
+        light_but_marked_dark = MagicMock()
+        light_but_marked_dark.id = 7
+        light_but_marked_dark.json_data = (
+            '{"algorithm": "default", "token": {"colorPrimary": "#1E5CE0"}}'
+        )
+        mock_dao.find_system_default.return_value = None
+        mock_dao.find_system_dark.return_value = light_but_marked_dark
+
+        with patch("superset.views.base.logger") as mock_logger:
+            result = get_theme_bootstrap_data()
+
+        assert result["theme"]["dark"]["algorithm"] == "dark"
+        assert result["theme"]["dark"]["token"]["colorPrimary"] == "#dark"
+        mock_logger.warning.assert_called_once()
 
 
 class TestBrandAppNameFallback:

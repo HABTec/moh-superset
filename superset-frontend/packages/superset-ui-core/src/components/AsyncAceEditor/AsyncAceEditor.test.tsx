@@ -19,6 +19,8 @@
 import { createRef } from 'react';
 import { render, screen, waitFor } from '@superset-ui/core/spec';
 import type AceEditor from 'react-ace';
+import { ThemeProvider } from '@emotion/react';
+import { Theme, ThemeAlgorithm } from '@apache-superset/core/theme';
 import {
   AsyncAceEditor,
   SQLEditor,
@@ -365,4 +367,33 @@ test('does not move autocomplete popup if target container is document.body', as
     editorInstance.container.closest = originalClosest;
   }
   document.body.removeChild(mockAutocompletePopup);
+});
+
+test('uses a dark syntax scheme when the app theme is dark', async () => {
+  const darkTheme = Theme.fromConfig({ algorithm: ThemeAlgorithm.DARK }).theme;
+  const { container } = render(
+    <ThemeProvider theme={darkTheme}>
+      <CssEditor />
+    </ThemeProvider>,
+  );
+
+  await waitFor(() => {
+    expect(container.querySelector('.ace-tomorrow-night')).toBeInTheDocument();
+  });
+  expect(container.querySelector('.ace-github')).not.toBeInTheDocument();
+});
+
+test('keeps the light syntax scheme when the app theme is light', async () => {
+  const lightTheme = Theme.fromConfig({
+    algorithm: ThemeAlgorithm.DEFAULT,
+  }).theme;
+  const { container } = render(
+    <ThemeProvider theme={lightTheme}>
+      <CssEditor />
+    </ThemeProvider>,
+  );
+
+  await waitFor(() => {
+    expect(container.querySelector('.ace-github')).toBeInTheDocument();
+  });
 });

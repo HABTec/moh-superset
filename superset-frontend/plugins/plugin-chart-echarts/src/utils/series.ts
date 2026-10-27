@@ -31,6 +31,7 @@ import {
   TimeFormatter,
   ValueFormatter,
 } from '@superset-ui/core';
+import { t } from '@apache-superset/core/translation';
 import { SupersetTheme } from '@apache-superset/core/theme';
 import { GenericDataType } from '@apache-superset/core/common';
 import { SortSeriesType, LegendPaddingType } from '@superset-ui/chart-controls';
@@ -69,7 +70,8 @@ const LEGEND_SELECTOR_GAP = 10;
 const LEGEND_MARGIN_GUTTER = 45;
 // ECharts does not expose pre-render measurements for plain legends, so these
 // values intentionally overestimate selector space to avoid clipping.
-const ESTIMATED_LEGEND_SELECTOR_WIDTH = 112;
+// Sized for the spelled-out "Select all" / "Invert selection" labels.
+const ESTIMATED_LEGEND_SELECTOR_WIDTH = 176;
 const LEGEND_TEXT_WIDTH_CACHE = new Map<string, number>();
 const LEGEND_ITEM_TOOLTIP_HIDE_DELAY = 5000;
 
@@ -850,7 +852,14 @@ export function getLegendProps(
     show,
     type,
     selected: legendState ?? {},
-    selector: showSelectors ? ['all', 'inverse'] : false,
+    // Spelled out because the ECharts defaults ("All" / "Inv.") are not
+    // self-explanatory and legend selectors cannot carry a tooltip.
+    selector: showSelectors
+      ? [
+          { type: 'all', title: t('Select all') },
+          { type: 'inverse', title: t('Invert selection') },
+        ]
+      : false,
     selectorLabel: {
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSizeSM,

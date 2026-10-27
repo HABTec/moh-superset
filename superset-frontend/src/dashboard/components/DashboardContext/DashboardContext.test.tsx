@@ -28,6 +28,7 @@ import reducerIndex from 'spec/helpers/reducerIndex';
 import { stateWithoutNativeFilters } from 'spec/fixtures/mockStore';
 import ChartContextChip from './ChartContextChip';
 import DashboardContextStrip from './DashboardContextStrip';
+import { resetTabContextRequestsForTests } from './useTabContext';
 
 const monthlyPeriod = {
   period: '201901',
@@ -438,4 +439,188 @@ test('strip is hidden while editing the dashboard', () => {
   expect(
     screen.queryByTestId('dashboard-context-strip'),
   ).not.toBeInTheDocument();
+});
+
+test('chart chip adds the data source and data-as-of for a chart under a known source', async () => {
+  renderWithState(<ChartContextChip chartId={10} />);
+  await waitFor(() =>
+    expect(screen.getByTestId('chart-context-chip')).toHaveTextContent(
+      '2018 EFY | Oromia Region | DHIS2 · data as of 2019 EFY · Meskerem',
+    ),
+  );
+  expect(screen.getByTestId('chart-context-chip')).toHaveAttribute(
+    'title',
+    '2018 EFY | Oromia Region | DHIS2 · data as of 2019 EFY · Meskerem',
+  );
+});
+
+test('chart chip names no source for a tab without an agreed data source', async () => {
+  // Chart 600 is on Multi Source but a Year filter reaches it: period only,
+  // and no source/data-as-of because that tab has no agreed update time.
+  renderWithState(<ChartContextChip chartId={600} />, {
+    ...state,
+    dashboardInfo: {
+      ...state.dashboardInfo,
+      metadata: {
+        ...state.dashboardInfo.metadata,
+        native_filter_configuration: [{ ...year, chartsInScope: [600] }, org],
+      },
+    },
+    dashboardLayout: {
+      ...state.dashboardLayout,
+      present: {
+        ...state.dashboardLayout.present,
+        'CHART-600': chart('CHART-600', 600, 'TAB-4'),
+      },
+    },
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId('chart-context-chip')).toHaveTextContent(
+      '2018 EFY',
+    ),
+  );
+  expect(screen.getByTestId('chart-context-chip')).not.toHaveTextContent(
+    'DHIS2',
+  );
+});
+
+const TAB_CONTEXT_URL = 'glob:*/api/v1/moh/dhis2/tab-context*';
+
+// The real dashboard always has an id; the shared mock store does not.
+const stateWithDashboardId = {
+  ...state,
+  dashboardInfo: { ...state.dashboardInfo, id: 3 },
+};
+const TAB_CONTEXT_ROUTE = 'tab-context';
+
+function mockTabContext(body: object) {
+  resetTabContextRequestsForTests();
+  fetchMock.removeRoute(TAB_CONTEXT_ROUTE);
+  fetchMock.get(TAB_CONTEXT_URL, body, { name: TAB_CONTEXT_ROUTE });
+}
+
+const nehase = {
+  period: '201812',
+  fiscalYear: '2019',
+  monthName: 'Nehase',
+  quarterName: 'Hamle to Meskerem (Q1)',
+};
+
+test('strip shows source, data as of and reporting completeness for a DHIS2 tab', async () => {
+  mockTabContext({
+    sources: [
+      {
+        key: 'dhis2',
+        label: 'DHIS2',
+        kind: 'dhis2',
+        latestPeriod: nehase,
+        inProgress: {
+          ...nehase,
+          period: '201901',
+          monthName: 'Meskerem',
+          completeness: 64,
+        },
+      },
+      { key: 'edhs', label: 'EDHS', kind: 'annual', latest: '2024' },
+    ],
+    completeness: {
+      value: 85,
+      timeliness: 75,
+      months: 1,
+      from: nehase,
+      to: nehase,
+      includesInProgress: false,
+      target: 80,
+      meetsTarget: true,
+    },
+  });
+
+  renderWithState(<DashboardContextStrip />, stateWithDashboardId);
+
+  await waitFor(() =>
+    expect(screen.getByTestId('context-source')).toHaveTextContent(
+      'Source DHIS2 · EDHS',
+    ),
+  );
+  expect(screen.getByTestId('data-as-of')).toHaveTextContent(
+    'Data as of DHIS2 2019 EFY · Nehase · EDHS 2024',
+  );
+  expect(screen.getByTestId('in-progress-month')).toHaveTextContent(
+    '2019 EFY · Meskerem: 64% received so far',
+  );
+  expect(screen.getByTestId('reporting-completeness')).toHaveTextContent(
+    'Reporting completeness 85% · on time 75% · 2019 EFY · Nehase · on target',
+  );
+
+  const url = String(fetchMock.callHistory.lastCall(TAB_CONTEXT_ROUTE)?.url);
+  const payload = JSON.parse(new URL(url).searchParams.get('q') as string);
+  expect(payload.tabPath).toEqual(['Summary', 'Child Health']);
+  expect(payload.fiscalYears).toEqual(['2018']);
+});
+
+test('strip states a survey source and its year with no completeness', async () => {
+  mockTabContext({
+    sources: [
+      {
+        key: 'phem',
+        label: 'PHEM surveillance',
+        kind: 'annual',
+        latest: '2017 EFY',
+      },
+    ],
+    completeness: null,
+  });
+
+  renderWithState(<DashboardContextStrip />, stateWithDashboardId);
+
+  await waitFor(() =>
+    expect(screen.getByTestId('data-as-of')).toHaveTextContent(
+      'Data as of 2017 EFY',
+    ),
+  );
+  expect(screen.getByTestId('context-source')).toHaveTextContent(
+    'Source PHEM surveillance',
+  );
+  expect(
+    screen.queryByTestId('reporting-completeness'),
+  ).not.toBeInTheDocument();
+});
+
+test('strip names a completeness below target in words', async () => {
+  mockTabContext({
+    sources: [
+      { key: 'dhis2', label: 'DHIS2', kind: 'dhis2', latestPeriod: nehase },
+    ],
+    completeness: {
+      value: 61.2,
+      timeliness: 50,
+      months: 1,
+      from: nehase,
+      to: nehase,
+      includesInProgress: false,
+      target: 80,
+      meetsTarget: false,
+    },
+  });
+
+  renderWithState(<DashboardContextStrip />, stateWithDashboardId);
+
+  await waitFor(() =>
+    expect(screen.getByTestId('reporting-completeness')).toHaveTextContent(
+      'below 80% target',
+    ),
+  );
+});
+
+test('strip keeps the previous data as of when the tab has no configured source', async () => {
+  mockTabContext({ sources: [], completeness: null });
+
+  renderWithState(<DashboardContextStrip />, stateWithDashboardId);
+
+  await waitFor(() =>
+    expect(screen.getByTestId('data-as-of')).toHaveTextContent(
+      'Data as of 2019 EFY · Meskerem',
+    ),
+  );
+  expect(screen.queryByTestId('context-source')).not.toBeInTheDocument();
 });

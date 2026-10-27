@@ -1309,8 +1309,22 @@ test('setThemeConfig updates stored theme mode', () => {
   );
 });
 
+// Stand-in for Theme.fromConfig that merges like the real one, for tests that
+// read the merged config back through toSerializedConfig()
+const mergeLikeFromConfig = (
+  config: AnyThemeConfig,
+  base?: AnyThemeConfig,
+) => ({
+  toSerializedConfig: () => ({
+    ...base,
+    ...config,
+    token: { ...base?.token, ...config?.token },
+  }),
+});
+
 // Override and applied theme ID tests
-test('setThemeMode clears dev override and crud theme from storage', () => {
+test('setThemeMode keeps an applied theme and clears the crud theme', () => {
+  mockThemeFromConfig.mockImplementation(mergeLikeFromConfig);
   mockGetBootstrapData.mockReturnValue(
     createMockBootstrapData({
       default: DEFAULT_THEME,
@@ -1334,15 +1348,17 @@ test('setThemeMode clears dev override and crud theme from storage', () => {
 
   controller.setThemeMode(ThemeMode.DARK);
 
-  expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
+  expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith(
     'superset-dev-theme-override',
   );
   expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
     'superset-crud-theme-id',
   );
+  expect(controller.hasDevOverride()).toBe(true);
 });
 
-test('setThemeMode can be called with same mode when overrides exist', () => {
+test('setThemeMode re-applies an applied theme in the chosen mode', () => {
+  mockThemeFromConfig.mockImplementation(mergeLikeFromConfig);
   mockGetBootstrapData.mockReturnValue(
     createMockBootstrapData({
       default: DEFAULT_THEME,
@@ -1357,22 +1373,57 @@ test('setThemeMode can be called with same mode when overrides exist', () => {
     themeObject: mockThemeObject,
   });
 
-  jest.clearAllMocks();
-
   Reflect.set(controller, 'devThemeOverride', {
     token: { colorPrimary: '#ff0000' },
   });
 
+  jest.clearAllMocks();
+
+  controller.setThemeMode(ThemeMode.DARK);
+
+  const applied =
+    mockSetConfig.mock.calls[mockSetConfig.mock.calls.length - 1][0];
+  expect(applied.algorithm).toBe(antdThemeImport.darkAlgorithm);
+  expect(applied.token.colorPrimary).toBe('#ff0000');
+
   controller.setThemeMode(ThemeMode.DEFAULT);
 
-  expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
-    'superset-dev-theme-override',
-  );
-  expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
-    'superset-crud-theme-id',
+  const reapplied =
+    mockSetConfig.mock.calls[mockSetConfig.mock.calls.length - 1][0];
+  expect(reapplied.algorithm).toBe(antdThemeImport.defaultAlgorithm);
+  expect(reapplied.token.colorPrimary).toBe('#ff0000');
+});
+
+test('an applied theme with forceMode light stays light in dark mode', () => {
+  mockThemeFromConfig.mockImplementation(mergeLikeFromConfig);
+  mockGetBootstrapData.mockReturnValue(
+    createMockBootstrapData({
+      default: DEFAULT_THEME,
+      dark: DARK_THEME,
+    }),
   );
 
-  expect(mockSetConfig).toHaveBeenCalled();
+  mockLocalStorage.getItem.mockReturnValue(null);
+
+  const controller = new ThemeController({
+    storage: mockLocalStorage,
+    themeObject: mockThemeObject,
+  });
+
+  Reflect.set(controller, 'devThemeOverride', {
+    forceMode: 'light',
+    token: { fontSize: 22 },
+  });
+
+  jest.clearAllMocks();
+
+  controller.setThemeMode(ThemeMode.DARK);
+
+  const applied =
+    mockSetConfig.mock.calls[mockSetConfig.mock.calls.length - 1][0];
+  expect(applied.algorithm).toBe(antdThemeImport.defaultAlgorithm);
+  expect(applied.forceMode).toBeUndefined();
+  expect(controller.getCurrentModeResolved()).toBe('light');
 });
 
 test('setThemeMode with no override and same mode does not trigger update', () => {

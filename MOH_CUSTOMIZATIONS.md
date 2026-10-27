@@ -41,6 +41,7 @@ The same customizations work in two runtimes:
 | `superset/moh_ai_insights.py` | **NEW** | Flask blueprint for per-chart AI insights (`/ai-insights/chart/<chart_id>/`). Hybrid: real LLM (Gemini/Claude/OpenAI) when configured, demo template generator otherwise |
 | `superset-frontend/src/components/AiInsightPanel/` | **NEW** | React side panel rendered to the right of each dashboard chart. Summarizes the chart's Redux query data, posts it to the blueprint, and displays the generated insight |
 | `superset-frontend/src/dashboard/components/gridComponents/ChartHolder/ChartHolder.tsx` | **MODIFIED** | Renders the `AiInsightPanel` beside each chart when the `MOH_AI_INSIGHTS` feature flag is on (shrinks the chart width to make room) |
+| `superset/moh_tab_access.py` | **NEW** | Dashboard tabs reserved for level-one (national) users: hidden from everyone else, with per-tab exceptions by org unit (`MOH_RESTRICTED_TABS`) |
 
 ### 1.2 What each piece does
 
@@ -53,6 +54,12 @@ The same customizations work in two runtimes:
 - `CACHE_CONFIG` / `DATA_CACHE_CONFIG` / `THUMBNAIL_CACHE_CONFIG` → Redis-backed caches on separate DBs (1/2/3), 24h/1h TTL
 - `GLOBAL_ASYNC_QUERIES_REDIS_CONFIG` → Redis DB 4 for async query state
 - `RESULTS_BACKEND` → Redis DB 5 for SQL Lab results (replaces filesystem backend)
+
+**`superset/moh_tab_access.py`** — Hides dashboard tabs from users who are not at the national level (org-unit level 1). The default rule is for dashboard 3, MOH Performance Monitoring:
+- **Multi Source**: shown to level-one users only.
+- **Triangulation**: shown to level-one users and to users whose assigned org unit is Dire Dawa City Administration (`G9hDiPNoB7d`) or lies below it.
+
+For everyone else the tab and everything inside it are left out of `/api/v1/dashboard/<id>` (layout), `/charts` and `/tabs`, and `MoHSecurityManager.raise_for_access` refuses data for its charts on that dashboard. Admins, the dashboard's owners and level-one users see every tab; owners are exempt so that saving the dashboard in edit mode never drops tabs. Tabs are matched by title, so renaming a tab lifts its restriction. Override the rules with `MOH_RESTRICTED_TABS` in `superset_config.py`.
 
 **`superset/landing_view.py`** — Replaces FAB's default index. Queries published dashboards from the metadata DB, picks the dashboard with the most top-level tabs as the "featured" hero, lists the rest as compact pills. Located at top-level (not under `superset/views/`) on purpose — importing through `superset.views` triggers an init cascade that uses `security_manager` before it's initialized, causing `AttributeError`.
 
@@ -974,13 +981,19 @@ if os.environ.get("MOH_USE_PLAYWRIGHT", "false").lower() == "true":
     FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
 ```
 
-For dashboards that pull from a remote Postgres role with a low connection
-limit, keep the SQLAlchemy pool tiny or requests hang and screenshots time out:
+When the metadata DB is a remote Postgres role with a connection limit, cap the
+SQLAlchemy pool so Superset stays within it. Each gunicorn worker gets its own
+pool and serves many threads (gthread) that all need a metadata connection, so
+a pool of 1 serializes the whole app: dashboards load slowly and requests fail
+with `QueuePool limit of size 1 overflow 0 reached`. Size it as
+`workers × (pool_size + max_overflow)` + Celery concurrency + beat, and keep
+that under the role's `rolconnlimit` minus what other servers on the same role
+use. With 4 workers the values below use about 8 connections, and 20 at peak:
 
 ```python
-SQLALCHEMY_POOL_SIZE = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "1"))
-SQLALCHEMY_MAX_OVERFLOW = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "0"))
-SQLALCHEMY_POOL_TIMEOUT = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "30"))
+SQLALCHEMY_POOL_SIZE = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "2"))
+SQLALCHEMY_MAX_OVERFLOW = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "3"))
+SQLALCHEMY_POOL_TIMEOUT = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "10"))
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_size": SQLALCHEMY_POOL_SIZE,
     "max_overflow": SQLALCHEMY_MAX_OVERFLOW,

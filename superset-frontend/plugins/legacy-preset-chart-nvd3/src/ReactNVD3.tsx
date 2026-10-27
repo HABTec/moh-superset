@@ -18,7 +18,7 @@
  */
 // @ts-nocheck -- legacy reactified component with untyped `this` context from reactify callbacks
 import { reactify } from '@superset-ui/core';
-import { styled } from '@apache-superset/core/theme';
+import { css, isThemeDark, styled } from '@apache-superset/core/theme';
 import PropTypes from 'prop-types';
 import Component from './NVD3Vis';
 import { hideTooltips, removeTooltip } from './utils';
@@ -80,6 +80,38 @@ export default styled(NVD3)`
     g.nv-series text {
       fill: ${({ theme }) => theme.colorText};
     }
+    /* Bullet chart: nv.d3.css hardcodes light bands and black markers, which
+       disappear on a dark background. Light mode keeps the library's look. */
+    ${({ theme }) =>
+      isThemeDark(theme) &&
+      css`
+        .nvd3.nv-bullet .nv-range {
+          fill-opacity: 1;
+        }
+        .nvd3.nv-bullet .nv-range.nv-s0 {
+          fill: ${theme.colorFillSecondary};
+        }
+        .nvd3.nv-bullet .nv-range.nv-s1 {
+          fill: ${theme.colorFill};
+        }
+        .nvd3.nv-bullet .nv-range.nv-s2 {
+          fill: ${theme.colorTextQuaternary};
+        }
+        .nvd3.nv-bullet .nv-marker,
+        .nvd3.nv-bullet .nv-markerLine {
+          stroke: ${theme.colorText};
+        }
+        .nvd3.nv-bullet .nv-markerTriangle {
+          stroke: ${theme.colorText};
+          fill: ${theme.colorBgContainer};
+        }
+        .nvd3.nv-bullet .nv-tick line {
+          stroke: ${theme.colorTextTertiary};
+        }
+        .nvd3.nv-bullet .nv-subtitle {
+          fill: ${theme.colorTextTertiary};
+        }
+      `}
     g.solid path,
     line.solid {
       stroke-dasharray: unset;

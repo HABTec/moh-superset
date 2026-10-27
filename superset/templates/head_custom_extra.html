@@ -14,6 +14,68 @@ current_user.is_authenticated) else [] %} {% set _moh_is_admin = 'Admin' in
 _moh_roles %}
 
 <style>
+    /* Handlebars charts in dark mode. The chart templates use
+     var(--hb-*, <light colour>), so light mode needs nothing here.
+     .handlebars is on the chart in dashboards and in Explore. */
+  html[data-theme-mode="dark"] .handlebars {
+    /* KPI cards */
+    --hb-label:  rgba(255, 255, 255, 0.85);
+    --hb-value:  rgba(255, 255, 255, 0.95);
+    --hb-strong: rgba(255, 255, 255, 0.85);
+    --hb-muted:  rgba(255, 255, 255, 0.65);
+    --hb-faint:  rgba(255, 255, 255, 0.45);
+    --hb-track:  rgba(255, 255, 255, 0.12);
+    --hb-box:    rgba(255, 255, 255, 0.06);
+    --hb-good: #1fa971;
+    --hb-warn: #f2a13c;
+    --hb-bad:  #e5484d;
+    /* Indicators Summary table */
+    --hb-card-bg:   transparent;
+    --hb-title:     #6b8fdc;
+    --hb-head-bg:   #1f1f1f;
+    --hb-line:      #303030;
+    --hb-row-line:  #262626;
+    --hb-name:      #9db8ee;
+    --hb-good-bg:   rgba(29, 158, 117, 0.18);
+    --hb-good-text: #3fcf9a;
+    --hb-bad-bg:    rgba(229, 72, 77, 0.18);
+    --hb-bad-text:  #f08a92;
+    --hb-na-bg:     rgba(255, 255, 255, 0.06);
+  }
+  /* Handlebars charts whose templates still use fixed colours: each rule
+     matches one of those inline colours and swaps in its dark equivalent.
+     Browsers store inline colours as rgb(), so the selectors use that form. */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(15, 23, 42)"] { color: rgba(255, 255, 255, 0.95) !important; } /* #0f172a value */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(17, 24, 39)"] { color: rgba(255, 255, 255, 0.85) !important; } /* #111827 label */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(55, 65, 81)"] { color: rgba(255, 255, 255, 0.85) !important; } /* #374151 baseline value */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(26, 26, 26)"] { color: rgba(255, 255, 255, 0.85) !important; } /* #1A1A1A header */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(107, 114, 128)"] { color: rgba(255, 255, 255, 0.65) !important; } /* #6b7280 muted */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(156, 163, 175)"] { color: rgba(255, 255, 255, 0.45) !important; } /* #9ca3af faint */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(24, 95, 165)"] { color: #6b8fdc !important; } /* #185FA5 title */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(14, 68, 120)"] { color: #9db8ee !important; } /* #0E4478 indicator name */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(29, 158, 117)"] { color: #3fcf9a !important; } /* #1D9E75 met target */
+  html[data-theme-mode="dark"] .handlebars [style*="color: rgb(163, 45, 45)"] { color: #f08a92 !important; } /* #A32D2D below target */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(255, 255, 255)"] { background: transparent !important; } /* #fff card */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(248, 250, 252)"] { background: #1f1f1f !important; } /* #f8fafc table header */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(229, 231, 235)"] { background: rgba(255, 255, 255, 0.12) !important; } /* #e5e7eb track */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(244, 245, 247)"] { background: rgba(255, 255, 255, 0.06) !important; } /* #f4f5f7 box */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(243, 244, 246)"] { background: rgba(255, 255, 255, 0.06) !important; } /* #f3f4f6 N/A */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(232, 245, 240)"] { background: rgba(29, 158, 117, 0.18) !important; } /* #E8F5F0 met tint */
+  html[data-theme-mode="dark"] .handlebars [style*="background: rgb(247, 233, 233)"] { background: rgba(229, 72, 77, 0.18) !important; } /* #F7E9E9 below tint */
+  html[data-theme-mode="dark"] .handlebars [style*="solid rgb(229, 231, 235)"] { border-color: #303030 !important; } /* #e5e7eb header lines */
+  html[data-theme-mode="dark"] .handlebars [style*="solid rgb(241, 245, 249)"] { border-color: #262626 !important; } /* #f1f5f9 row lines */
+
+  /* The MoH logo has dark lettering on a transparent background, which
+     disappears on a dark header. In dark mode it sits on a white plate, which
+     keeps the emblem and wordmark in their own colours. The plate fits inside
+     the logo's usual box, so the header doesn't change size between modes. */
+  html[data-theme-mode="dark"] img[src$="/logomohnewww.png"] {
+    box-sizing: border-box;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background-color: #ffffff;
+  }
+
   .dashboard-header-container .header-with-actions .title-panel {
     display: none !important;
   }
@@ -368,28 +430,36 @@ _moh_roles %}
       max-width: calc(100% - 16px) !important;
     }
 
-    .dashboard-grid .grid-row,
-    .dashboard-grid .dragdroppable-row {
+    /* Viewing only: stacking rows in edit mode fights the editor's column
+       sizing and its row-height measurement, which loops until React
+       aborts ("Maximum update depth exceeded"). */
+    .dashboard:not(.dashboard--editing) .dashboard-grid .grid-row,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .dragdroppable-row {
       flex-direction: column !important;
       flex-wrap: nowrap !important;
     }
-    .dashboard-grid .grid-row > :not(:last-child):not(.hover-menu) {
+    .dashboard:not(.dashboard--editing)
+      .dashboard-grid
+      .grid-row
+      > :not(:last-child):not(.hover-menu) {
       margin-right: 0 !important;
       margin-bottom: 12px !important;
     }
-    .dashboard-grid .grid-column,
-    .dashboard-grid .dragdroppable-column,
-    .dashboard-grid .resizable-container,
-    .dashboard-grid .dashboard-component-chart-holder {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .grid-column,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .dragdroppable-column,
+    .dashboard:not(.dashboard--editing) .dashboard-grid .resizable-container,
+    .dashboard:not(.dashboard--editing)
+      .dashboard-grid
+      .dashboard-component-chart-holder {
       width: 100% !important;
       min-width: 0 !important;
       max-width: 100% !important;
     }
-    .dashboard-grid .empty-droptarget {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .empty-droptarget {
       min-width: 0 !important;
     }
 
-    .dashboard-grid .resizable-container {
+    .dashboard:not(.dashboard--editing) .dashboard-grid .resizable-container {
       width: 100% !important;
     }
     .dashboard-component-chart-holder [data-test="chart-container"],
@@ -1322,7 +1392,35 @@ _moh_roles %}
         });
     }
 
-    function downloadChartViaEcharts(holder) {
+    function saveEchartsImage(inst, holder, backgroundColor) {
+      var url = inst.getDataURL({
+        type: "jpeg",
+        pixelRatio: 2,
+        backgroundColor: backgroundColor,
+      });
+      if (!url || url.indexOf("data:image") !== 0) return false;
+
+      var stem = getSliceName(holder)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      var link = document.createElement("a");
+      link.download = (stem || "chart") + ".jpg";
+      link.href = url;
+      link.click();
+      return true;
+    }
+
+    /* Saves an ECharts chart as a JPEG on white and calls onDone when finished.
+       Returns false when the chart can't be exported this way, and Superset's
+       own export runs instead. In dark mode that is always the case: Superset's
+       export switches the page to light for the capture (runInLightMode), so
+       downloads are light in both modes. */
+    function downloadChartViaEcharts(holder, onDone) {
+      if (document.documentElement.getAttribute("data-theme-mode") === "dark") {
+        return false;
+      }
+
       var echarts = getEchartsGlobal();
       if (!echarts || !holder) return false;
 
@@ -1337,21 +1435,8 @@ _moh_roles %}
           inst.__mohExporting = true;
           inst.resize();
         }
-        var url = inst.getDataURL({
-          type: "jpeg",
-          pixelRatio: 2,
-          backgroundColor: "#ffffff",
-        });
-        if (!url || url.indexOf("data:image") !== 0) return false;
-
-        var stem = getSliceName(holder)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        var link = document.createElement("a");
-        link.download = (stem || "chart") + ".jpg";
-        link.href = url;
-        link.click();
+        if (!saveEchartsImage(inst, holder, "#ffffff")) return false;
+        setTimeout(onDone, 300);
         return true;
       } catch (e) {
         return false;
@@ -1381,12 +1466,13 @@ _moh_roles %}
           var holder = getChartHolderFromEvent(e);
           beginChartExport(holder);
 
-          if (downloadChartViaEcharts(holder)) {
+          if (
+            downloadChartViaEcharts(holder, function () {
+              endChartExport(holder);
+            })
+          ) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            setTimeout(function () {
-              endChartExport(holder);
-            }, 300);
             return;
           }
 

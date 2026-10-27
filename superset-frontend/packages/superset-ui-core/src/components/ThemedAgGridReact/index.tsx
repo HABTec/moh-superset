@@ -141,6 +141,7 @@ export const ThemedAgGridReact = forwardRef<
     };
 
     // Only apply params if we have a valid theme
+    // eslint-disable-next-line no-restricted-syntax -- checks the theme is loaded
     if (!theme || !theme.colorBgBase) {
       return baseTheme;
     }

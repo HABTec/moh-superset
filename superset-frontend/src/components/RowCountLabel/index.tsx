@@ -50,7 +50,11 @@ export default function RowCountLabel(props: RowCountLabelProps) {
     </Label>
   );
   return limitReached ? (
-    <Tooltip id="tt-rowcount-tooltip" title={<span>{limitReachedMsg}</span>}>
+    <Tooltip
+      id="tt-rowcount-tooltip"
+      title={<span>{limitReachedMsg}</span>}
+      trigger={['hover', 'click']}
+    >
       {label || labelText}
     </Tooltip>
   ) : (

@@ -22,11 +22,31 @@ import { kebabCase } from 'lodash';
 import { t } from '@apache-superset/core/translation';
 import { SupersetTheme } from '@apache-superset/core/theme';
 import { addWarningToast } from 'src/components/MessageToasts/actions';
+import { runInLightMode } from 'src/theme/lightModeExport';
 import type { AgGridContainerElement } from '@superset-ui/core/components';
 
 const IMAGE_DOWNLOAD_QUALITY = 0.95;
 const TRANSPARENT_RGBA = 'transparent';
 const POLL_INTERVAL_MS = 100;
+// Marks cloned elements that scroll on screen and are expanded in the image.
+const EXPAND_ATTRIBUTE = 'data-export-expand';
+const SCROLLING_OVERFLOW = /\b(auto|scroll)\b/;
+// Marks cloned elements that scroll sideways on screen, with the hidden width
+// in pixels; the image widens them and their containers by that much.
+const WIDEN_ATTRIBUTE = 'data-export-widen';
+// Marks cloned elements whose text is cut off with an ellipsis on screen; the
+// image wraps that text instead, since it has no hover to reveal the rest.
+const WRAP_ATTRIBUTE = 'data-export-wrap';
+// The AI insight panel sits beside a chart in its cell; chart images show
+// the chart (title and visual) only.
+const CHART_WITH_INSIGHT_SELECTOR = '[data-test="chart-with-ai-insight"]';
+// Interactive parts left out of images: map controls, the chart header's
+// menu buttons and the AI insight panel.
+const EXCLUDED_FROM_IMAGE_SELECTOR = [
+  '[class*="mapboxgl-control-container"]',
+  '[class*="header-controls"]',
+  '[data-test="ai-insight-panel"]',
+].join(', ');
 
 // Tracks original cell styles to restore after capture
 type CellFixup = { el: HTMLElement; minHeight: string; overflow: string };
@@ -122,6 +142,49 @@ const copyAllComputedStyles = (
       }
     }
 
+    // Remember the elements whose content is taller than their box, so only
+    // those are expanded later. Matching on the inline overflow style instead
+    // would expand every node, since the loop above writes overflow onto all
+    // of them, and fixed-size boxes such as map legends would collapse.
+    const scrollable = origNode as HTMLElement;
+    if (
+      SCROLLING_OVERFLOW.test(`${computed.overflowY} ${computed.overflow}`) &&
+      scrollable.scrollHeight > scrollable.clientHeight + 1
+    ) {
+      cloneNode.setAttribute(EXPAND_ATTRIBUTE, 'true');
+    }
+    const hiddenWidth = scrollable.scrollWidth - scrollable.clientWidth;
+    if (
+      SCROLLING_OVERFLOW.test(`${computed.overflowX} ${computed.overflow}`) &&
+      hiddenWidth > 1
+    ) {
+      cloneNode.setAttribute(WIDEN_ATTRIBUTE, String(hiddenWidth));
+      // A table's sticky header scrolls along with its body but clips its
+      // overflow instead of scrolling itself; it is widened with the body.
+      const siblings = Array.from(
+        origNode.parentElement?.children ?? [],
+      ) as HTMLElement[];
+      siblings.forEach((sibling, index) => {
+        const clipped = sibling.scrollWidth - sibling.clientWidth;
+        if (
+          sibling !== origNode &&
+          clipped > 1 &&
+          window.getComputedStyle(sibling).overflowX === 'hidden'
+        ) {
+          cloneNode.parentElement?.children[index]?.setAttribute(
+            WIDEN_ATTRIBUTE,
+            String(clipped),
+          );
+        }
+      });
+    }
+    if (
+      computed.textOverflow === 'ellipsis' &&
+      scrollable.scrollWidth > scrollable.clientWidth + 1
+    ) {
+      cloneNode.setAttribute(WRAP_ATTRIBUTE, 'true');
+    }
+
     if (origNode.textContent?.trim()) {
       const { color } = computed;
       if (!color || color === 'transparent' || color === TRANSPARENT_RGBA) {
@@ -140,13 +203,61 @@ const copyAllComputedStyles = (
   }
 };
 
+/**
+ * Makes room in the clone for content that scrolls on screen. Each scrolling
+ * element's containers keep their on-screen size as a minimum and grow with
+ * the expanded content; sideways scrollers and their containers widen by the
+ * hidden width. Containers never shrink, since many (such as a map's) hold
+ * only absolutely positioned children and would collapse at an auto size.
+ */
+const growScrolledContainers = (clone: HTMLElement) => {
+  const containersOf = (el: HTMLElement) => {
+    const containers: HTMLElement[] = [];
+    let node = el.parentElement;
+    while (node && clone.contains(node)) {
+      containers.push(node);
+      node = node.parentElement;
+    }
+    return containers;
+  };
+
+  clone.querySelectorAll<HTMLElement>(`[${EXPAND_ATTRIBUTE}]`).forEach(el => {
+    containersOf(el).forEach(container => {
+      const { style } = container;
+      if (style.height && style.height !== 'auto') {
+        style.minHeight = style.height;
+      }
+      style.height = 'auto';
+      style.maxHeight = 'none';
+    });
+  });
+
+  const extraWidths = new Map<HTMLElement, number>();
+  clone.querySelectorAll<HTMLElement>(`[${WIDEN_ATTRIBUTE}]`).forEach(el => {
+    const extra = Number(el.getAttribute(WIDEN_ATTRIBUTE)) || 0;
+    [el, ...containersOf(el)].forEach(node => {
+      extraWidths.set(node, Math.max(extraWidths.get(node) ?? 0, extra));
+    });
+  });
+  extraWidths.forEach((extra, node) => {
+    const width = parseFloat(node.style.width);
+    if (Number.isFinite(width)) {
+      node.style.width = `${width + extra}px`;
+    }
+    node.style.maxWidth = 'none';
+    if (node.hasAttribute(WIDEN_ATTRIBUTE)) {
+      node.style.overflow = 'visible';
+    }
+  });
+};
+
 const processCloneForVisibility = (clone: HTMLElement) => {
   const cloneStyle = clone.style;
   cloneStyle.height = 'auto';
   cloneStyle.maxHeight = 'none';
 
   const scrollableSelectors = [
-    '[style*="overflow"]',
+    `[${EXPAND_ATTRIBUTE}]`,
     '.scrollable',
     '.table-responsive',
     '.ant-table-body',
@@ -161,6 +272,8 @@ const processCloneForVisibility = (clone: HTMLElement) => {
     '.react-virtualized',
   ];
 
+  growScrolledContainers(clone);
+
   scrollableSelectors.forEach(selector => {
     clone.querySelectorAll(selector).forEach(el => {
       const element = el as HTMLElement;
@@ -168,6 +281,15 @@ const processCloneForVisibility = (clone: HTMLElement) => {
       element.style.height = 'auto';
       element.style.maxHeight = 'none';
     });
+  });
+
+  clone.querySelectorAll<HTMLElement>(`[${WRAP_ATTRIBUTE}]`).forEach(el => {
+    el.style.whiteSpace = 'normal';
+    el.style.overflowWrap = 'anywhere';
+    el.style.textOverflow = 'clip';
+    el.style.overflow = 'visible';
+    el.style.height = 'auto';
+    el.style.maxHeight = 'none';
   });
 
   clone
@@ -314,11 +436,10 @@ export default function downloadAsImageOptimized(
   isExactSelector = false,
   theme?: SupersetTheme,
 ) {
-  return async (event: SyntheticEvent) => {
-    const elementToPrint = isExactSelector
-      ? document.querySelector(selector)
-      : event.currentTarget.closest(selector);
-
+  const captureElement = async (
+    elementToPrint: Element | null,
+    exportTheme?: SupersetTheme,
+  ) => {
     if (!elementToPrint) {
       addWarningToast(
         t('Image download failed, please refresh and try again.'),
@@ -327,9 +448,8 @@ export default function downloadAsImageOptimized(
     }
 
     const filter = (node: Element) =>
-      typeof node.className === 'string'
-        ? !node.className.includes('mapboxgl-control-container') &&
-          !node.className.includes('header-controls')
+      typeof node.matches === 'function'
+        ? !node.matches(EXCLUDED_FROM_IMAGE_SELECTOR)
         : true;
 
     // Only apply ag-grid path for single-chart captures.
@@ -337,6 +457,14 @@ export default function downloadAsImageOptimized(
     const isDashboardCapture = (
       elementToPrint as HTMLElement
     ).classList.contains('dashboard');
+
+    // A chart cell with an AI insight panel holds the chart in its first
+    // column; a chart image shows that column alone, at its full width.
+    const chartColumn = isDashboardCapture
+      ? null
+      : elementToPrint.querySelector(CHART_WITH_INSIGHT_SELECTOR)
+          ?.firstElementChild;
+    const captureTarget = chartColumn ?? elementToPrint;
     const agContainers = isDashboardCapture
       ? []
       : elementToPrint.querySelectorAll('[data-themed-ag-grid]');
@@ -422,7 +550,7 @@ export default function downloadAsImageOptimized(
         const imageHeight = agRootWrapper.scrollHeight;
 
         const dataUrl = await domToImage.toJpeg(agRootWrapper, {
-          bgcolor: theme?.colorBgContainer,
+          bgcolor: exportTheme?.colorBgContainer,
           filter,
           quality: IMAGE_DOWNLOAD_QUALITY,
           height: imageHeight,
@@ -462,14 +590,31 @@ export default function downloadAsImageOptimized(
 
     try {
       const { clone, cleanup: cleanupFn } = createEnhancedClone(
-        elementToPrint,
-        theme,
+        captureTarget,
+        exportTheme,
       );
       cleanup = cleanupFn;
+      // The chart column has no background or padding of its own; the cell's
+      // card does.
+      if (captureTarget !== elementToPrint) {
+        const card = window.getComputedStyle(elementToPrint);
+        clone.style.backgroundColor = card.backgroundColor;
+        clone.style.padding = card.padding;
+        clone.style.boxSizing = 'content-box';
+      }
+      // Hidden in the clone rather than dropped through dom-to-image's filter:
+      // a dropped node no longer takes space, and the chart header's flex row
+      // only wraps its context line below the title because the menu buttons
+      // fill the rest of the first line. Opacity, unlike visibility, cannot
+      // be overridden by the descendants made visible above.
+      clone
+        .querySelectorAll<HTMLElement>(EXCLUDED_FROM_IMAGE_SELECTOR)
+        .forEach(node => {
+          node.style.opacity = '0';
+        });
 
       const dataUrl = await domToImage.toJpeg(clone, {
-        bgcolor: theme?.colorBgContainer,
-        filter,
+        bgcolor: exportTheme?.colorBgContainer,
         quality: IMAGE_DOWNLOAD_QUALITY,
         height: clone.scrollHeight,
         width: clone.scrollWidth,
@@ -491,5 +636,20 @@ export default function downloadAsImageOptimized(
     } finally {
       if (cleanup) cleanup();
     }
+  };
+
+  return async (event: SyntheticEvent) => {
+    // currentTarget is only set while the event is being dispatched
+    const { currentTarget } = event;
+    // Images are always light (see runInLightMode). The element is looked up
+    // after the switch, since a dashboard with its own theme re-renders then.
+    await runInLightMode(lightTheme =>
+      captureElement(
+        isExactSelector
+          ? document.querySelector(selector)
+          : currentTarget.closest(selector),
+        lightTheme ?? theme,
+      ),
+    );
   };
 }

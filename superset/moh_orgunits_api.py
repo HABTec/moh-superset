@@ -40,11 +40,23 @@ from contextlib import contextmanager
 from datetime import date
 from typing import Any
 
-from flask import abort, Blueprint, current_app, jsonify, request, Response
+from flask import abort, Blueprint, current_app, g, jsonify, request, Response
 from flask_login import current_user
 from sqlalchemy import text
 
 from superset.moh_calendar import current_period_key
+from superset.moh_context import (
+    build_reporting_query,
+    ContextRequest,
+    DEFAULT_ACTIVE_FORM_MONTHS,
+    DEFAULT_COMPLETENESS_THRESHOLD,
+    DEFAULT_CONTEXT_SOURCES,
+    DEFAULT_CONTEXT_TABS,
+    parse_context_request,
+    resolve_tab_sources,
+    summarise_reporting,
+)
+from superset.utils import json
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +143,7 @@ def _cache_set(key: str, payload) -> None:
         logger.debug("org-unit cache write failed", exc_info=True)
 
 
-def _get_database():
+def _get_database() -> Any:
     """Look up the registered Superset Database row for our ClickHouse connection."""
     # Lazy imports — Superset's db extension isn't ready at config-load time.
     from superset import db as superset_db
@@ -187,6 +199,93 @@ def _row_to_dhis2(row, has_children: bool | None = None) -> dict[str, Any]:
     if has_children is not None:
         out["children"] = [] if not has_children else out.get("children", [])
     return out
+
+
+# ---------------------------------------------------------------------------
+# Per-user scoping — sub-national users only see the hierarchy below their
+# assigned org unit (a region user gets zones and lower, a zone user gets
+# woredas and lower). National (level 1) and unassigned users see everything,
+# matching how the datasets scope an empty Org Unit selection.
+# ---------------------------------------------------------------------------
+
+
+def _scoped_root_level(requested: int, scope_level: int, max_level: int) -> int:
+    """Root level to list for a user scoped to a unit at ``scope_level``.
+
+    Roots start one level below the assigned unit (never shallower than
+    requested). A user assigned at the deepest level gets their own unit.
+    """
+    return min(max(requested, scope_level + 1), max_level)
+
+
+def _is_within_scope(path: str, scope_id: str) -> bool:
+    """True when a unit's DHIS2 ``path`` contains the scope unit (or is it)."""
+    return str(scope_id) in path.strip("/").split("/")
+
+
+def _qualified_user_org_units_table() -> str:
+    """`"schema"."table"` for the user → org unit assignment table."""
+    schema = current_app.config.get("MOH_USER_ORG_UNITS_SCHEMA", _schema())
+    table = current_app.config.get("MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit")
+    return f'"{schema}"."{table}"' if schema else f'"{table}"'
+
+
+def _query_assigned_unit(username: str) -> dict[str, Any] | None:
+    """Look up the user's assigned org unit (the highest one if several).
+
+    The username match mirrors the row-level-security lookup used by the
+    datasets (case-insensitive, trimmed).
+    """
+    database = _get_database()
+    cols = ", ".join(f"ou.{col}" for col in _LEVEL_ID_COLS)
+    with database.get_sqla_engine() as engine, _disposing(engine):
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    f"SELECT ou.id, ou.name, ou.level, {cols} "
+                    f"FROM {_qualified_user_org_units_table()} AS uo "
+                    f"INNER JOIN {_qualified_table()} AS ou "
+                    "ON toString(uo.org_unit_id) = toString(ou.id) "
+                    "WHERE lower(trimBoth(uo.username)) = lower(trimBoth(:username)) "
+                    "ORDER BY ou.level "
+                    "LIMIT 1"
+                ),
+                {"username": username},
+            ).first()
+    if row is None:
+        return None
+    unit = _row_to_dhis2(row)
+    unit["name"] = (row._mapping["name"] or "").strip()
+    return unit
+
+
+def _assigned_unit() -> dict[str, Any] | None:
+    """The logged-in user's assigned org unit, memoized per request and cached.
+
+    Returns a DHIS2-shaped dict (``id``, ``name``, ``level``, ``path``, ...) or
+    ``None`` when the user has no assignment.
+    """
+    if hasattr(g, "moh_assigned_org_unit"):
+        return g.moh_assigned_org_unit
+
+    username = str(getattr(current_user, "username", "") or "")
+    cache_key = f"moh_ou:me:{username.strip().lower()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        unit = cached.get("unit")
+    else:
+        unit = _query_assigned_unit(username)
+        _cache_set(cache_key, {"unit": unit})
+    g.moh_assigned_org_unit = unit
+    return unit
+
+
+def _scope_unit() -> dict[str, Any] | None:
+    """The unit that bounds the user's tree, or None for an unrestricted tree."""
+    unit = _assigned_unit()
+    if unit is None or f"level{unit['level']}id" not in _LEVEL_ID_COLS:
+        return None
+    return unit
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +376,8 @@ def list_units():
     ------------
     level : int, optional
         Level to return. Defaults to MOH_ORG_UNITS_ROOT_LEVEL (2 = Region).
+        For users assigned below national level the result is limited to
+        their assigned unit's subtree and starts one level below that unit.
     cbmp_type : str, optional, repeatable
         When set, only return units on a path to org units with this
         ``cbmp_type``. When omitted, return all units at the level.
@@ -286,8 +387,19 @@ def list_units():
     if level < 1 or level > _max_level():
         abort(400, f"level must be between 1 and {_max_level()}")
 
+    scope_clause = ""
+    scope_params: dict[str, Any] = {}
+    scope = _scope_unit()
+    if scope is not None:
+        level = _scoped_root_level(level, scope["level"], _max_level())
+        scope_clause = f" AND (id = :scope_id OR level{scope['level']}id = :scope_id)"
+        scope_params = {"scope_id": scope["id"]}
+
     cbmp_clause, cbmp_params = _cbmp_path_clause(level)
-    cache_key = f"moh_ou:list:{level}:{','.join(_parse_cbmp_types())}"
+    cache_key = (
+        f"moh_ou:list:{level}:{scope['id'] if scope else ''}:"
+        f"{','.join(_parse_cbmp_types())}"
+    )
     cached = _cache_get(cache_key)
     if cached is not None:
         return jsonify(cached)
@@ -305,10 +417,11 @@ def list_units():
                         f"SELECT id, name, level, {cols} "
                         f"FROM {_qualified_table()} "
                         f"WHERE level = :lvl "
+                        f"{scope_clause} "
                         f"{cbmp_clause} "
                         f"ORDER BY name"
                     ),
-                    {"lvl": level, **cbmp_params},
+                    {"lvl": level, **scope_params, **cbmp_params},
                 ).all()
         finally:
             engine.dispose()
@@ -323,12 +436,16 @@ def get_unit(uid: str):
     """Return one org unit + its DIRECT children (lazy-load on expand).
 
     Optional ``cbmp_type`` query params narrow children to nodes on a path to
-    matching facilities (same semantics as the list endpoint).
+    matching facilities (same semantics as the list endpoint). Units outside
+    the logged-in user's assigned subtree return 404.
     """
     _require_authenticated()
+    scope = _scope_unit()
     cache_key = f"moh_ou:unit:{uid}:{','.join(_parse_cbmp_types())}"
     cached = _cache_get(cache_key)
     if cached is not None:
+        if scope is not None and not _is_within_scope(cached["path"], scope["id"]):
+            abort(404, f"Org unit '{uid}' not found")
         return jsonify(cached)
 
     database = _get_database()
@@ -345,7 +462,10 @@ def get_unit(uid: str):
                 ),
                 {"uid": uid},
             ).first()
-            if unit is None:
+            if unit is None or (
+                scope is not None
+                and not _is_within_scope(_row_to_dhis2(unit)["path"], scope["id"])
+            ):
                 abort(404, f"Org unit '{uid}' not found")
 
             parent_level = unit._mapping["level"]
@@ -381,48 +501,23 @@ def get_unit(uid: str):
     return jsonify(response)
 
 
-def _qualified_user_org_units_table() -> str:
-    """`"schema"."table"` for the user → org unit assignment table."""
-    schema = current_app.config.get("MOH_USER_ORG_UNITS_SCHEMA", _schema())
-    table = current_app.config.get("MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit")
-    return f'"{schema}"."{table}"' if schema else f'"{table}"'
-
-
 @moh_orgunits_bp.route("/me/organisationUnit", methods=["GET"])
 def get_my_unit() -> Response:
     """Return the org unit the logged-in user is assigned to.
 
     Dashboard datasets scope an empty Org Unit selection to this unit, so the
-    UI uses it to say what the user is looking at. The username match mirrors
-    the row-level-security lookup used by the datasets (case-insensitive,
-    trimmed). ``organisationUnit`` is ``null`` when the user has no assignment.
+    UI uses it to say what the user is looking at. ``organisationUnit`` is
+    ``null`` when the user has no assignment.
     """
     _require_authenticated()
-    database = _get_database()
-
-    with database.get_sqla_engine() as engine:
-        with engine.connect() as conn:
-            row = conn.execute(
-                text(
-                    "SELECT ou.id, ou.name, ou.level "
-                    f"FROM {_qualified_user_org_units_table()} AS uo "
-                    f"INNER JOIN {_qualified_table()} AS ou "
-                    "ON toString(uo.org_unit_id) = toString(ou.id) "
-                    "WHERE lower(trimBoth(uo.username)) = lower(trimBoth(:username)) "
-                    "ORDER BY ou.level "
-                    "LIMIT 1"
-                ),
-                {"username": current_user.username},
-            ).first()
-
-    if row is None:
+    unit = _assigned_unit()
+    if unit is None:
         return jsonify({"organisationUnit": None})
-    unit = row._mapping
     return jsonify(
         {
             "organisationUnit": {
                 "id": unit["id"],
-                "name": (unit["name"] or "").strip(),
+                "name": unit["name"],
                 "level": unit["level"],
             }
         }
@@ -627,6 +722,162 @@ def get_data_freshness() -> Response:
     sources = _query_data_freshness()
     _data_freshness_cache = (time.monotonic(), sources)
     return jsonify({"sources": sources})
+
+
+# ---------------------------------------------------------------------------
+# Tab context — source, data-as-of and reporting completeness for the
+# dashboard context strip. See superset/moh_context.py for the rules.
+# ---------------------------------------------------------------------------
+
+_TAB_CONTEXT_TTL_SECONDS = 600
+_TAB_CONTEXT_CACHE_MAX = 500
+_tab_context_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_source_value_cache: dict[str, tuple[float, str | None]] = {}
+_READ_ONLY_QUERY = re.compile(r"^\s*(SELECT|WITH)\b", re.IGNORECASE)
+
+
+def _context_sources() -> dict[str, dict[str, Any]]:
+    return {
+        **DEFAULT_CONTEXT_SOURCES,
+        **(current_app.config.get("MOH_CONTEXT_SOURCES") or {}),
+    }
+
+
+def _context_tabs() -> dict[Any, list[tuple[str, list[str]]]]:
+    return current_app.config.get("MOH_CONTEXT_TABS") or DEFAULT_CONTEXT_TABS
+
+
+def _query_source_value(key: str, query: str) -> str | None:
+    """One configured value (a year, a period label, a snapshot date)."""
+    cached = _source_value_cache.get(key)
+    if cached and time.monotonic() - cached[0] < _TAB_CONTEXT_TTL_SECONDS:
+        return cached[1]
+    if not _READ_ONLY_QUERY.match(query or ""):
+        logger.error("Tab context source %r has no SELECT query", key)
+        return None
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            row = conn.execute(text(query), {}).first()
+    value = None
+    if row is not None:
+        first = next(iter(row._mapping.values()), None)
+        if first not in (None, ""):
+            value = str(first).strip() or None
+    _source_value_cache[key] = (time.monotonic(), value)
+    return value
+
+
+def _query_reporting(context_request: ContextRequest) -> dict[str, Any] | None:
+    config = current_app.config
+    sql, params = build_reporting_query(
+        context_request,
+        schema=_schema(),
+        active_form_months=int(
+            config.get("MOH_ACTIVE_FORM_MONTHS", DEFAULT_ACTIVE_FORM_MONTHS)
+        ),
+        scope_unit=None if context_request.org_units else _scope_unit(),
+    )
+    database = _get_database()
+    with database.get_sqla_engine() as engine:
+        with engine.connect() as conn:
+            rows = [dict(row._mapping) for row in conn.execute(text(sql), params).all()]
+    return summarise_reporting(
+        rows,
+        context_request,
+        float(
+            config.get(
+                "MOH_COMPLETENESS_THRESHOLD", DEFAULT_COMPLETENESS_THRESHOLD
+            )
+        ),
+    )
+
+
+def _build_tab_context(context_request: ContextRequest) -> dict[str, Any]:
+    keys = resolve_tab_sources(
+        _context_tabs(), context_request.dashboard_id, context_request.tab_path
+    )
+    specs = _context_sources()
+    sources: list[dict[str, Any]] = []
+    reporting: dict[str, Any] | None = None
+    for key in keys:
+        spec = specs.get(key)
+        if not spec:
+            continue
+        entry: dict[str, Any] = {
+            "key": key,
+            "label": spec.get("label", key),
+            "kind": spec.get("kind", "annual"),
+        }
+        try:
+            if entry["kind"] == "dhis2":
+                if context_request.has_reporting_basis:
+                    reporting = _query_reporting(context_request)
+                if reporting and reporting.get("latestComplete"):
+                    entry["latestPeriod"] = reporting["latestComplete"]
+                    entry["inProgress"] = reporting.get("inProgress")
+                else:
+                    # No indicators to judge completeness by: fall back to
+                    # the latest month with any routine data.
+                    entry["latestPeriod"] = _query_latest_monthly_period(
+                        current_app.config.get(
+                            "MOH_INDICATOR_VALUES_TABLE", "indicator_data_values"
+                        )
+                    )
+                    entry["basis"] = "latest_data"
+            else:
+                entry["latest"] = _query_source_value(key, spec.get("query", ""))
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Tab context lookup failed for source %r", key)
+        sources.append(entry)
+
+    completeness = reporting.get("completeness") if reporting else None
+    return {
+        "sources": sources,
+        "completeness": completeness,
+        "basis": (
+            {
+                "forms": reporting.get("forms"),
+                "expectedReports": reporting.get("expectedReports"),
+            }
+            if reporting
+            else None
+        ),
+    }
+
+
+@moh_orgunits_bp.route("/tab-context", methods=["GET"])
+def get_tab_context() -> Response:
+    """Source, data-as-of and reporting completeness for one dashboard tab.
+
+    ``q`` is JSON: ``dashboardId``, ``tabPath`` (tab titles, outermost
+    first), the tab's ``indicators`` / ``indicatorIds`` / ``dataElements`` /
+    ``dataSets``, the selected ``fiscalYears`` / ``quarters`` / ``months``,
+    and ``orgUnits`` (Org Unit tree selections by column). Read-only; cached
+    briefly per request and per user scope.
+    """
+    _require_authenticated()
+    try:
+        payload = json.loads(request.args.get("q") or "{}")
+    except ValueError:
+        abort(400, "q must be JSON")
+    context_request = parse_context_request(payload)
+
+    scope = None if context_request.org_units else _scope_unit()
+    cache_key = json.dumps(
+        [vars(context_request), scope.get("id") if scope else None],
+        sort_keys=True,
+        default=str,
+    )
+    cached = _tab_context_cache.get(cache_key)
+    if cached and time.monotonic() - cached[0] < _TAB_CONTEXT_TTL_SECONDS:
+        return jsonify(cached[1])
+
+    result = _build_tab_context(context_request)
+    if len(_tab_context_cache) >= _TAB_CONTEXT_CACHE_MAX:
+        _tab_context_cache.clear()
+    _tab_context_cache[cache_key] = (time.monotonic(), result)
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------------------

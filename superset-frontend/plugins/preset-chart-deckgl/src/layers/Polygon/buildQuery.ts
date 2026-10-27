@@ -52,7 +52,13 @@ export interface DeckPolygonFormData extends SqlaFormData {
   tooltip_template?: string;
 }
 
+// Result formats that end up in a file a person opens (CSV, Excel).
+const FILE_EXPORT_FORMATS = ['csv', 'xlsx'];
+
 export default function buildQuery(formData: DeckPolygonFormData) {
+  const isFileExport = FILE_EXPORT_FORMATS.includes(
+    String(formData.result_format ?? '').toLowerCase(),
+  );
   const {
     line_column,
     metric,
@@ -85,6 +91,13 @@ export default function buildQuery(formData: DeckPolygonFormData) {
     }
 
     columns = addTooltipColumnsToQuery(columns, tooltip_contents);
+
+    // A CSV or Excel file is read by people, not drawn: the polygon column
+    // holds whole GeoJSON shapes (often beyond Excel's 32,767-character cell
+    // limit), so it is left out of file exports.
+    if (isFileExport) {
+      columns = columns.filter(column => column !== line_column);
+    }
 
     const metrics = [];
     if (metric) {
@@ -122,6 +135,12 @@ export default function buildQuery(formData: DeckPolygonFormData) {
       }
 
       filters.push(...nullFilters);
+    }
+
+    // Region outline rows only draw boundaries on the map; they carry no
+    // values, so file exports list the data rows alone.
+    if (isFileExport && jsColumns.includes('layer_type')) {
+      filters.push({ col: 'layer_type', op: '!=', val: 'region' });
     }
 
     return [

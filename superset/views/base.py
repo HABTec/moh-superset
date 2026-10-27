@@ -52,6 +52,7 @@ from superset import (
     is_feature_enabled,
     security_manager,
 )
+from superset.commands.theme.set_system_theme import is_dark_theme_json
 from superset.connectors.sqla import models
 from superset.daos.theme import ThemeDAO
 from superset.db_engine_specs import get_available_engine_specs
@@ -375,11 +376,21 @@ def get_theme_bootstrap_data() -> dict[str, Any]:
     # Get config themes to use as fallback
     config_theme_default = get_config_value("THEME_DEFAULT")
     config_theme_dark = get_config_value("THEME_DARK")
+    # THEME_DARK = None disables dark mode; a database theme cannot re-enable it
+    dark_mode_enabled = bool(config_theme_dark)
 
     if enable_ui_admin:
         # Try to load themes from database
         default_theme_model = ThemeDAO.find_system_default()
-        dark_theme_model = ThemeDAO.find_system_dark()
+        dark_theme_model = ThemeDAO.find_system_dark() if dark_mode_enabled else None
+        # A light theme marked "system dark" (e.g. set before that was checked)
+        # would show light to dark-mode users, so it is ignored
+        if dark_theme_model and not is_dark_theme_json(dark_theme_model.json_data):
+            logger.warning(
+                "System dark theme %s does not use the dark algorithm; ignoring it",
+                dark_theme_model.id,
+            )
+            dark_theme_model = None
 
         # Parse theme JSON from database models
         default_theme = _load_theme_from_model(
@@ -388,6 +399,15 @@ def get_theme_bootstrap_data() -> dict[str, Any]:
         dark_theme = _load_theme_from_model(
             dark_theme_model, config_theme_dark, ThemeMode.DARK
         )
+        # Without its own system dark theme, the dark theme still carries the
+        # admin's branding from the system default theme
+        if (
+            dark_theme
+            and default_theme
+            and default_theme_model
+            and not dark_theme_model
+        ):
+            dark_theme = _with_brand_tokens(dark_theme, default_theme)
     else:
         # UI theme administration disabled - use config-based themes
         default_theme = config_theme_default
@@ -402,8 +422,39 @@ def get_theme_bootstrap_data() -> dict[str, Any]:
             "default": default_theme,
             "dark": dark_theme,
             "enableUiThemeAdministration": enable_ui_admin,
+            "darkModeEnabled": dark_mode_enabled,
+            "defaultMode": get_theme_default_mode(),
         }
     }
+
+
+_THEME_MODES = ("default", "dark", "system")
+
+
+def get_theme_default_mode() -> str:
+    """Return the mode for users who have not chosen one (THEME_DEFAULT_MODE)."""
+    mode = app.config.get("THEME_DEFAULT_MODE", "system")
+    return mode if mode in _THEME_MODES else "system"
+
+
+_BRAND_TOKEN_PREFIXES = ("brand", "font")
+
+
+def _with_brand_tokens(dark_theme: Theme, default_theme: Theme) -> Theme:
+    """Copy logo, name and font tokens from the light theme into the dark one.
+
+    Colour tokens are left alone so the dark theme keeps its own colours.
+    """
+    default_tokens = cast(dict[str, Any], default_theme).get("token") or {}
+    brand_tokens = {
+        key: value
+        for key, value in default_tokens.items()
+        if key.startswith(_BRAND_TOKEN_PREFIXES)
+    }
+    if not brand_tokens:
+        return dark_theme
+    merged = _merge_theme_dicts(dict(dark_theme), {"token": brand_tokens})
+    return cast(Theme, merged)
 
 
 def get_default_spinner_svg() -> str | None:
@@ -651,6 +702,7 @@ def get_spa_template_context(
         ),
         "theme_tokens": theme_tokens,
         "dark_theme_bg": dark_theme_bg,
+        "theme_default_mode": get_theme_default_mode(),
         "spinner_svg": spinner_svg,
         "default_title": default_title,
         **template_kwargs,

@@ -559,8 +559,7 @@ const transformProps = (
       return {
         arrow: '',
         arrowColor: '',
-        // eslint-disable-next-line theme-colors/no-literal-colors
-        backgroundColor: 'rgba(0,0,0,0.2)',
+        backgroundColor: theme.colorFillSecondary,
       };
     }
     const isPositive = percentDifferenceNum > 0;

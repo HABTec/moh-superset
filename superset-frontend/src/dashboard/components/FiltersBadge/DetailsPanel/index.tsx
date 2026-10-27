@@ -186,7 +186,9 @@ const DetailsPanelPopover = ({
       open={popoverVisible}
       onOpenChange={handleVisibility}
       placement="bottomRight"
-      trigger={['hover']}
+      // Click keeps the panel reachable on touch screens, where hover
+      // never fires.
+      trigger={['hover', 'click']}
       data-test="filter-status-popover"
     >
       {children}
