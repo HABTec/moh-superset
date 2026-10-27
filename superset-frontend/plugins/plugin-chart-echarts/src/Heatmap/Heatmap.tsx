@@ -16,17 +16,48 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import { useMemo } from 'react';
 import { HeatmapTransformedProps } from './types';
 import Echart from '../components/Echart';
+import { EventHandlers } from '../types';
+
+type CellClickParams = {
+  value?: unknown[];
+  event?: { event?: MouseEvent | PointerEvent };
+};
 
 export default function Heatmap(props: HeatmapTransformedProps) {
-  const { height, width, echartOptions, refs } = props;
+  const { height, width, echartOptions, refs, onCellClick } = props;
+
+  const eventHandlers = useMemo<EventHandlers | undefined>(
+    () =>
+      onCellClick && {
+        click: ({ value, event }: CellClickParams) => {
+          const [xIndex, yIndex] = value ?? [];
+          if (typeof xIndex !== 'number' || typeof yIndex !== 'number') {
+            return;
+          }
+          const srcEvent = event?.event;
+          // Ctrl/Cmd-click adds or removes a cell; on touch screens, where
+          // there is no modifier key, every tap does.
+          const additive = Boolean(
+            srcEvent?.ctrlKey ||
+            srcEvent?.metaKey ||
+            (srcEvent as PointerEvent | undefined)?.pointerType === 'touch',
+          );
+          onCellClick(xIndex, yIndex, additive);
+        },
+      },
+    [onCellClick],
+  );
+
   return (
     <Echart
       refs={refs}
       height={height}
       width={width}
       echartOptions={echartOptions}
+      eventHandlers={eventHandlers}
     />
   );
 }
