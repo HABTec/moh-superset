@@ -18,16 +18,22 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from superset.moh_assets import (
     _render_tv_page,
+    _resolve_tv_preset,
     _tv_page_payload,
     _tv_slide_payload,
     DEFAULT_TV_EMPTY_MARKERS,
     default_tv_theme,
+    tv_all_groups_slides,
+    TV_ALL_GROUPS_SLUG,
+    tv_config,
     tv_embed_url,
+    tv_group_slideshow,
     tv_slide_accent,
     tv_slide_source,
 )
@@ -317,3 +323,124 @@ def test_year_from_cards_prefers_efy_then_the_most_common_year() -> None:
 def test_default_tv_theme_is_locked_to_light() -> None:
     """Wall TVs stay light even when the TV box itself is set to dark."""
     assert default_tv_theme()["forceMode"] == "light"
+
+
+DASHBOARD_8 = "/superset/dashboard/8/?standalone=2"
+GROUPS = {
+    "service-delivery": {
+        "name": "Service Delivery",
+        "dashboard": DASHBOARD_8,
+        "slides": [
+            {"path": ["Services Delivery", "NCD"], "label": "NCD"},
+            {"path": ["PHEM"], "label": "PHEM"},
+        ],
+    },
+    "health-workforce": {
+        "dashboard": DASHBOARD_8,
+        "slides": [{"path": ["Health Work Force"], "label": "Health Work Force"}],
+    },
+    "infrastructure": {
+        "name": "Infrastructure",
+        "dashboard": DASHBOARD_8,
+        "slides": [
+            {"path": ["Infrastructure"], "label": "Infrastructure"},
+            {"path": ["PHEM"], "label": "PHEM again"},
+        ],
+    },
+}
+
+
+def test_all_groups_plays_every_group_in_order_once(app_context: None) -> None:
+    combined = tv_all_groups_slides(GROUPS)
+
+    assert combined["dashboard"] == DASHBOARD_8
+    assert [(s["label"], s["group"]) for s in combined["slides"]] == [
+        ("NCD", "Service Delivery"),
+        ("PHEM", "Service Delivery"),
+        ("Health Work Force", "Health Workforce"),
+        ("Infrastructure", "Infrastructure"),
+    ]
+
+
+def test_all_groups_follows_the_configured_order(app_context: None) -> None:
+    combined = tv_all_groups_slides(GROUPS, ["infrastructure", "unknown"])
+
+    assert [s["label"] for s in combined["slides"]] == ["Infrastructure", "PHEM again"]
+
+
+def test_all_groups_leaves_out_a_group_on_another_dashboard(
+    app_context: None,
+) -> None:
+    groups = {
+        **GROUPS,
+        "health-workforce": {
+            "dashboard": "/superset/dashboard/3/?standalone=2",
+            "slides": [{"path": ["Summary"], "label": "Summary"}],
+        },
+    }
+
+    combined = tv_all_groups_slides(groups)
+
+    assert "Summary" not in [s["label"] for s in combined["slides"]]
+
+
+def test_slide_group_is_passed_through_only_when_set() -> None:
+    assert (
+        _tv_slide_payload({"path": ["A"], "label": "A", "group": "HIS"})["group"]
+        == "HIS"
+    )
+    assert "group" not in _tv_slide_payload({"path": ["A"], "label": "A"})
+
+
+def test_all_preset_resolves_to_the_combined_slideshow(
+    app: Any, app_context: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(app.config, "MOH_TV_GROUPS", GROUPS)
+
+    resolved = _resolve_tv_preset("group-all")
+
+    assert resolved is not None
+    slides_cfg, interval_key, wordmark = resolved
+    assert len(slides_cfg["slides"]) == 4
+    assert interval_key == "MOH_TV_INTERVAL_SECONDS"
+    assert wordmark == "All Groups"
+
+
+def test_a_configured_all_group_wins_over_the_combined_one(
+    app: Any, app_context: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    own = {"dashboard": DASHBOARD_8, "slides": [{"path": ["PHC"], "label": "PHC"}]}
+    monkeypatch.setitem(app.config, "MOH_TV_GROUPS", {**GROUPS, "all": own})
+
+    resolved = _resolve_tv_preset("group-all")
+
+    assert resolved is not None
+    assert resolved[0] is own
+
+
+def test_unknown_group_still_resolves_to_nothing(
+    app: Any, app_context: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(app.config, "MOH_TV_GROUPS", GROUPS)
+
+    assert _resolve_tv_preset("group-nope") is None
+
+
+def test_all_group_page_is_served_on_dashboard_8_with_a_40s_dwell(
+    app: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(app.config, "MOH_TV_GROUPS", GROUPS)
+    monkeypatch.setitem(app.config, "MOH_TV_INTERVAL_SECONDS", 40)
+    monkeypatch.setattr(
+        "superset.moh_assets.current_user", type("U", (), {"is_authenticated": True})
+    )
+
+    with app.test_request_context("/moh-static/tv/group/all"):
+        page = tv_group_slideshow(TV_ALL_GROUPS_SLUG)
+        config = tv_config("group-all")
+
+    assert page.status_code == 302
+    assert page.location.startswith("/superset/dashboard/8/")
+    assert "moh_tv=group-all" in page.location
+    assert config.json["intervalMs"] == 40_000
+    assert config.json["slides"][2]["group"] == "Health Workforce"

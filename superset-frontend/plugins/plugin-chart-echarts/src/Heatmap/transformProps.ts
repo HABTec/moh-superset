@@ -17,6 +17,7 @@
  * under the License.
  */
 import {
+  ensureIsArray,
   NumberFormats,
   QueryFormColumn,
   getColumnLabel,
@@ -37,12 +38,23 @@ import type { ComposeOption } from 'echarts/core';
 import type { HeatmapSeriesOption } from 'echarts/charts';
 import type { CallbackDataParams } from 'echarts/types/src/util/types';
 import { HeatmapChartProps, HeatmapTransformedProps } from './types';
+import {
+  getHeatmapCrossFilterDataMask,
+  getSelectedCells,
+  HeatmapCell,
+  isCellInSelection,
+  toggleCell,
+} from './crossFilter';
 import { getDefaultTooltip } from '../utils/tooltip';
 import { Refs } from '../types';
 import { parseAxisBound } from '../utils/controls';
 import { getPercentFormatter } from '../utils/formatters';
 
 type EChartsOption = ComposeOption<HeatmapSeriesOption>;
+
+type HeatmapDataItem =
+  | DataRecordValue[]
+  | { value: DataRecordValue[]; itemStyle: { opacity: number } };
 
 const COMPACT_HEATMAP_CHART_WIDTH = 420;
 const DEFAULT_ECHARTS_BOUNDS = [0, 200];
@@ -177,8 +189,18 @@ export default function transformProps(
   chartProps: HeatmapChartProps,
 ): HeatmapTransformedProps {
   const refs: Refs = {};
-  const { width, height, formData, queriesData, datasource, theme } =
-    chartProps;
+  const {
+    width,
+    height,
+    formData,
+    queriesData,
+    datasource,
+    theme,
+    hooks,
+    filterState,
+    emitCrossFilters,
+  } = chartProps;
+  const { setDataMask } = hooks ?? {};
   const compactMobileHeatmapChart = width <= COMPACT_HEATMAP_CHART_WIDTH;
   const {
     bottomMargin,
@@ -291,11 +313,46 @@ export default function transformProps(
     sortedYAxisValues.map((value, index) => [value, index]),
   );
 
+  // Clicking a cell cross-filters other charts on its x and y values. Time
+  // axes are excluded: their values are epoch numbers that would not match
+  // the stored timestamps in other datasets.
+  const canCrossFilter =
+    Boolean(emitCrossFilters && setDataMask) &&
+    coltypes[0] !== GenericDataType.Temporal &&
+    coltypes[1] !== GenericDataType.Temporal;
+  const selectedCells = canCrossFilter ? getSelectedCells(filterState) : [];
+  const onCellClick = canCrossFilter
+    ? (xIndex: number, yIndex: number, additive: boolean) => {
+        const xValue = sortedXAxisValues[xIndex];
+        const yValue = sortedYAxisValues[yIndex];
+        if (xValue == null || yValue == null) {
+          return;
+        }
+        const cells = toggleCell(
+          selectedCells,
+          [xValue, yValue] as HeatmapCell,
+          additive,
+        );
+        setDataMask?.(
+          getHeatmapCrossFilterDataMask({
+            cells,
+            xAxis,
+            yAxis: ensureIsArray(groupby)[0] as QueryFormColumn,
+            formatX: value => xAxisFormatter(value as string | number),
+            formatY: value => yAxisFormatter(value as string | number),
+          }),
+        );
+      }
+    : undefined;
+  // Cells outside the active selection are faded, as on the map charts.
+  const dimmedStyle =
+    selectedCells.length > 0 ? { itemStyle: { opacity: 0.3 } } : undefined;
+
   const series: HeatmapSeriesOption[] = [
     {
       name: metricLabel,
       type: 'heatmap',
-      data: data.flatMap(row => {
+      data: data.flatMap((row): HeatmapDataItem[] => {
         const xValue = row[xAxisColumnName];
         const yValue = row[yAxisColumnName];
         const metricValue = row[metricLabel];
@@ -323,10 +380,20 @@ export default function transformProps(
 
         // Include rank as 4th dimension when normalized is enabled
         // This allows visualMap to use dimension: 3 to color by rank percentile
-        if (normalized) {
-          return [[xIndex, yIndex, metricValue, rankValue]];
+        const value = normalized
+          ? [xIndex, yIndex, metricValue, rankValue]
+          : [xIndex, yIndex, metricValue];
+        if (
+          dimmedStyle &&
+          !isCellInSelection(
+            selectedCells,
+            xValue as string | number,
+            yValue as string | number,
+          )
+        ) {
+          return [{ value, ...dimmedStyle }];
         }
-        return [[xIndex, yIndex, metricValue]];
+        return [value];
       }) as any,
       label: {
         show: showValues,
@@ -457,5 +524,6 @@ export default function transformProps(
     width,
     height,
     formData,
+    onCellClick,
   };
 }
