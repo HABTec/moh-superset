@@ -37,14 +37,23 @@ from sqlalchemy import bindparam, text
 from superset.extensions import celery_app
 from superset.moh_alerts.connection import get_moh_database
 from superset.moh_alerts.deep_link import build_deep_link
-from superset.moh_alerts.email_renderer import render_alert_email, render_subject
+from superset.moh_alerts.email_renderer import (
+    csv_filename,
+    render_alert_csv,
+    render_alert_email,
+    render_subject,
+)
 from superset.moh_alerts.recipient_resolver import resolve
 from superset.tasks.cron_util import cron_schedule_window
 from superset.utils import json
 
 if TYPE_CHECKING:
     from superset.models.core import Database
-    from superset.models.moh_alert import MohAlert, MohAlertDelivery
+    from superset.models.moh_alert import (
+        MohAlert,
+        MohAlertDelivery,
+        MohAlertDeliveryFacility,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +74,15 @@ def _load_models():
     )
 
     return MohAlert, MohAlertDelivery, MohAlertDeliveryRecipient
+
+
+def _load_facility_model() -> type[MohAlertDeliveryFacility]:
+    """Lazy import of the flagged-facility audit model."""
+    from superset.models.moh_alert import (  # pylint: disable=import-outside-toplevel
+        MohAlertDeliveryFacility,
+    )
+
+    return MohAlertDeliveryFacility
 
 
 def _send_email_smtp(*args, **kwargs):
@@ -214,6 +232,7 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
     max_per_query = current_app.config.get("MOH_ALERTS_MAX_FACILITIES_PER_QUERY", 5000)
     max_recipients = current_app.config.get("MOH_ALERTS_MAX_RECIPIENTS", 2000)
     email_cap = current_app.config.get("MOH_ALERTS_EMAIL_CAP", 50)
+    attach_csv = current_app.config.get("MOH_ALERTS_ATTACH_CSV", True)
 
     per_user, resolver_ignored = resolve(
         database,
@@ -225,9 +244,17 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
     )
     ignored += resolver_ignored
 
+    extra = _load_extra(alert)
+    facility_model = _load_facility_model()
+    records = facility_records(seen, extra)
+    delivery.alert_name = alert.name
+    delivery.period = next((r["period"] for r in records if r["period"]), None)
+    db.session.add_all(
+        facility_model(delivery_id=delivery.id, **record) for record in records
+    )
+
     emails = _emails_for_usernames(per_user.keys())
 
-    extra = _load_extra(alert)
     sent_count = 0
     for username, facilities in per_user.items():
         if sent_count >= max_recipients:
@@ -242,22 +269,38 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
         if not subset:
             continue
 
-        user_org_unit, user_level = _user_org_context(database, username, schema)
+        user_org_unit, user_level = _user_org_context(
+            database, username, schema, user_org_units_table, org_units_table
+        )
         deep_link = build_deep_link(alert, user_org_unit) if user_org_unit else None
         subject = render_subject(alert, extra, subset)
-        body = render_alert_email(alert, extra, subset, deep_link, email_cap=email_cap)
+        # Lists longer than the email table travel in full as a CSV attachment
+        attached = attach_csv and len(subset) > email_cap
+        attachments = (
+            {csv_filename(alert.name, delivery.period): render_alert_csv(extra, subset)}
+            if attached
+            else {}
+        )
+        body = render_alert_email(
+            alert, extra, subset, deep_link, email_cap=email_cap, attached=attached
+        )
         sent = False
+        sent_at = None
+        error_message = None
         try:
             _send_email_smtp(
                 to=email,
                 subject=subject,
                 html_content=body,
                 config=current_app.config,
+                data=attachments,
                 images={},
             )
             sent = True
+            sent_at = datetime.now(tz=timezone.utc).replace(tzinfo=None)
             sent_count += 1
         except Exception as ex:  # pylint: disable=broad-except
+            error_message = f"{type(ex).__name__}: {ex}"[:1000]
             logger.warning(
                 "moh alert %s: email to %s (%s) failed: %s",
                 alert.id,
@@ -273,7 +316,11 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
                 org_unit_id=user_org_unit,
                 org_unit_level=user_level,
                 facilities=len(subset),
+                facilities_shown=min(len(subset), email_cap),
+                subject=subject[:255],
                 sent=sent,
+                sent_at=sent_at,
+                error_message=error_message,
             )
         )
 
@@ -337,24 +384,74 @@ def _is_reserved_test_email(email: str) -> bool:
 
 
 def _user_org_context(
-    database: Database, username: str, schema: str
+    database: Database,
+    username: str,
+    schema: str,
+    user_org_units_table: str = "dim_user_orgunit",
+    org_units_table: str = "org_units",
 ) -> tuple[str | None, int | None]:
-    """Best-effort lookup of a user's own org unit."""
-    table = f"`{schema}`.`dim_user_orgunit`"
+    """Best-effort lookup of a user's own org unit and its level."""
+    user_table = f"`{schema}`.`{user_org_units_table}`"
+    units_table = f"`{schema}`.`{org_units_table}`"
     try:
         with database.get_sqla_engine() as engine:
             with engine.connect() as conn:
                 rows = conn.execute(
                     text(
-                        f"SELECT org_unit_id FROM {table} WHERE username = :u LIMIT 1"  # noqa: S608 - config-quoted table, values bound
+                        f"SELECT m.org_unit_id AS org_unit_id, o.level AS level "  # noqa: S608 - config-quoted tables, values bound
+                        f"FROM {user_table} AS m "
+                        f"LEFT JOIN {units_table} AS o ON o.id = m.org_unit_id "
+                        "WHERE m.username = :u LIMIT 1"
                     ),
                     {"u": username},
                 ).mappings()
                 for r in rows:
-                    return str(r["org_unit_id"]), None
+                    # ClickHouse fills unmatched LEFT JOIN columns with 0
+                    level = r.get("level") or None
+                    return str(r["org_unit_id"]), int(level) if level else None
     except Exception:  # pylint: disable=broad-except
         logger.debug("org context lookup failed for %s", username, exc_info=True)
     return None, None
+
+
+def facility_records(
+    seen: dict[str, Any], extra: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Build one audit record per failing facility from the alert rows.
+
+    ``seen`` maps facility id to its alert row. The metric is the first of
+    ``html_extra.metric_cols`` the rows contain (``value`` by default).
+    """
+    name_col = extra.get("facility_name_col", "org_unit_name")
+    period_col = extra.get("period_col", "period")
+    metric_cols = extra.get("metric_cols") or ["value"]
+    metric_col = next(
+        (c for c in metric_cols if any(c in row for row in seen.values())),
+        "value",
+    )
+    records = []
+    for org_unit_id, row in seen.items():
+        name = row.get(name_col)
+        period = row.get(period_col)
+        records.append(
+            {
+                "org_unit_id": str(org_unit_id)[:32],
+                "org_unit_name": str(name)[:255] if name is not None else None,
+                "value": _to_float(row.get(metric_col)),
+                "period": str(period)[:32] if period is not None else None,
+            }
+        )
+    return records
+
+
+def _to_float(value: Any) -> float | None:
+    """Return ``value`` as a float, or None when it is missing or not numeric."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _load_extra(alert: MohAlert) -> dict[str, Any]:
@@ -377,8 +474,7 @@ def _notify_owners_on_failure(alert: MohAlert, error: str) -> None:
             to=", ".join(sorted(recipients)),
             subject=f"[MoH Alert] {alert.name} failed",
             html_content=(
-                f"<p>The MoH alert <b>{alert.name}</b> failed.</p>"
-                f"<pre>{error}</pre>"
+                f"<p>The MoH alert <b>{alert.name}</b> failed.</p><pre>{error}</pre>"
             ),
             config=current_app.config,
             images={},
