@@ -54,4 +54,7 @@ export interface HeatmapChartProps extends BaseChartProps<HeatmapFormData> {
   formData: HeatmapFormData;
 }
 
-export type HeatmapTransformedProps = BaseTransformedProps<HeatmapFormData>;
+export type HeatmapTransformedProps = BaseTransformedProps<HeatmapFormData> & {
+  /** Cross-filter on a clicked cell; absent when cross-filtering is off. */
+  onCellClick?: (xIndex: number, yIndex: number, additive: boolean) => void;
+};
