@@ -15,7 +15,7 @@ import json
 import re
 from typing import Any
 
-from flask import current_app, redirect
+from flask import current_app, redirect, request
 from flask_appbuilder import expose, IndexView
 from flask_login import current_user
 
@@ -222,11 +222,29 @@ class MoHLandingView(IndexView):
                 "tabs": tabs,
             })
 
+        # Addis Ababa users (assigned to the configured org unit or below) get
+        # their own landing page: only the Addis dashboard, with its tabs as
+        # tiles. Admins keep the standard page and can preview with ?view=aa.
+        portal_title = None
+        featured_cfg = current_app.config.get("MOH_FEATURED_DASHBOARD")
+        aa_root = current_app.config.get("MOH_AA_ORG_UNIT_ID")
+        aa_dashboard = current_app.config.get("MOH_AA_DASHBOARD_ID")
+        user_in_org_unit = getattr(security_manager, "user_is_in_org_unit", None)
+        is_admin = security_manager.is_admin()
+        is_aa = bool(aa_root and aa_dashboard is not None) and (
+            (is_admin and request.args.get("view") == "aa")
+            or (not is_admin and callable(user_in_org_unit) and user_in_org_unit(aa_root))
+        )
+        if is_aa:
+            dashboards = [d for d in dashboards if str(d["id"]) == str(aa_dashboard)]
+            featured_cfg = aa_dashboard
+            allow_restricted = False
+            portal_title = current_app.config.get("MOH_AA_PORTAL_TITLE")
+
         # Pin a specific hero dashboard when MOH_FEATURED_DASHBOARD is set
         # (matches by numeric id or slug); otherwise fall back to promoting
         # whichever dashboard has the most top-level tabs.
         featured = None
-        featured_cfg = current_app.config.get("MOH_FEATURED_DASHBOARD")
         if featured_cfg is not None:
             cfg = str(featured_cfg)
             featured = next(
@@ -251,6 +269,7 @@ class MoHLandingView(IndexView):
             self.index_template,
             featured=featured,
             others=others,
-            is_admin=security_manager.is_admin(),
+            is_admin=is_admin and not is_aa,
             health_intelligence_url=health_intelligence_url,
+            portal_title=portal_title,
         )

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ featured.title if featured else 'MoH Analytics Portal' }}</title>
+  <title>{{ portal_title or (featured.title if featured else 'MoH Analytics Portal') }}</title>
   {% if config['THEME_DARK'] %}
   <script>
     // Same light/dark choice as the rest of the portal (see spa.html), made
@@ -392,7 +392,7 @@
 <header class="topbar">
   <img class="logo-img" src="/moh-static/logomohnewww.png" alt="Ministry of Health">
   <span class="brand-text">
-    <span class="t2">MOH ANALYTICS PORTAL</span>
+    <span class="t2">{{ portal_title or 'MOH ANALYTICS PORTAL' }}</span>
   </span>
 
   <button class="nav-toggle" id="navToggle" aria-label="Open menu">
