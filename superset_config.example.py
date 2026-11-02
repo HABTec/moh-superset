@@ -401,6 +401,15 @@ MOH_HEALTH_INTELLIGENCE_URL = os.environ.get(
     "/superset/dashboard/8/",
 )
 
+# Addis Ababa landing page: users assigned to this org unit (or below) see only
+# this dashboard, with its tabs as tiles. Admins preview it with /?view=aa.
+# Leave MOH_AA_ORG_UNIT_ID empty to disable.
+MOH_AA_ORG_UNIT_ID = os.environ.get("MOH_AA_ORG_UNIT_ID", "yY9BLUUegel")
+MOH_AA_DASHBOARD_ID = int(os.environ.get("MOH_AA_DASHBOARD_ID", "14"))
+MOH_AA_PORTAL_TITLE = os.environ.get(
+    "MOH_AA_PORTAL_TITLE", "ADDIS ABABA ANALYTICS PORTAL"
+)
+
 # -----------------------------------------------------------------------------
 # AI INSIGHTS — per-chart insight panel rendered beside each chart
 # -----------------------------------------------------------------------------
