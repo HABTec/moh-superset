@@ -135,18 +135,47 @@ def test_without_a_period_selection_completeness_is_the_latest_complete_month() 
     assert completeness["includesInProgress"] is False
 
 
-def test_a_selected_year_pools_its_months_and_flags_the_partial_one() -> None:
+def test_a_selected_year_averages_only_its_finished_months() -> None:
     result = summarise_reporting(
         [dict(m) for m in MONTHS], ContextRequest(fiscal_years=["2019"]), 80.0
     )
     assert result is not None
     completeness = result["completeness"]
-    assert completeness["months"] == 3
-    assert completeness["value"] == 79.7  # (90 + 85 + 64) / 300
-    assert completeness["meetsTarget"] is False
-    assert completeness["includesInProgress"] is True
+    # Meskerem (64%) is still being reported, so it stays out of the average.
+    assert completeness["months"] == 2
+    assert completeness["value"] == 87.5  # (90 + 85) / 200
+    assert completeness["meetsTarget"] is True
+    assert completeness["includesInProgress"] is False
     assert completeness["from"]["monthName"] == "Hamle"
-    assert completeness["to"]["monthName"] == "Meskerem"
+    assert completeness["to"]["monthName"] == "Nehase"
+    assert result["inProgress"]["monthName"] == "Meskerem"
+
+
+def test_a_selection_of_only_unfinished_months_is_flagged() -> None:
+    result = summarise_reporting(
+        [dict(m) for m in MONTHS], ContextRequest(months=["Meskerem"]), 80.0
+    )
+    assert result is not None
+    assert result["completeness"]["value"] == 64.0
+    assert result["completeness"]["includesInProgress"] is True
+
+
+def test_months_after_the_running_month_are_ignored() -> None:
+    rows = [
+        *(dict(m) for m in MONTHS),
+        month("201902", "2019", "Tikimt", 9, 9),
+        # A few facilities already reported Hidar, which has not started.
+        month("201903", "2019", "Hidar", 0, 0),
+    ]
+    rows[-1]["received"] = 1
+    result = summarise_reporting(
+        rows, ContextRequest(fiscal_years=["2019"]), 80.0, current_period="201902"
+    )
+    assert result is not None
+    assert result["latestComplete"]["monthName"] == "Nehase"
+    assert result["inProgress"]["monthName"] == "Tikimt"
+    assert result["inProgress"]["completeness"] == 9.0
+    assert result["completeness"]["to"]["monthName"] == "Nehase"
 
 
 def test_quarter_and_month_selections_match_names_or_numbers() -> None:
@@ -154,7 +183,8 @@ def test_quarter_and_month_selections_match_names_or_numbers() -> None:
         [dict(m) for m in MONTHS], ContextRequest(quarters=["Q1"]), 80.0
     )
     assert by_quarter is not None
-    assert by_quarter["completeness"]["months"] == 4
+    # Q1's finished months; Meskerem is still being reported.
+    assert by_quarter["completeness"]["months"] == 3
     by_month = summarise_reporting(
         [dict(m) for m in MONTHS], ContextRequest(months=["Nehase"]), 80.0
     )
@@ -313,3 +343,18 @@ def test_reporting_query_accepts_data_element_names_and_ids() -> None:
     assert params["de_0"] == "MAT_ANC 1st"
     assert params["deid_0"] == "lotDArt3TsU"
     assert "WHERE id IN (:deid_0)" in sql
+
+
+def test_latest_period_lookup_never_looks_past_the_running_month(
+    app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = FakeDatabase([[]])
+    monkeypatch.setattr(api, "_get_database", lambda: database)
+    monkeypatch.setattr(api, "current_period_key", lambda today: "201902")
+
+    with app.app_context():
+        api._query_latest_monthly_period("indicator_data_values")
+
+    sql, params = database.queries[0]
+    assert "p.period <= :before" in sql
+    assert params["before"] == "201902"

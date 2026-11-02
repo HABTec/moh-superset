@@ -540,15 +540,22 @@ def _query_latest_monthly_period(
     """Latest ``YYYYMM`` period with real data in ``values_table``.
 
     With ``before``, only periods strictly earlier than it qualify (used to
-    exclude a month still in progress). Without it, the true latest period
-    with any data at all — used for "data as of", where an in-progress
-    month's partial data is still the freshest thing available.
+    exclude a month still in progress). Without it, the latest period with
+    any data up to and including the running month — used for "data as of",
+    where an in-progress month's partial data is still the freshest thing
+    available. Later months never count: DHIS2 lets some forms be filled in
+    for future months, and a few early reports must not move "data as of"
+    ahead of today.
     """
     periods = _qualified(
         current_app.config.get("MOH_PERIODS_TABLE", "monthly_periods")
     )
     values = _qualified(values_table)
-    where_before = "WHERE p.period < :before " if before is not None else ""
+    if before is not None:
+        where_before = "WHERE p.period < :before "
+    else:
+        where_before = "WHERE p.period <= :before "
+        before = current_period_key(date.today())
     database = _get_database()
     with database.get_sqla_engine() as engine:
         with engine.connect() as conn:
@@ -790,6 +797,7 @@ def _query_reporting(context_request: ContextRequest) -> dict[str, Any] | None:
                 "MOH_COMPLETENESS_THRESHOLD", DEFAULT_COMPLETENESS_THRESHOLD
             )
         ),
+        current_period=current_period_key(date.today()),
     )
 
 
