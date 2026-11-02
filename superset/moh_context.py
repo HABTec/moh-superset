@@ -460,16 +460,30 @@ def summarise_reporting(
     rows: list[dict[str, Any]],
     request: ContextRequest,
     threshold: float,
+    current_period: str | None = None,
 ) -> dict[str, Any] | None:
     """Turn per-month report counts into the strip's DHIS2 context.
 
-    ``latestComplete`` is the newest month at or above ``threshold``;
-    ``inProgress`` is a newer month still below it. Completeness covers the
-    months the period filters select (every month with data when none is
-    selected collapses to the latest complete month).
+    Months after ``current_period`` (the running Ethiopian month, ``YYYYMM``)
+    are ignored: DHIS2 lets some forms be filled in for future months, and a
+    handful of early reports must not make a month that has not started look
+    like the one in progress.
+
+    ``latestComplete`` is the newest month at or above ``threshold``; the
+    months after it are still being reported, and ``inProgress`` is the
+    newest of them. Completeness covers the finished months the period
+    filters select — still-reporting months would drag the figure down — or,
+    without a selection, the latest complete month. A selection made only of
+    unfinished months is reported as is and flagged ``includesInProgress``.
     """
     rows = sorted(
-        (row for row in rows if row.get("expected")), key=lambda r: str(r["period"])
+        (
+            row
+            for row in rows
+            if row.get("expected")
+            and (current_period is None or str(row["period"]) <= current_period)
+        ),
+        key=lambda r: str(r["period"]),
     )
     if not rows:
         return None
@@ -479,19 +493,23 @@ def summarise_reporting(
 
     complete = [row for row in rows if (row["_pct"] or 0) >= threshold]
     latest_complete = complete[-1] if complete else None
-    newest = rows[-1]
-    in_progress = (
-        newest
+    unfinished = [
+        row
+        for row in rows
         if latest_complete is None
-        or str(newest["period"]) > str(latest_complete["period"])
-        else None
-    )
+        or str(row["period"]) > str(latest_complete["period"])
+    ]
+    unfinished_periods = {row["period"] for row in unfinished}
+    in_progress = unfinished[-1] if unfinished else None
 
     has_selection = bool(request.fiscal_years or request.quarters or request.months)
     if has_selection:
-        selected = [row for row in rows if _matches_selection(row, request)]
+        matching = [row for row in rows if _matches_selection(row, request)]
+        selected = [row for row in matching if row["period"] not in unfinished_periods]
+        if not selected:
+            selected = matching
     else:
-        selected = [latest_complete or newest]
+        selected = [latest_complete or rows[-1]]
     if not selected:
         completeness = None
     else:
@@ -505,9 +523,8 @@ def summarise_reporting(
             "months": len(selected),
             "from": _period_info(selected[0]),
             "to": _period_info(selected[-1]),
-            "includesInProgress": bool(
-                in_progress
-                and any(row["period"] == in_progress["period"] for row in selected)
+            "includesInProgress": any(
+                row["period"] in unfinished_periods for row in selected
             ),
             "target": threshold,
             "meetsTarget": value is not None and value >= threshold,
