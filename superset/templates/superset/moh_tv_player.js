@@ -384,7 +384,7 @@
     var title = slide.label || '';
     setAccent(slide.accent || '#0374B8');
     if ($('mohTvTitle')) $('mohTvTitle').textContent = chrome.title || 'Ministry of Health';
-    if ($('mohTvWord')) $('mohTvWord').textContent = chrome.wordmark || '';
+    if ($('mohTvWord')) $('mohTvWord').textContent = slide.group || chrome.wordmark || '';
     applyYear();
     if ($('mohTvLogo') && chrome.logoUrl) $('mohTvLogo').src = chrome.logoUrl;
     if ($('mohTvGeo')) $('mohTvGeo').textContent = chrome.geography || '';

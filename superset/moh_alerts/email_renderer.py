@@ -22,7 +22,10 @@ the failing facilities inside that recipient's org-unit subtree.
 
 from __future__ import annotations
 
+import csv
 import html
+import io
+import re
 from datetime import datetime, timezone
 from email.utils import format_datetime
 from typing import Any, TYPE_CHECKING
@@ -59,11 +62,13 @@ def render_alert_email(
     rows: list[Any],
     deep_link: str | None,
     email_cap: int = 50,
+    attached: bool = False,
 ) -> str:
     """Render the HTML digest for a single recipient.
 
     ``rows`` are the in-scope failing-facility rows (already scoped by the
-    caller). Only the first ``email_cap`` rows are listed.
+    caller). Only the first ``email_cap`` rows are listed; ``attached`` says
+    the full list travels with the email as a CSV file.
     """
     facility_col = extra.get("facility_name_col", "org_unit_name")
     name_cols = [
@@ -79,7 +84,7 @@ def render_alert_email(
     message = extra.get("message")
 
     table = _build_table(
-        rows, facility_col, name_cols, metric_cols, period_col, email_cap
+        rows, facility_col, name_cols, metric_cols, period_col, email_cap, attached
     )
     generated = format_datetime(datetime.now(tz=timezone.utc))
 
@@ -141,11 +146,10 @@ def _build_table(
     metric_cols: list[str],
     period_col: str,
     email_cap: int,
+    attached: bool = False,
 ) -> str:
     headers = ["Facility"] + [
-        _header_label(c)
-        for c in ("woreda", "zone", "region")
-        if _has_col(rows, c)
+        _header_label(c) for c in ("woreda", "zone", "region") if _has_col(rows, c)
     ]
     headers += list(metric_cols)
     header_row = "".join(
@@ -177,7 +181,13 @@ def _build_table(
     if shown < total:
         overflow = (
             f"<tr><td style='padding:6px 10px;color:#888' colspan='{len(headers)}'>"
-            f"&hellip; and {total - shown} more</td></tr>"
+            f"&hellip; and {total - shown} more"
+            + (
+                f". The full list of {total} facilities is attached (CSV)."
+                if attached
+                else ""
+            )
+            + "</td></tr>"
         )
 
     return (
@@ -194,3 +204,54 @@ def _has_col(rows: list[Any], name: str) -> bool:
 def _header_label(column: str) -> str:
     """Title-case a column name for a table header (e.g. ``region`` -> ``Region``)."""
     return column.replace("_", " ").title()
+
+
+# Spreadsheet apps run cell text starting with these characters as a formula
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(value: Any) -> Any:
+    """Return ``value`` for a CSV cell, neutralising text a spreadsheet would run."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    text = str(value)
+    if text.startswith(_FORMULA_PREFIXES):
+        try:
+            float(text)
+        except ValueError:
+            return "'" + text
+    return text
+
+
+def render_alert_csv(extra: dict[str, Any], rows: list[Any]) -> bytes:
+    """Every in-scope facility row as CSV, columns matching the email table.
+
+    Encoded UTF-8 with a byte-order mark so Excel shows Amharic names correctly.
+    """
+    facility_col = extra.get("facility_name_col", "org_unit_name")
+    area_cols = [c for c in ("woreda", "zone", "region") if _has_col(rows, c)]
+    metric_cols = [
+        c
+        for c in extra.get("metric_cols", ["value", "baseline_value", "change_pct"])
+        if c in row_keys(rows)
+    ]
+    period_col = extra.get("period_col", "period")
+    extra_cols = [c for c in (period_col, "org_unit_id") if _has_col(rows, c)]
+    columns = [facility_col, *area_cols, *metric_cols, *extra_cols]
+    headers = ["Facility"] + [_header_label(c) for c in columns[1:]]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow([_csv_cell(row.get(c)) for c in columns])
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def csv_filename(alert_name: str, period: Any) -> str:
+    """A safe attachment file name such as ``Drug_availability_201901.csv``."""
+    stem = "_".join(part for part in (alert_name, str(period or "")) if part)
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_")
+    return f"{stem or 'alert'}.csv"

@@ -449,6 +449,22 @@ DEFAULT_ZOOM = 5.8
 MOH_TV_INTERVAL_SECONDS = int(os.environ.get("MOH_TV_INTERVAL_SECONDS", "30"))
 MOH_TV_SLIDES = []
 
+# One slideshow per wall TV at /moh-static/tv/group/<slug>. Each group names
+# its dashboard and slides (tab title paths); "name" is shown on the masthead.
+# MOH_TV_GROUPS = {
+#     "service-delivery": {
+#         "name": "Service Delivery",
+#         "dashboard": "/superset/dashboard/8/?standalone=2",
+#         "slides": [{"path": ["Services Delivery", "NCD"], "label": "NCD"}],
+#     },
+# }
+#
+# /moh-static/tv/group/all plays every group on one TV, in config order, with
+# each slide's group name on the masthead. Only groups on the first group's
+# dashboard are included. A group with the slug "all" replaces it.
+# It uses MOH_TV_INTERVAL_SECONDS, like the single-group TVs.
+# MOH_TV_ALL_GROUPS = ["service-delivery", "infrastructure"]  # optional order
+
 # Optional TV page settings. Every key below has a working default, so none
 # has to be set.
 #

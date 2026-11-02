@@ -29,6 +29,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -70,9 +71,7 @@ class MohAlert(AuditMixinNullable, Model):
 
     # Schedule
     crontab = Column(String(1000), nullable=False)
-    timezone = Column(
-        String(100), nullable=False, default="Africa/Addis_Ababa"
-    )
+    timezone = Column(String(100), nullable=False, default="Africa/Addis_Ababa")
 
     # Guards
     grace_period = Column(Integer, nullable=False, default=14400)  # seconds
@@ -136,10 +135,15 @@ class MohAlertDelivery(AuditMixinNullable, Model):
 
     id = Column(Integer, primary_key=True)
     alert_id = Column(
-        Integer, ForeignKey("moh_alert.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("moh_alert.id", ondelete="CASCADE"),
         nullable=False,
     )
     task_id = Column(String(64), nullable=True)
+
+    # Alert name at run time (renames keep history intact) and period judged
+    alert_name = Column(String(150), nullable=True)
+    period = Column(String(32), nullable=True)
 
     # Timing
     scheduled_at = Column(DateTime, nullable=True)
@@ -166,6 +170,12 @@ class MohAlertDelivery(AuditMixinNullable, Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    facility_rows = relationship(
+        "MohAlertDeliveryFacility",
+        back_populates="delivery",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         Index("ix_moh_alert_delivery_alert_id", "alert_id"),
@@ -174,10 +184,7 @@ class MohAlertDelivery(AuditMixinNullable, Model):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<MohAlertDelivery alert_id={self.alert_id} "
-            f"status={self.status!r}>"
-        )
+        return f"<MohAlertDelivery alert_id={self.alert_id} status={self.status!r}>"
 
 
 # ── Per-recipient audit ────────────────────────────────────────────
@@ -191,7 +198,8 @@ class MohAlertDeliveryRecipient(Model):
 
     id = Column(Integer, primary_key=True)
     delivery_id = Column(
-        Integer, ForeignKey("moh_alert_delivery.id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("moh_alert_delivery.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -206,8 +214,14 @@ class MohAlertDeliveryRecipient(Model):
     # Scoped failing facility count for this recipient
     facilities = Column(Integer, nullable=False, default=0)
 
-    # SMTP outcome
+    # Facilities listed in the email body (capped by MOH_ALERTS_EMAIL_CAP)
+    facilities_shown = Column(Integer, nullable=True)
+
+    # Email content and SMTP outcome
+    subject = Column(String(255), nullable=True)
     sent = Column(Boolean, nullable=False, default=False)
+    sent_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
 
     # ── Relationships ──────────────────────────────────────────────
     delivery = relationship(
@@ -224,4 +238,44 @@ class MohAlertDeliveryRecipient(Model):
         return (
             f"<MohAlertDeliveryRecipient delivery_id={self.delivery_id} "
             f"email={self.email!r}>"
+        )
+
+
+# ── Flagged facility audit ─────────────────────────────────────────
+class MohAlertDeliveryFacility(Model):
+    """One row per failing facility per run.
+
+    Stored once per run rather than per recipient: which facilities a
+    recipient received follows from their org unit and the org-unit tree.
+    """
+
+    __tablename__ = "moh_alert_delivery_facility"
+
+    id = Column(Integer, primary_key=True)
+    delivery_id = Column(
+        Integer,
+        ForeignKey("moh_alert_delivery.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    org_unit_id = Column(String(32), nullable=False)
+    org_unit_name = Column(String(255), nullable=True)
+    # Alert metric for the facility; None when the SQL value is not numeric
+    value = Column(Float, nullable=True)
+    period = Column(String(32), nullable=True)
+
+    # ── Relationships ──────────────────────────────────────────────
+    delivery = relationship(
+        "MohAlertDelivery",
+        back_populates="facility_rows",
+    )
+
+    __table_args__ = (
+        Index("ix_moh_alert_delivery_facility_delivery_id", "delivery_id"),
+        Index("ix_moh_alert_delivery_facility_org_unit_id", "org_unit_id"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MohAlertDeliveryFacility delivery_id={self.delivery_id} "
+            f"org_unit_id={self.org_unit_id!r}>"
         )

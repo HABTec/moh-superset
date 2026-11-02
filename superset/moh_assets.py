@@ -469,7 +469,8 @@ _TV_PAGE = """<!doctype html>
         setAccent(slide.accent || '#0374B8');
         const $ = id => document.getElementById(id);
         if ($('mastTitle')) $('mastTitle').textContent = chrome.title || 'Ministry of Health';
-        if ($('mastWord')) $('mastWord').textContent = chrome.wordmark || '';
+        const word = slide.group || chrome.wordmark || '';
+        if ($('mastWord')) $('mastWord').textContent = word;
         if ($('mastPeriod')) $('mastPeriod').textContent = chrome.period || '';
         if ($('mastLogo') && chrome.logoUrl) $('mastLogo').src = chrome.logoUrl;
         if ($('stripGeo')) $('stripGeo').textContent = chrome.geography || '';
@@ -900,7 +901,53 @@ def _tv_slide_payload(slide: dict) -> dict[str, Any]:
     # the TV shows no annotation line until the indicator owner supplies one.
     if annotation := str(slide.get("annotation") or "").strip():
         payload["annotation"] = annotation
+    # Group name for the masthead on a TV that plays several groups; without
+    # it the masthead keeps the page-wide wordmark.
+    if group := str(slide.get("group") or "").strip():
+        payload["group"] = group
     return payload
+
+
+# /moh-static/tv/group/all plays every MOH_TV_GROUPS group in one slideshow.
+# A configured group with this slug takes precedence over the combined one.
+TV_ALL_GROUPS_SLUG = "all"
+
+
+def tv_group_name(slug: str, group_cfg: dict) -> str:
+    """Display name of a TV group: its "name" key, else its slug in words."""
+    return str(group_cfg.get("name") or "").strip() or slug.replace("-", " ").title()
+
+
+def tv_all_groups_slides(groups: dict, order: list[str] | None = None) -> dict:
+    """Join the slides of several TV groups into one slideshow.
+
+    Groups play in ``order`` (default: their order in ``groups``); unknown
+    slugs are ignored. The player switches slides by clicking tabs inside one
+    loaded dashboard, so only groups on the first group's dashboard are kept.
+    Each slide is tagged with its group's name, and a tab path that two
+    groups share plays once.
+    """
+    slugs = [slug for slug in (order or list(groups)) if slug in groups]
+    dashboard = str(groups[slugs[0]].get("dashboard") or "") if slugs else ""
+    slides: list[dict[str, Any]] = []
+    seen: set[tuple[str, ...]] = set()
+    for slug in slugs:
+        group_cfg = groups[slug]
+        if str(group_cfg.get("dashboard") or "") != dashboard:
+            current_app.logger.warning(
+                "TV: group %r is on another dashboard; left out of the %r TV",
+                slug,
+                TV_ALL_GROUPS_SLUG,
+            )
+            continue
+        name = tv_group_name(slug, group_cfg)
+        for slide in group_cfg.get("slides", []):
+            key = tuple(str(part) for part in slide.get("path", []))
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            slides.append({**slide, "group": slide.get("group") or name})
+    return {"dashboard": dashboard, "slides": slides}
 
 
 def _tv_page_payload(
@@ -969,12 +1016,17 @@ def _resolve_tv_preset(preset: str) -> tuple[dict, str, str] | None:
     if preset.startswith("group-"):
         slug = preset[6:]
         groups = config.get("MOH_TV_GROUPS") or {}
+        if slug == TV_ALL_GROUPS_SLUG and slug not in groups:
+            combined = tv_all_groups_slides(groups, config.get("MOH_TV_ALL_GROUPS"))
+            if not combined["slides"]:
+                return None
+            return combined, "MOH_TV_INTERVAL_SECONDS", "All Groups"
         if slug not in groups:
             return None
         return (
             groups[slug],
             "MOH_TV_INTERVAL_SECONDS",
-            slug.replace("-", " ").title(),
+            tv_group_name(slug, groups[slug]),
         )
     return (
         config.get("MOH_TV_SLIDES") or {},
