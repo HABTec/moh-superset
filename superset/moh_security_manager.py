@@ -294,6 +294,72 @@ class MoHSecurityManager(SupersetSecurityManager):
                 self.get_dashboard_access_error_object(dashboard)
             )
 
+    def user_is_in_org_unit(self, root_id: str) -> bool:
+        """Return whether the current user is assigned to ``root_id`` or below it.
+
+        The user's assigned org unit counts when its level-2 ancestor (or the
+        unit itself, for a level-2 unit) is ``root_id``.
+        """
+        username = get_current_user()
+        if not isinstance(username, str) or not root_id:
+            return False
+
+        database_name = current_app.config.get(
+            "MOH_ORG_UNITS_DB_NAME", "MOH_Click_Hhouse"
+        )
+        schema = current_app.config.get("MOH_ORG_UNITS_SCHEMA", "moh")
+        user_org_units_schema = current_app.config.get(
+            "MOH_USER_ORG_UNITS_SCHEMA", schema
+        )
+        org_units_table = current_app.config.get("MOH_ORG_UNITS_TABLE", "org_units")
+        user_org_units_table = current_app.config.get(
+            "MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit"
+        )
+
+        from superset.models.core import Database
+
+        database = (
+            db.session.query(Database).filter_by(database_name=database_name).first()
+        )
+        if database is None:
+            logger.error("MoH org-unit database %r is not configured", database_name)
+            return False
+
+        org_units = (
+            f"{_quote_identifier(str(schema))}."
+            f"{_quote_identifier(str(org_units_table))}"
+        )
+        user_org_units = (
+            f"{_quote_identifier(str(user_org_units_schema))}."
+            f"{_quote_identifier(str(user_org_units_table))}"
+        )
+        query = text(
+            "SELECT 1 "
+            f"FROM {user_org_units} AS user_org_unit "
+            f"INNER JOIN {org_units} AS org_unit "
+            "ON toString(user_org_unit.org_unit_id) = toString(org_unit.id) "
+            "WHERE user_org_unit.username = :username "
+            "AND org_unit.level2id = :root_id LIMIT 1"
+        )
+
+        try:
+            with database.get_sqla_engine() as engine:
+                try:
+                    with engine.connect() as connection:
+                        result = connection.execute(
+                            query, {"username": username, "root_id": str(root_id)}
+                        )
+                        return result.first() is not None
+                finally:
+                    # get_sqla_engine() builds a new engine per call; dispose it
+                    # so its ClickHouse sockets are not left in CLOSE-WAIT.
+                    engine.dispose()
+        except Exception:  # pylint: disable=broad-except
+            logger.exception(
+                "Unable to verify org-unit membership of %r in %r", username, root_id
+            )
+            return False
+
     def _level_one_cache_ttl(self) -> int:
         """Seconds to cache a user's level-one verdict. 0 disables caching."""
         try:
