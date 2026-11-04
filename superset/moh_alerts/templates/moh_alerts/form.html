@@ -72,6 +72,22 @@ GROUP BY orgunit, org_unit_name, region, zone, woreda, value, period</pre>
         </div>
         <label>Message (shown at the top of the email)</label>
         <textarea name="message" rows="3">{{ extra.get('message', '') if extra else '' }}</textarea>
+        <div class="row">
+          <div><label>Data source <span class="muted">— shown under "About this data" in the email</span></label>
+            <input type="text" name="data_source" value="{{ extra.get('data_source', '') if extra else '' }}"
+                   placeholder="e.g. DHIS2 monthly facility reports"></div>
+          <div><label>Time range</label>
+            <input type="text" name="time_range" value="{{ extra.get('time_range', '') if extra else '' }}"
+                   placeholder="e.g. Latest reported month"></div>
+        </div>
+        <div class="row">
+          <div><label>Formula</label>
+            <input type="text" name="formula" value="{{ extra.get('formula', '') if extra else '' }}"
+                   placeholder="e.g. Acceptors / women of reproductive age x 100"></div>
+          <div><label>Threshold</label>
+            <input type="text" name="threshold" value="{{ extra.get('threshold', '') if extra else '' }}"
+                   placeholder="e.g. Flagged when below 85%"></div>
+        </div>
         <label>html_extra (JSON column mapping) <span class="muted">— e.g. {"facility_name_col": "org_unit_name", "period_col": "period", "metric_cols": ["value"]}</span></label>
         <textarea name="html_extra" rows="2">{{ alert.html_extra or '{}' }}</textarea>
         <label>Description</label>

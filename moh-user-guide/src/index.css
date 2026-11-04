@@ -1,0 +1,846 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* ==========================================================================
+   HIGH CONTRAST MODE (WCAG AAA Compliance: 7:1+ Contrast Ratio)
+   Guarantees 100% text legibility across all backgrounds, callouts, and badges.
+   Eliminates all dark-on-dark, light-on-light, and low-contrast clashes.
+   Provides explicit SVG stroke contrast and border-heavy container elevation.
+   ========================================================================== */
+
+.high-contrast {
+  color-scheme: dark !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast body {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* 1. Structural Layout Surfaces */
+.high-contrast header,
+.high-contrast aside,
+.high-contrast nav,
+.high-contrast main,
+.high-contrast footer,
+.high-contrast section,
+.high-contrast article {
+  background-color: #070b14 !important;
+  color: #ffffff !important;
+}
+
+/* 2. Universal Darkening for All Light Containers, Cards & Grids */
+.high-contrast .bg-white,
+.high-contrast [class*="bg-white"],
+.high-contrast [class*="bg-slate-50"],
+.high-contrast [class*="bg-slate-100"],
+.high-contrast [class*="bg-slate-200"],
+.high-contrast [class*="bg-blue-50"],
+.high-contrast [class*="bg-amber-50"],
+.high-contrast [class*="bg-emerald-50"],
+.high-contrast [class*="bg-rose-50"],
+.high-contrast [class*="bg-indigo-50"],
+.high-contrast [class*="bg-purple-50"],
+.high-contrast [class*="bg-gradient-"] {
+  background-color: #0d131f !important;
+  color: #ffffff !important;
+}
+
+/* 3. Universal High Contrast Borders for Border-Heavy Containers */
+.high-contrast * {
+  border-color: #475569 !important;
+}
+
+.high-contrast .border,
+.high-contrast .border-t,
+.high-contrast .border-b,
+.high-contrast .border-l,
+.high-contrast .border-r,
+.high-contrast [class*="border-slate-"],
+.high-contrast [class*="divide-slate-"] > * {
+  border-color: #64748b !important;
+}
+
+.high-contrast .border-2 {
+  border-width: 2px !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Border-heavy analytical boxes, cards and grids */
+.high-contrast section,
+.high-contrast article,
+.high-contrast figure,
+.high-contrast .rounded-xl,
+.high-contrast .rounded-2xl {
+  border-color: #475569 !important;
+}
+
+/* 4. Universal Text Contrast Enforcement: ALL Text is Pure White or Crisp Silver */
+/* Explicit rule for all list items (li), table data (td), and paragraph (p) tags within .high-contrast to ensure total visibility */
+.high-contrast li,
+.high-contrast td,
+.high-contrast p {
+  color: #ffffff !important;
+}
+
+.high-contrast li *,
+.high-contrast td *,
+.high-contrast p * {
+  color: #ffffff !important;
+}
+
+.high-contrast p,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast li,
+.high-contrast span,
+.high-contrast strong,
+.high-contrast th,
+.high-contrast td,
+.high-contrast label,
+.high-contrast dt,
+.high-contrast dd,
+.high-contrast caption,
+.high-contrast figcaption {
+  color: #ffffff !important;
+}
+
+/* Dark slate text utility classes -> Inverted to pure white */
+.high-contrast [class*="text-slate-9"],
+.high-contrast [class*="text-slate-8"],
+.high-contrast [class*="text-blue-9"],
+.high-contrast [class*="text-amber-9"],
+.high-contrast [class*="text-emerald-9"],
+.high-contrast [class*="text-rose-9"],
+.high-contrast [class*="text-indigo-9"],
+.high-contrast [class*="text-purple-9"] {
+  color: #ffffff !important;
+}
+
+/* Black text override -> Inverted to white (except on active yellow button) */
+.high-contrast .text-black:not(.bg-amber-400):not(.bg-amber-400 *):not([aria-pressed="true"]):not([aria-pressed="true"] *) {
+  color: #ffffff !important;
+}
+
+/* Secondary muted text classes -> High-visibility silver (#cbd5e1 = 12:1 ratio on #0d131f) */
+.high-contrast [class*="text-slate-7"],
+.high-contrast [class*="text-slate-6"],
+.high-contrast [class*="text-slate-5"],
+.high-contrast [class*="text-slate-4"] {
+  color: #cbd5e1 !important;
+}
+
+/* Light neutral text classes */
+.high-contrast [class*="text-slate-3"],
+.high-contrast [class*="text-slate-2"],
+.high-contrast [class*="text-slate-1"] {
+  color: #f1f5f9 !important;
+}
+
+/* Semantic Indicator & Brand Text Colors (Vivid, high-luminance tones) */
+.high-contrast [class*="text-blue-8"],
+.high-contrast [class*="text-blue-7"],
+.high-contrast [class*="text-blue-6"] {
+  color: #60a5fa !important;
+}
+
+.high-contrast [class*="text-blue-2"],
+.high-contrast [class*="text-blue-3"],
+.high-contrast [class*="text-blue-4"] {
+  color: #bae6fd !important;
+}
+
+.high-contrast [class*="text-amber-8"],
+.high-contrast [class*="text-amber-7"] {
+  color: #fde047 !important;
+}
+
+.high-contrast [class*="text-amber-2"],
+.high-contrast [class*="text-amber-3"],
+.high-contrast [class*="text-amber-4"] {
+  color: #fef08a !important;
+}
+
+.high-contrast [class*="text-emerald-8"],
+.high-contrast [class*="text-emerald-7"],
+.high-contrast [class*="text-emerald-6"] {
+  color: #4ade80 !important;
+}
+
+.high-contrast [class*="text-emerald-4"],
+.high-contrast [class*="text-emerald-5"] {
+  color: #86efac !important;
+}
+
+.high-contrast [class*="text-rose-8"],
+.high-contrast [class*="text-rose-7"],
+.high-contrast [class*="text-rose-6"] {
+  color: #f87171 !important;
+}
+
+.high-contrast [class*="text-indigo-6"],
+.high-contrast [class*="text-indigo-7"],
+.high-contrast [class*="text-indigo-8"] {
+  color: #a5b4fc !important;
+}
+
+.high-contrast [class*="text-purple-6"],
+.high-contrast [class*="text-purple-7"],
+.high-contrast [class*="text-purple-8"],
+.high-contrast [class*="text-purple-9"] {
+  color: #e9d5ff !important;
+}
+
+/* Prose Typography Plugin Custom Properties Override */
+.high-contrast .prose {
+  --tw-prose-body: #ffffff !important;
+  --tw-prose-headings: #ffffff !important;
+  --tw-prose-lead: #e2e8f0 !important;
+  --tw-prose-links: #93c5fd !important;
+  --tw-prose-bold: #ffffff !important;
+  --tw-prose-counters: #cbd5e1 !important;
+  --tw-prose-bullets: #93c5fd !important;
+  --tw-prose-hr: #475569 !important;
+  --tw-prose-quotes: #ffffff !important;
+  --tw-prose-quote-borders: #60a5fa !important;
+  --tw-prose-captions: #cbd5e1 !important;
+  --tw-prose-code: #ffffff !important;
+  --tw-prose-pre-code: #ffffff !important;
+  --tw-prose-pre-bg: #0b0f19 !important;
+  --tw-prose-th-borders: #64748b !important;
+  --tw-prose-td-borders: #475569 !important;
+}
+
+/* Keyboard Shortcut Badges (<kbd>) */
+.high-contrast kbd {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1.5px solid #94a3b8 !important;
+  font-weight: 700 !important;
+}
+
+/* 5. SVG Icon Explicit Contrast & Legibility */
+.high-contrast svg {
+  stroke: currentColor !important;
+}
+
+.high-contrast svg[class*="text-slate-"],
+.high-contrast svg[class*="text-gray-"] {
+  color: #94a3b8 !important;
+}
+
+.high-contrast svg[class*="text-blue-"] {
+  color: #60a5fa !important;
+}
+
+.high-contrast svg[class*="text-emerald-"] {
+  color: #4ade80 !important;
+}
+
+.high-contrast svg[class*="text-amber-"] {
+  color: #facc15 !important;
+}
+
+.high-contrast svg[class*="text-rose-"] {
+  color: #f87171 !important;
+}
+
+.high-contrast svg[class*="text-indigo-"],
+.high-contrast svg[class*="text-purple-"] {
+  color: #c084fc !important;
+}
+
+.high-contrast button svg,
+.high-contrast a svg {
+  color: inherit !important;
+}
+
+/* 6. Badges & Pills: Dark background + high-contrast colored border + bright readable text */
+/* Yellow / Amber Badges */
+.high-contrast [class*="bg-amber-100"],
+.high-contrast [class*="bg-amber-200"],
+.high-contrast [class*="bg-amber-300"] {
+  background-color: #1a1500 !important;
+  color: #fef08a !important;
+  border: 1.5px solid #facc15 !important;
+  font-weight: 700 !important;
+}
+.high-contrast [class*="bg-amber-100"] *,
+.high-contrast [class*="bg-amber-200"] *,
+.high-contrast [class*="bg-amber-300"] * {
+  color: #fef08a !important;
+  font-weight: 700 !important;
+}
+
+/* Green / Emerald Badges */
+.high-contrast [class*="bg-emerald-100"],
+.high-contrast [class*="bg-emerald-200"] {
+  background-color: #032014 !important;
+  color: #86efac !important;
+  border: 1.5px solid #4ade80 !important;
+  font-weight: 700 !important;
+}
+.high-contrast [class*="bg-emerald-100"] *,
+.high-contrast [class*="bg-emerald-200"] * {
+  color: #86efac !important;
+  font-weight: 700 !important;
+}
+
+/* Blue Badges */
+.high-contrast [class*="bg-blue-100"],
+.high-contrast [class*="bg-blue-200"] {
+  background-color: #0c1a30 !important;
+  color: #bae6fd !important;
+  border: 1.5px solid #38bdf8 !important;
+  font-weight: 700 !important;
+}
+.high-contrast [class*="bg-blue-100"] *,
+.high-contrast [class*="bg-blue-200"] * {
+  color: #bae6fd !important;
+  font-weight: 700 !important;
+}
+
+/* Rose / Red Badges */
+.high-contrast [class*="bg-rose-100"],
+.high-contrast [class*="bg-rose-200"] {
+  background-color: #240a10 !important;
+  color: #fecdd3 !important;
+  border: 1.5px solid #fb7185 !important;
+  font-weight: 700 !important;
+}
+.high-contrast [class*="bg-rose-100"] *,
+.high-contrast [class*="bg-rose-200"] * {
+  color: #fecdd3 !important;
+  font-weight: 700 !important;
+}
+
+/* Purple Badges */
+.high-contrast [class*="bg-purple-100"],
+.high-contrast [class*="bg-purple-200"] {
+  background-color: #1f0b2e !important;
+  color: #e9d5ff !important;
+  border: 1.5px solid #c084fc !important;
+  font-weight: 700 !important;
+}
+.high-contrast [class*="bg-purple-100"] *,
+.high-contrast [class*="bg-purple-200"] * {
+  color: #e9d5ff !important;
+  font-weight: 700 !important;
+}
+
+/* Slate / Gray Badges */
+.high-contrast [class*="bg-slate-100"],
+.high-contrast [class*="bg-slate-200"] {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1.5px solid #64748b !important;
+}
+.high-contrast [class*="bg-slate-100"] *,
+.high-contrast [class*="bg-slate-200"] * {
+  color: #ffffff !important;
+}
+
+/* 7. Callouts & Institutional Notes */
+.high-contrast [role="region"] {
+  background-color: #0c1222 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast [role="region"] * {
+  color: #ffffff !important;
+}
+
+.high-contrast [role="region"][aria-label^="Tip"] {
+  border: 2px solid #4ade80 !important;
+}
+
+.high-contrast [role="region"][aria-label^="Important"] {
+  border: 2px solid #facc15 !important;
+}
+
+.high-contrast [role="region"][aria-label^="Note"] {
+  border: 2px solid #38bdf8 !important;
+}
+
+.high-contrast [role="region"][aria-label^="Caution"] {
+  border: 2px solid #f87171 !important;
+}
+
+/* Analytical Caveats & Troubleshooting Warnings */
+.high-contrast [class*="bg-amber-50"] {
+  background-color: #151003 !important;
+  border: 1.5px solid #facc15 !important;
+}
+.high-contrast [class*="bg-amber-50"] * {
+  color: #fef08a !important;
+}
+.high-contrast [class*="bg-amber-50"] strong {
+  color: #ffffff !important;
+}
+
+/* 8. Buttons, Controls & Toggle Switches */
+.high-contrast button {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #64748b !important;
+}
+
+.high-contrast button:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border-color: #93c5fd !important;
+}
+
+/* Invert and hue-rotate filter on all icon-containing buttons for sharp, legible SVG icons in inverted modes */
+.high-contrast button:has(svg),
+.high-contrast button:has(.lucide) {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Active 1-Click High Contrast Button */
+.high-contrast button[aria-pressed="true"],
+.high-contrast button.bg-amber-400 {
+  background-color: #facc15 !important;
+  color: #000000 !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast button[aria-pressed="true"] *,
+.high-contrast button.bg-amber-400 * {
+  color: #000000 !important;
+  stroke: #000000 !important;
+  font-weight: 800 !important;
+}
+
+/* Primary Action Buttons */
+.high-contrast .bg-blue-900,
+.high-contrast [class*="bg-blue-900"],
+.high-contrast .bg-slate-900 {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #93c5fd !important;
+}
+
+.high-contrast a {
+  color: #93c5fd !important;
+  text-decoration: underline !important;
+  font-weight: 600 !important;
+}
+
+/* 9. Tables in High Contrast */
+.high-contrast table {
+  border: 2px solid #64748b !important;
+  background-color: #0b0f19 !important;
+}
+
+.high-contrast th {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border-bottom: 2px solid #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.high-contrast td {
+  border-bottom: 1px solid #334155 !important;
+  background-color: #0b0f19 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast td * {
+  color: #ffffff !important;
+}
+
+.high-contrast td [class*="text-slate-"] {
+  color: #cbd5e1 !important;
+}
+
+.high-contrast td [class*="text-amber-"] {
+  color: #fde047 !important;
+}
+
+/* 10. Floating Search Results Dropdown */
+.high-contrast #search-dropdown-menu {
+  background-color: #070b14 !important;
+  border: 2px solid #60a5fa !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.95) !important;
+}
+
+.high-contrast #search-dropdown-menu * {
+  color: #ffffff !important;
+}
+
+.high-contrast #search-dropdown-menu li {
+  background-color: #070b14 !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.high-contrast #search-dropdown-menu li:hover,
+.high-contrast #search-dropdown-menu li[aria-selected="true"] {
+  background-color: #1e3a8a !important;
+  border: 1.5px solid #60a5fa !important;
+}
+
+.high-contrast #search-dropdown-menu li [class*="text-slate-"] {
+  color: #cbd5e1 !important;
+}
+
+/* 11. Form Inputs & Modals */
+.high-contrast input[type="search"],
+.high-contrast input[type="text"] {
+  background-color: #050811 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+}
+
+.high-contrast input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.high-contrast [role="dialog"] {
+  background-color: #070b14 !important;
+  border: 2px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+.high-contrast [role="dialog"] * {
+  color: #ffffff !important;
+}
+
+.high-contrast [role="dialog"] [class*="bg-white"],
+.high-contrast [role="dialog"] [class*="bg-slate-50"] {
+  background-color: #0d131f !important;
+}
+
+.high-contrast [role="dialog"] [class*="bg-slate-100"] {
+  background-color: #141c2b !important;
+}
+
+.high-contrast [role="dialog"] [class*="text-slate-"] {
+  color: #cbd5e1 !important;
+}
+
+/* 12. Wireframe Mockup Canvas & Embedded Cards */
+.high-contrast figure {
+  background-color: #050811 !important;
+  border: 2px solid #64748b !important;
+}
+
+.high-contrast figure * {
+  color: #ffffff !important;
+}
+
+.high-contrast figure [class*="bg-white"],
+.high-contrast figure [class*="bg-slate-"] {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+}
+
+.high-contrast figure [class*="text-slate-"] {
+  color: #cbd5e1 !important;
+}
+
+.high-contrast figure [class*="text-emerald-"] {
+  color: #4ade80 !important;
+}
+
+.high-contrast figure [class*="text-blue-"] {
+  color: #60a5fa !important;
+}
+
+.high-contrast figure [class*="text-amber-"] {
+  color: #facc15 !important;
+}
+
+/* 13. Expandable Detail Accordion Panels */
+.high-contrast [id^="expandable-header-"] {
+  background-color: #0d131f !important;
+  border-bottom: 1.5px solid #475569 !important;
+}
+
+.high-contrast [id^="expandable-content-"] {
+  background-color: #080d16 !important;
+  border-top: 1.5px solid #475569 !important;
+}
+
+/* 14. High-Contrast Scrollbars */
+.high-contrast ::-webkit-scrollbar-track {
+  background: #000000 !important;
+}
+
+.high-contrast ::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+.high-contrast ::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+@page {
+  margin: 14mm 12mm;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    margin: 0 !important;
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print,
+  aside,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  .print-header,
+  header {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  html.high-contrast body .print-header,
+  html.high-contrast body .print-header * {
+    color: #111827 !important;
+    background: transparent !important;
+    border-color: #9ca3af !important;
+    box-shadow: none !important;
+  }
+
+  .print-layout {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transition: none !important;
+  }
+
+  .print-layout > .flex {
+    display: block !important;
+  }
+
+  .print-content,
+  main {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: none !important;
+    transition: none !important;
+  }
+
+  .print-expandable-content,
+  .print-expandable-content.hidden {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  .print-footer {
+    margin-top: 12mm !important;
+    padding: 6mm 0 !important;
+    border-color: #9ca3af !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  .print-footer * {
+    color: #111827 !important;
+  }
+
+  .print-content h1,
+  .print-content h2,
+  .print-content h3,
+  .print-content h4,
+  .print-content h5,
+  .print-content h6 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .print-content figure {
+    overflow: visible !important;
+    box-shadow: none !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .print-content figure img {
+    max-width: 100% !important;
+    max-height: 220mm !important;
+    object-fit: contain !important;
+  }
+
+  .print-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  .print-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    padding: 1.5mm 1mm !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    vertical-align: top !important;
+  }
+
+  .print-content article,
+  .print-content section {
+    scroll-margin: 0 !important;
+  }
+
+  .print-content a {
+    color: #1e3a8a !important;
+    text-decoration: underline;
+  }
+
+  .print-content [class*="transition"],
+  .print-content [class*="animate-"] {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .page-break {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  html.high-contrast body,
+  html.high-contrast #root {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  html.high-contrast body .print-content *,
+  html.high-contrast body .print-footer * {
+    color: #111827 !important;
+    border-color: #9ca3af !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html.high-contrast body .print-content [class*="bg-"],
+  html.high-contrast body .print-footer {
+    background: #ffffff !important;
+  }
+}
+
+/* ==========================================================================
+   ADDITIONAL ACCESSIBILITY MODIFIERS
+   ========================================================================== */
+
+/* Enhanced Link Underlines */
+.underline-links a,
+.underline-links button[role="link"] {
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-thickness: 1.5px !important;
+}
+
+/* Relaxed WCAG 1.4.12 Text Spacing */
+.text-spacing {
+  line-height: 1.85 !important;
+  letter-spacing: 0.05em !important;
+  word-spacing: 0.12em !important;
+}
+
+.text-spacing p,
+.text-spacing li,
+.text-spacing td {
+  line-height: 1.85 !important;
+  letter-spacing: 0.05em !important;
+  word-spacing: 0.12em !important;
+}
+
+/* Enhanced Focus Rings */
+.enhanced-focus *:focus-visible {
+  outline: 3px solid #facc15 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Reduced Motion Override */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

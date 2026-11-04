@@ -37,6 +37,7 @@ from flask import (
     send_from_directory,
 )
 from flask_login import current_user
+from werkzeug.wrappers import Response as WerkzeugResponse
 
 moh_assets_bp = Blueprint(
     "moh_assets",
@@ -78,6 +79,9 @@ _ALLOWED_FILES.update(
 
 # Branded static pages (the user guide) served at a clean public URL.
 moh_guide_bp = Blueprint("moh_guide", __name__)
+# Built from moh-user-guide/ (npm run build); kept with the templates so that
+# frontend builds do not delete it.
+_GUIDE_DIR = os.path.join(_BRAND_ASSET_DIR, "user_guide_app")
 
 # Yengwe palette.html — cool module accents; red/amber/green stay for status.
 _TV_MODULE_ACCENTS: tuple[tuple[str, str], ...] = (
@@ -1120,22 +1124,38 @@ def serve_asset(filename: str):
     return resp
 
 
-@moh_guide_bp.route("/guide/")
-def user_guide():
-    """Serve the MoH dashboard Help & User Guide (landing-page tile target)."""
+def _guide_response(filename: str) -> WerkzeugResponse:
+    """Serve one built guide file. Sign-in is required for every file because
+    the pictures show internal dashboard figures.
+    """
     if not getattr(current_user, "is_authenticated", False):
         return redirect(f"/login/?next={request.path}")
 
-    resp = make_response(render_template("superset/user_guide.html"))
-    # The guide uses inline <style> and only same-origin assets.
+    resp = send_from_directory(_GUIDE_DIR, filename)
+    # The guide is same-origin only; its marker positions use inline styles.
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
-        "script-src 'self' 'unsafe-inline'"
+        "script-src 'self'"
     )
     resp.headers.pop("X-Frame-Options", None)
     return resp
+
+
+@moh_guide_bp.route("/guide/")
+def user_guide() -> WerkzeugResponse:
+    """Serve the MoH dashboard Help & User Guide (landing-page tile target)."""
+    resp = _guide_response("index.html")
+    # index.html names the hashed asset files, so it must not go stale.
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@moh_guide_bp.route("/guide/<path:filename>")
+def user_guide_asset(filename: str) -> WerkzeugResponse:
+    """Serve the guide's scripts, styles and pictures."""
+    return _guide_response(filename)
 
 
 @moh_guide_bp.route("/feedback/")

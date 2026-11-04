@@ -20,6 +20,7 @@
 import { render, screen } from '@testing-library/react';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import '@testing-library/jest-dom';
+import { Layer } from '@deck.gl/core';
 import { supersetTheme, ThemeProvider } from '@apache-superset/core/theme';
 import DeckGLPolygon, { getLayer, getPoints } from './Polygon';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
@@ -390,4 +391,68 @@ test('getLayer paints missing metric values with the no-data color', () => {
   expect(getFillColor(features[0]).slice(0, 3)).toEqual([200, 210, 220]);
   expect(getFillColor(features[1]).slice(0, 3)).toEqual([10, 20, 30]);
   expect(getFillColor(features[2]).slice(0, 3)).toEqual([255, 0, 0]);
+});
+
+const squarePolygon = [
+  [0, 0],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+];
+
+const getBoundaryLayers = (
+  features: Record<string, unknown>[],
+  formData: Record<string, unknown> = {},
+) =>
+  getLayer({
+    formData: {
+      ...mockProps.formData,
+      slice_id: 1,
+      color_scheme_type: COLOR_SCHEME_TYPES.fixed_color,
+      fill_color_picker: { r: 0, g: 0, b: 0, a: 1 },
+      stroke_color_picker: { r: 10, g: 20, b: 30, a: 1 },
+      ...formData,
+    },
+    payload: { data: { features } },
+    setTooltip: jest.fn(),
+  } as unknown as Parameters<typeof getLayer>[0]);
+
+test('draws lighter woreda outlines beneath the region outlines', () => {
+  const woreda = { layer_type: 'woreda', polygon: squarePolygon };
+  const region = { layer_type: 'region', polygon: squarePolygon };
+
+  const layers = getBoundaryLayers([woreda, region], {
+    stroked: false,
+  }) as Layer[];
+
+  expect(layers.map(layer => layer.id)).toEqual([
+    'woreda-layer-1',
+    'woreda-outline-layer-1',
+    'region-outline-layer-1',
+  ]);
+  const [, woredaOutline, regionOutline] = layers;
+  expect(woredaOutline.props.data).toEqual([woreda]);
+  expect(woredaOutline.props.pickable).toBe(false);
+  expect(woredaOutline.props).toMatchObject({
+    getWidth: 1,
+    getColor: [70, 70, 70, 120],
+  });
+  expect(regionOutline.props).toMatchObject({
+    getWidth: 4,
+    getColor: [10, 20, 30, 255],
+  });
+});
+
+test('shows polygon lines without region rows only when stroked is enabled', () => {
+  const features = [{ layer_type: 'woreda', polygon: squarePolygon }];
+
+  const stroked = getBoundaryLayers(features, { stroked: true }) as Layer;
+  const unstroked = getBoundaryLayers(features, { stroked: false }) as Layer;
+
+  expect(stroked.props).toMatchObject({
+    stroked: true,
+    getLineWidth: 1,
+    getLineColor: [70, 70, 70, 120],
+  });
+  expect(unstroked.props).toMatchObject({ stroked: false });
 });

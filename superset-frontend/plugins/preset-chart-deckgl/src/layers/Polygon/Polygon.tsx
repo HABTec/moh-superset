@@ -69,6 +69,9 @@ import {
 } from '../../utilities/tooltipUtils';
 import { Point } from '../../types';
 
+const WOREDA_LINE_COLOR: [number, number, number, number] = [70, 70, 70, 120];
+const WOREDA_LINE_WIDTH_PX = 1;
+
 function getElevation(
   d: JsonObject,
   colorScaler: (d: JsonObject) => [number, number, number, number],
@@ -283,7 +286,6 @@ export const getLayer = function ({
     ? [sc.r, sc.g, sc.b, 255 * sc.a]
     : [70, 70, 70, 255];
   const transparentFill: [number, number, number, number] = [0, 0, 0, 0];
-  const noLine: [number, number, number, number] = [0, 0, 0, 0];
 
   const getFillColorForFeature = (d: JsonObject) => {
     if (isRegionBoundaryFeature(d)) {
@@ -291,16 +293,6 @@ export const getLayer = function ({
     }
     return colorScaler(d as { polygon: Point[] });
   };
-
-  const getLineColorForFeature = (d: JsonObject) => {
-    if (isRegionBoundaryFeature(d)) {
-      return regionLineColor;
-    }
-    return noLine;
-  };
-
-  const getLineWidthForFeature = (d: JsonObject) =>
-    isRegionBoundaryFeature(d) ? Math.max(Number(fd.line_width) || 1, 2.5) : 0;
 
   const getElevationForFeature = (d: JsonObject) => {
     if (isRegionBoundaryFeature(d)) {
@@ -334,15 +326,25 @@ export const getLayer = function ({
       stroked: false,
       getPolygon: getPointsFromPolygon,
       getFillColor: getFillColorForFeature,
-      getLineColor: getLineColorForFeature,
-      getLineWidth: getLineWidthForFeature,
       extruded: fd.extruded,
-      lineWidthUnits: fd.line_width_unit,
       getElevation: getElevationForFeature,
       elevationScale: fd.multiplier,
       fp64: true,
       opacity: fd.opacity ? fd.opacity / 100 : 1,
       ...commonProps,
+    });
+
+    // PolygonLayer strokes are ignored on extruded layers, so woreda lines use
+    // PathLayer as well. Not pickable, so tooltips and clicks reach the fills.
+    const woredaOutlineLayer = new PathLayer({
+      id: `woreda-outline-layer-${fd.slice_id}` as const,
+      data: woredaData,
+      pickable: false,
+      widthUnits: 'pixels',
+      getPath: (d: JsonObject) =>
+        getPointsFromPolygon(d as { polygon: Point[] }),
+      getColor: WOREDA_LINE_COLOR,
+      getWidth: WOREDA_LINE_WIDTH_PX,
     });
 
     // PathLayer draws region borders above fills more reliably than
@@ -362,7 +364,7 @@ export const getLayer = function ({
       fp64: true,
     });
 
-    return [woredaLayer, regionLayer];
+    return [woredaLayer, woredaOutlineLayer, regionLayer];
   }
 
   return new PolygonLayer({
@@ -372,10 +374,10 @@ export const getLayer = function ({
     stroked: fd.stroked,
     getPolygon: getPointsFromPolygon,
     getFillColor: getFillColorForFeature,
-    getLineColor: getLineColorForFeature,
-    getLineWidth: getLineWidthForFeature,
+    getLineColor: WOREDA_LINE_COLOR,
+    getLineWidth: WOREDA_LINE_WIDTH_PX,
     extruded: fd.extruded,
-    lineWidthUnits: fd.line_width_unit,
+    lineWidthUnits: 'pixels',
     getElevation: getElevationForFeature,
     elevationScale: fd.multiplier,
     fp64: true,
