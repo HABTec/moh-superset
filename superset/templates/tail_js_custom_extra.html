@@ -145,6 +145,49 @@
       font-weight: 500;
     }
 
+    /* Dashboard actions (Download, Share, ...) lifted out of the dashboard header. */
+    .moh-portal-bar .moh-portal-dashboard-actions {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .moh-portal-bar .moh-portal-dashboard-actions:empty {
+      display: none;
+    }
+
+    .moh-portal-dashboard-actions .moh-nav-dashboard-actions {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      margin-left: 0 !important;
+      position: static !important;
+      top: auto !important;
+      right: auto !important;
+      z-index: auto !important;
+    }
+
+    /* The header holds nothing of its own once its actions are in the bar. */
+    body.moh-portal-shell .dashboard-header-container {
+      min-height: 0 !important;
+      padding: 0 !important;
+    }
+
+    body.moh-portal-shell .dashboard-header-container .header-with-actions {
+      height: 0 !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+    }
+
+    /* Fullscreen hides the bar, so the actions, including Exit fullscreen,
+       stay in the dashboard header. */
+    body.moh-portal-standalone .dashboard-header-container .header-with-actions {
+      height: auto !important;
+      min-height: auto !important;
+      overflow: visible !important;
+    }
+
     .moh-portal-menu-toggle {
       display: none;
       margin-left: auto;
@@ -223,6 +266,7 @@
       <span class="moh-portal-user">{{ current_user.first_name or current_user.username }}</span>
       <a class="moh-portal-logout" href="/logout/">Sign out</a>
     </nav>
+    <div class="moh-portal-dashboard-actions" id="mohPortalDashboardActions"></div>
   </header>
 
   <script nonce="{{ macros.get_nonce() }}">
@@ -245,6 +289,8 @@
       function syncShell() {
         var standalone = /[?&]standalone=/.test(window.location.search || '');
         document.body.classList.toggle('moh-portal-shell', !standalone);
+        document.body.classList.toggle('moh-portal-standalone', standalone);
+        window.dispatchEvent(new Event('moh-portal-shell-change'));
       }
       ['pushState', 'replaceState'].forEach(function(method) {
         var original = window.history[method];

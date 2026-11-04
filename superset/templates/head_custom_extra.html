@@ -856,8 +856,16 @@ _moh_roles %}
       return isDashboardPage() && !isResponsiveMobileDashboard();
     }
 
+    // Present only for readers, whose portal bar replaces the hidden #main-menu.
+    function getPortalActionsSlot() {
+      return document.getElementById("mohPortalDashboardActions");
+    }
+
     function getNavTarget() {
-      return document.querySelector("#main-menu .ant-col-md-8 > div");
+      return (
+        getPortalActionsSlot() ||
+        document.querySelector("#main-menu .ant-col-md-8 > div")
+      );
     }
 
     function getHeaderHost() {
@@ -868,7 +876,7 @@ _moh_roles %}
 
     function getActionPanel() {
       return (
-        document.querySelector("#main-menu .moh-nav-dashboard-actions") ||
+        document.querySelector(".moh-nav-dashboard-actions") ||
         document.querySelector(
           ".dashboard-header-container .header-with-actions .right-button-panel",
         )
@@ -922,7 +930,16 @@ _moh_roles %}
       var panel = getActionPanel();
       if (!panel) return false;
 
-      if (window.innerWidth >= DESKTOP_BP || isResponsiveMobileDashboard()) {
+      if (bodyHasClass("moh-portal-standalone")) {
+        restoreToHeader(panel);
+        return true;
+      }
+
+      if (
+        getPortalActionsSlot() ||
+        window.innerWidth >= DESKTOP_BP ||
+        isResponsiveMobileDashboard()
+      ) {
         return mountToNav(panel);
       }
       restoreToHeader(panel);
@@ -1664,6 +1681,7 @@ _moh_roles %}
       window.addEventListener("resize", onResize);
       window.addEventListener("orientationchange", onResize);
       document.addEventListener("visibilitychange", onVisibility);
+      window.addEventListener("moh-portal-shell-change", syncNavActions);
 
       document.addEventListener(
         "click",

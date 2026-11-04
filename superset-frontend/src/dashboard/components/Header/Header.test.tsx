@@ -616,6 +616,34 @@ test('should render the dropdown icon', () => {
   expect(screen.getByRole('img', { name: 'ellipsis' })).toBeInTheDocument();
 });
 
+test('puts the actions menu in the mobile navbar slot on a responsive dashboard', async () => {
+  const slot = document.createElement('div');
+  slot.id = 'moh-mobile-dashboard-actions-slot';
+  document.body.appendChild(slot);
+
+  setup({ dashboardInfo: { ...initialState.dashboardInfo, id: 3 } });
+
+  await waitFor(() =>
+    expect(slot.querySelector('[data-test="actions-trigger"]')).not.toBeNull(),
+  );
+  slot.remove();
+});
+
+test('keeps the actions menu out of the hidden navbar slot for portal readers', () => {
+  const slot = document.createElement('div');
+  slot.id = 'moh-mobile-dashboard-actions-slot';
+  const portalBar = document.createElement('header');
+  portalBar.id = 'mohPortalBar';
+  document.body.append(slot, portalBar);
+
+  setup({ dashboardInfo: { ...initialState.dashboardInfo, id: 3 } });
+
+  expect(slot).toBeEmptyDOMElement();
+  expect(screen.getByRole('img', { name: 'ellipsis' })).toBeInTheDocument();
+  slot.remove();
+  portalBar.remove();
+});
+
 test('should refresh the charts', async () => {
   setup({
     dashboardState: {
