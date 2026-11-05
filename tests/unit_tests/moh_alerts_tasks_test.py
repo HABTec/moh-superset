@@ -18,12 +18,23 @@
 
 from __future__ import annotations
 
+import smtplib
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from superset.moh_alerts import tasks
+from superset.moh_alerts.email_errors import (
+    classify_email_error,
+    FailureKind,
+    GAVE_UP_PREFIX,
+    INVALID_ADDRESS_PREFIX,
+    NO_LONGER_FLAGGED_MESSAGE,
+    RETRY_PREFIX,
+    SENDING_DEFERRED_MESSAGE,
+)
 from superset.moh_alerts.email_renderer import (
     csv_filename,
     render_alert_csv,
@@ -75,7 +86,15 @@ class _Session:
 def run(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Stub the database, resolver and SMTP; `state["fail"]` makes sends fail."""
     session = _Session()
-    state: dict[str, Any] = {"session": session, "fail": set(), "sent": {}}
+    state: dict[str, Any] = {
+        "session": session,
+        "fail": set(),
+        "sent": {},
+        "paused": set(),
+        "errors": {},
+        "attempted": [],
+        "scheduled": [],
+    }
 
     class Recipient(_Record):
         pass
@@ -84,6 +103,9 @@ def run(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         pass
 
     def send(to: str, **kwargs: Any) -> None:
+        state["attempted"].append(to)
+        if to in state["errors"]:
+            raise state["errors"][to]
         if to in state["fail"]:
             raise RuntimeError("550 mailbox unavailable")
         state["sent"][to] = kwargs
@@ -102,9 +124,15 @@ def run(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "_user_org_context": lambda *a: ("OU1", 2),
         "build_deep_link": lambda alert, org_unit: None,
         "_send_email_smtp": send,
+        "_paused_addresses": lambda emails: state["paused"],
     }
     for name, stub in stubs.items():
         monkeypatch.setattr(tasks, name, stub)
+    monkeypatch.setattr(
+        tasks.retry_emails,
+        "apply_async",
+        lambda args, countdown: state["scheduled"].append((args, countdown)),
+    )
     state["Recipient"], state["Facility"] = Recipient, Facility
     return state
 
@@ -284,3 +312,279 @@ def test_email_without_attachment_keeps_plain_overflow_note() -> None:
 
     assert "and 1 more</td>" in body
     assert "attached" not in body
+
+
+REFUSED_INVALID = smtplib.SMTPRecipientsRefused(
+    {
+        "a@moh.test": (
+            550,
+            b"5.1.1 [R1] Invalid recipient (5e82a80c-d700-11f1-844b-df8125a0c701)",
+        )
+    }
+)
+REFUSED_RATE_LIMIT = smtplib.SMTPRecipientsRefused(
+    {"a@moh.test": (451, b"4.7.1 [R6] You have more than 50 failed deliveries")}
+)
+
+
+def test_classifies_rejected_address_without_address_or_reference() -> None:
+    failure = classify_email_error(REFUSED_INVALID)
+
+    assert failure.kind is FailureKind.INVALID_ADDRESS
+    assert failure.message == (
+        f"{INVALID_ADDRESS_PREFIX}the mail provider rejected it "
+        "(550 5.1.1 [R1] Invalid recipient)."
+    )
+
+
+def test_classifies_provider_limit_as_temporary() -> None:
+    failure = classify_email_error(REFUSED_RATE_LIMIT)
+
+    assert failure.kind is FailureKind.TEMPORARY
+    assert failure.message.startswith(RETRY_PREFIX)
+    assert "more than 50 failed deliveries" in failure.message
+
+
+def test_policy_rejection_does_not_blame_the_address() -> None:
+    failure = classify_email_error(
+        smtplib.SMTPRecipientsRefused({"a@moh.test": (550, b"5.7.1 Relaying denied")})
+    )
+
+    assert failure.kind is FailureKind.OTHER
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        smtplib.SMTPServerDisconnected("closed"),
+        ConnectionRefusedError(111, "refused"),
+        TimeoutError(),
+        smtplib.SMTPDataError(421, b"try again"),
+    ],
+)
+def test_connection_problems_and_4xx_are_temporary(error: Exception) -> None:
+    assert classify_email_error(error).kind is FailureKind.TEMPORARY
+
+
+def test_login_failure_is_readable_and_not_retried() -> None:
+    failure = classify_email_error(smtplib.SMTPAuthenticationError(535, b"bad creds"))
+
+    assert failure.kind is FailureKind.OTHER
+    assert "SMTP username and password" in failure.message
+    assert "bad creds" not in failure.message
+
+
+def test_paused_address_is_recorded_but_not_attempted(run: dict[str, Any]) -> None:
+    run["paused"] = {"hp_user@moh.test"}
+    delivery = _delivery()
+
+    tasks._run_delivery(_alert(), delivery)
+
+    assert run["attempted"] == ["region_user@moh.test"]
+    paused = next(r for r in _added(run, run["Recipient"]) if r.username == "hp_user")
+    assert paused.sent is False
+    assert paused.error_message.startswith("Not sent: this address was rejected")
+    # Recording a pause must not look like a fresh rejection or a pending retry
+    assert not paused.error_message.startswith(INVALID_ADDRESS_PREFIX)
+    assert not paused.error_message.startswith(RETRY_PREFIX)
+    assert run["scheduled"] == []
+
+
+def test_invalid_address_is_not_retried(run: dict[str, Any]) -> None:
+    run["errors"]["hp_user@moh.test"] = REFUSED_INVALID
+
+    tasks._run_delivery(_alert(), _delivery())
+
+    failed = next(r for r in _added(run, run["Recipient"]) if r.username == "hp_user")
+    assert failed.error_message.startswith(INVALID_ADDRESS_PREFIX)
+    assert run["scheduled"] == []
+
+
+def test_temporary_failure_schedules_retry_after_commit(run: dict[str, Any]) -> None:
+    run["errors"]["hp_user@moh.test"] = REFUSED_RATE_LIMIT
+    delivery = _delivery()
+
+    tasks._run_delivery(_alert(), delivery)
+
+    assert run["scheduled"] == [((7, 1), 3900)]
+    assert delivery.recipients == 1
+
+
+def test_repeated_temporary_failures_stop_further_attempts(
+    run: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    users = {f"u{i}": ["F1"] for i in range(5)}
+    monkeypatch.setattr(tasks, "resolve", lambda *a, **k: (users, 0))
+    run["errors"].update({f"u{i}@moh.test": REFUSED_RATE_LIMIT for i in range(5)})
+
+    tasks._run_delivery(_alert(), _delivery())
+
+    assert len(run["attempted"]) == tasks.MAX_CONSECUTIVE_TEMPORARY_FAILURES
+    recipients = _added(run, run["Recipient"])
+    assert len(recipients) == 5
+    assert recipients[-1].error_message == SENDING_DEFERRED_MESSAGE
+    assert len(run["scheduled"]) == 1
+
+
+def _pending_row(username: str) -> Any:
+    return SimpleNamespace(
+        username=username,
+        email=f"{username}@moh.test",
+        org_unit_id="OU1",
+        sent=False,
+        sent_at=None,
+        subject="old",
+        facilities=9,
+        facilities_shown=9,
+        error_message=f"{RETRY_PREFIX}the mail provider temporarily refused.",
+    )
+
+
+def test_retry_marks_row_sent_and_counts_recipient(run: dict[str, Any]) -> None:
+    row = _pending_row("hp_user")
+    delivery = SimpleNamespace(id=7, period="201901", recipients=1)
+
+    tasks._retry_pending(_alert(), delivery, [row])
+
+    assert run["attempted"] == ["hp_user@moh.test"]
+    assert row.sent is True
+    assert row.sent_at is not None
+    assert row.error_message is None
+    assert row.facilities == 1
+    assert delivery.recipients == 2
+
+
+def test_retry_skips_recipient_with_nothing_flagged(run: dict[str, Any]) -> None:
+    row = _pending_row("someone_else")
+
+    tasks._retry_pending(
+        _alert(), SimpleNamespace(id=7, period="201901", recipients=0), [row]
+    )
+
+    assert run["attempted"] == []
+    assert row.error_message == NO_LONGER_FLAGGED_MESSAGE
+
+
+def test_retry_records_new_failure_and_stays_pending(run: dict[str, Any]) -> None:
+    run["errors"]["hp_user@moh.test"] = REFUSED_RATE_LIMIT
+    row = _pending_row("hp_user")
+
+    tasks._retry_pending(
+        _alert(), SimpleNamespace(id=7, period="201901", recipients=0), [row]
+    )
+
+    assert row.sent is False
+    assert "more than 50 failed deliveries" in row.error_message
+    assert row.error_message.startswith(RETRY_PREFIX)
+
+
+def test_schedules_second_retry_then_gives_up(run: dict[str, Any]) -> None:
+    row = _pending_row("hp_user")
+    delivery = _delivery()
+
+    tasks._schedule_retry_or_give_up(delivery, [row], attempt=2)
+    assert run["scheduled"] == [((7, 2), 7200)]
+    assert row.error_message.startswith(RETRY_PREFIX)
+
+    tasks._schedule_retry_or_give_up(delivery, [row], attempt=3)
+    assert len(run["scheduled"]) == 1
+    assert row.error_message == (
+        f"{GAVE_UP_PREFIX}the mail provider temporarily refused."
+    )
+
+
+def test_broker_outage_does_not_fail_the_run(
+    run: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unavailable(args: Any, countdown: int) -> None:
+        raise ConnectionError("broker down")
+
+    monkeypatch.setattr(tasks.retry_emails, "apply_async", unavailable)
+    run["errors"]["hp_user@moh.test"] = REFUSED_RATE_LIMIT
+    delivery = _delivery()
+
+    tasks._run_delivery(_alert(), delivery)
+
+    assert delivery.status == "success"
+
+
+def test_paused_addresses_uses_only_recent_rejections(
+    session: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from superset.models.moh_alert import (
+        MohAlertDelivery,
+        MohAlertDeliveryRecipient,
+    )
+
+    bind = session.get_bind()
+    MohAlertDelivery.__table__.create(bind)
+    MohAlertDeliveryRecipient.__table__.create(bind)
+    monkeypatch.setattr(tasks, "_load_db", lambda: SimpleNamespace(session=session))
+    now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+    recent = MohAlertDelivery(id=1, alert_id=1, started_at=now - timedelta(days=2))
+    old = MohAlertDelivery(id=2, alert_id=1, started_at=now - timedelta(days=30))
+    rejected = f"{INVALID_ADDRESS_PREFIX}the mail provider rejected it."
+    session.add_all(
+        [
+            recent,
+            old,
+            MohAlertDeliveryRecipient(
+                delivery_id=1, email="Bad@moh.test", sent=False, error_message=rejected
+            ),
+            MohAlertDeliveryRecipient(
+                delivery_id=2, email="old@moh.test", sent=False, error_message=rejected
+            ),
+            MohAlertDeliveryRecipient(
+                delivery_id=1,
+                email="busy@moh.test",
+                sent=False,
+                error_message=f"{RETRY_PREFIX}limit",
+            ),
+            MohAlertDeliveryRecipient(
+                delivery_id=1,
+                email="still@moh.test",
+                sent=False,
+                error_message="Not sent: this address was rejected as invalid",
+            ),
+        ]
+    )
+    session.flush()
+
+    paused = tasks._paused_addresses(
+        ["bad@moh.test", "old@moh.test", "busy@moh.test", "still@moh.test"]
+    )
+
+    assert paused == {"bad@moh.test"}
+
+
+def test_email_describes_the_data_escaped_and_in_order() -> None:
+    extra = {
+        **EXTRA,
+        "threshold": "Flagged when value < 85",
+        "data_source": "DHIS2 monthly reports",
+        "time_range": "Latest reported month",
+        "formula": "Acceptors / women of reproductive age x 100",
+    }
+
+    html = render_alert_email(_alert(), extra, ROWS[:1], None)
+
+    assert "About this data" in html
+    assert "Flagged when value &lt; 85" in html
+    positions = [
+        html.index(text)
+        for text in ("Data source", "Time range", "Formula", "Threshold")
+    ]
+    assert positions == sorted(positions)
+
+
+def test_email_shows_only_the_descriptions_provided() -> None:
+    html = render_alert_email(
+        _alert(), {**EXTRA, "data_source": "DHIS2"}, ROWS[:1], None
+    )
+
+    assert "Data source" in html
+    assert "Threshold" not in html
+
+
+def test_email_omits_data_section_when_nothing_is_configured() -> None:
+    assert "About this data" not in render_alert_email(_alert(), EXTRA, ROWS[:1], None)

@@ -18,6 +18,7 @@
 
 - ``moh_alert.scheduler`` — runs each minute, dispatches due alerts.
 - ``moh_alert.execute`` — evaluates an alert, resolves recipients and sends.
+- ``moh_alert.retry_emails`` — resends emails that failed temporarily.
 
 Importing ``sqlalchemy`` models at module level is invalid during config
 loading (the encryption factory is not initialized yet), so all model and
@@ -32,11 +33,23 @@ from typing import Any, TYPE_CHECKING
 
 from celery import Task
 from flask import current_app
-from sqlalchemy import bindparam, text
+from sqlalchemy import bindparam, func, text
 
 from superset.extensions import celery_app
 from superset.moh_alerts.connection import get_moh_database
 from superset.moh_alerts.deep_link import build_deep_link
+from superset.moh_alerts.email_errors import (
+    ALERT_DISABLED_MESSAGE,
+    classify_email_error,
+    EmailFailure,
+    FailureKind,
+    GAVE_UP_PREFIX,
+    INVALID_ADDRESS_PREFIX,
+    NO_LONGER_FLAGGED_MESSAGE,
+    paused_address_message,
+    RETRY_PREFIX,
+    SENDING_DEFERRED_MESSAGE,
+)
 from superset.moh_alerts.email_renderer import (
     csv_filename,
     render_alert_csv,
@@ -56,6 +69,10 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+# Temporary failures in a row before the rest of a pass waits for the retry.
+# Each attempt counts against the provider's limit on failed deliveries.
+MAX_CONSECUTIVE_TEMPORARY_FAILURES = 3
 
 
 def _load_db():
@@ -214,35 +231,15 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
 
     database = get_moh_database(alert.database_id)
 
-    rows = _evaluate(alert, database)
-
-    valid = [r for r in rows if r.get("org_unit_id")]
-    ignored = len(rows) - len(valid)
-
-    # de-duplicate by facility keeping the first row
-    seen: dict[str, Any] = {}
-    for r in valid:
-        seen.setdefault(str(r["org_unit_id"]), r)
+    seen, per_user, ignored = _resolve_targets(alert, database)
 
     schema = current_app.config.get("MOH_ORG_UNITS_SCHEMA", "moh")
     org_units_table = current_app.config.get("MOH_ORG_UNITS_TABLE", "org_units")
     user_org_units_table = current_app.config.get(
         "MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit"
     )
-    max_per_query = current_app.config.get("MOH_ALERTS_MAX_FACILITIES_PER_QUERY", 5000)
     max_recipients = current_app.config.get("MOH_ALERTS_MAX_RECIPIENTS", 2000)
     email_cap = current_app.config.get("MOH_ALERTS_EMAIL_CAP", 50)
-    attach_csv = current_app.config.get("MOH_ALERTS_ATTACH_CSV", True)
-
-    per_user, resolver_ignored = resolve(
-        database,
-        seen.keys(),
-        schema=schema,
-        org_units_table=org_units_table,
-        user_org_units_table=user_org_units_table,
-        max_per_query=max_per_query,
-    )
-    ignored += resolver_ignored
 
     extra = _load_extra(alert)
     facility_model = _load_facility_model()
@@ -254,8 +251,12 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
     )
 
     emails = _emails_for_usernames(per_user.keys())
+    paused = _paused_addresses(emails.values())
+    pause_days = current_app.config.get("MOH_ALERTS_BOUNCE_PAUSE_DAYS", 7)
 
     sent_count = 0
+    consecutive_temporary = 0
+    awaiting_retry = []
     for username, facilities in per_user.items():
         if sent_count >= max_recipients:
             logger.warning(
@@ -272,57 +273,45 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
         user_org_unit, user_level = _user_org_context(
             database, username, schema, user_org_units_table, org_units_table
         )
-        deep_link = build_deep_link(alert, user_org_unit) if user_org_unit else None
         subject = render_subject(alert, extra, subset)
-        # Lists longer than the email table travel in full as a CSV attachment
-        attached = attach_csv and len(subset) > email_cap
-        attachments = (
-            {csv_filename(alert.name, delivery.period): render_alert_csv(extra, subset)}
-            if attached
-            else {}
-        )
-        body = render_alert_email(
-            alert, extra, subset, deep_link, email_cap=email_cap, attached=attached
-        )
         sent = False
         sent_at = None
         error_message = None
-        try:
-            _send_email_smtp(
-                to=email,
-                subject=subject,
-                html_content=body,
-                config=current_app.config,
-                data=attachments,
-                images={},
+        if email.lower() in paused:
+            error_message = paused_address_message(pause_days)
+        elif consecutive_temporary >= MAX_CONSECUTIVE_TEMPORARY_FAILURES:
+            error_message = SENDING_DEFERRED_MESSAGE
+        else:
+            failure = _send_alert_email(
+                alert, extra, subset, email, subject, delivery.period, user_org_unit
             )
-            sent = True
-            sent_at = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-            sent_count += 1
-        except Exception as ex:  # pylint: disable=broad-except
-            error_message = f"{type(ex).__name__}: {ex}"[:1000]
-            logger.warning(
-                "moh alert %s: email to %s (%s) failed: %s",
-                alert.id,
-                username,
-                email,
-                ex,
-            )
-        db.session.add(
-            recipient_model(
-                delivery_id=delivery.id,
-                username=username,
-                email=email,
-                org_unit_id=user_org_unit,
-                org_unit_level=user_level,
-                facilities=len(subset),
-                facilities_shown=min(len(subset), email_cap),
-                subject=subject[:255],
-                sent=sent,
-                sent_at=sent_at,
-                error_message=error_message,
-            )
+            if failure is None:
+                sent = True
+                sent_at = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                sent_count += 1
+                consecutive_temporary = 0
+            else:
+                error_message = failure.message
+                if failure.kind is FailureKind.TEMPORARY:
+                    consecutive_temporary += 1
+                else:
+                    consecutive_temporary = 0
+        recipient = recipient_model(
+            delivery_id=delivery.id,
+            username=username,
+            email=email,
+            org_unit_id=user_org_unit,
+            org_unit_level=user_level,
+            facilities=len(subset),
+            facilities_shown=min(len(subset), email_cap),
+            subject=subject[:255],
+            sent=sent,
+            sent_at=sent_at,
+            error_message=error_message,
         )
+        db.session.add(recipient)
+        if error_message and error_message.startswith(RETRY_PREFIX):
+            awaiting_retry.append(recipient)
 
     delivery.status = "success"
     delivery.finished_at = datetime.now(tz=timezone.utc).replace(tzinfo=None)
@@ -333,6 +322,7 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
     alert.last_run_status = "success"
     alert.last_error = None
     db.session.commit()
+    _schedule_retry_or_give_up(delivery, awaiting_retry, attempt=1)
 
     logger.info(
         "moh alert %s success: %s facilities, %s recipients",
@@ -340,6 +330,218 @@ def _run_delivery(alert: MohAlert, delivery: MohAlertDelivery) -> None:
         len(seen),
         sent_count,
     )
+
+
+def _resolve_targets(
+    alert: MohAlert, database: Database
+) -> tuple[dict[str, Any], dict[str, Any], int]:
+    """Evaluate the alert: flagged rows by facility, facilities by user, ignored."""
+    rows = _evaluate(alert, database)
+
+    valid = [r for r in rows if r.get("org_unit_id")]
+    ignored = len(rows) - len(valid)
+
+    # de-duplicate by facility keeping the first row
+    seen: dict[str, Any] = {}
+    for r in valid:
+        seen.setdefault(str(r["org_unit_id"]), r)
+
+    per_user, resolver_ignored = resolve(
+        database,
+        seen.keys(),
+        schema=current_app.config.get("MOH_ORG_UNITS_SCHEMA", "moh"),
+        org_units_table=current_app.config.get("MOH_ORG_UNITS_TABLE", "org_units"),
+        user_org_units_table=current_app.config.get(
+            "MOH_USER_ORG_UNITS_TABLE", "dim_user_orgunit"
+        ),
+        max_per_query=current_app.config.get(
+            "MOH_ALERTS_MAX_FACILITIES_PER_QUERY", 5000
+        ),
+    )
+    return seen, per_user, ignored + resolver_ignored
+
+
+def _send_alert_email(
+    alert: MohAlert,
+    extra: dict[str, Any],
+    subset: list[Any],
+    email: str,
+    subject: str,
+    period: str | None,
+    user_org_unit: str | None,
+) -> EmailFailure | None:
+    """Render and send one recipient's email; returns the failure, if any."""
+    email_cap = current_app.config.get("MOH_ALERTS_EMAIL_CAP", 50)
+    # Lists longer than the email table travel in full as a CSV attachment
+    attached = (
+        current_app.config.get("MOH_ALERTS_ATTACH_CSV", True)
+        and len(subset) > email_cap
+    )
+    try:
+        attachments = (
+            {csv_filename(alert.name, period): render_alert_csv(extra, subset)}
+            if attached
+            else {}
+        )
+        deep_link = build_deep_link(alert, user_org_unit) if user_org_unit else None
+        body = render_alert_email(
+            alert, extra, subset, deep_link, email_cap=email_cap, attached=attached
+        )
+        _send_email_smtp(
+            to=email,
+            subject=subject,
+            html_content=body,
+            config=current_app.config,
+            data=attachments,
+            images={},
+        )
+    except Exception as ex:  # pylint: disable=broad-except
+        logger.warning("moh alert %s: email to %s failed: %s", alert.id, email, ex)
+        return classify_email_error(ex)
+    return None
+
+
+def _paused_addresses(emails: Any) -> set[str]:
+    """Lower-cased addresses rejected as invalid within the pause window.
+
+    Only real rejections count, not the rows recording a paused send, so each
+    address is tried again once the window passes. A corrected address is a
+    different value and sends straight away.
+    """
+    days = current_app.config.get("MOH_ALERTS_BOUNCE_PAUSE_DAYS", 7)
+    addresses = {str(email).lower() for email in emails}
+    if days <= 0 or not addresses:
+        return set()
+    db = _load_db()
+    _, delivery_model, recipient_model = _load_models()
+    cutoff = datetime.now(tz=timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+    address = func.lower(recipient_model.email)
+    rows = (
+        db.session.query(address)
+        .join(delivery_model, recipient_model.delivery_id == delivery_model.id)
+        .filter(
+            delivery_model.started_at >= cutoff,
+            recipient_model.sent.is_(False),
+            recipient_model.error_message.startswith(INVALID_ADDRESS_PREFIX),
+            address.in_(addresses),
+        )
+        .distinct()
+    )
+    return {row[0] for row in rows}
+
+
+def _retry_delays() -> list[int]:
+    """Seconds to wait before each retry; the first outlasts hourly provider limits."""
+    return list(current_app.config.get("MOH_ALERTS_EMAIL_RETRY_DELAYS", (3900, 7200)))
+
+
+def _schedule_retry_or_give_up(
+    delivery: MohAlertDelivery, rows: list[Any], attempt: int
+) -> None:
+    """Queue retry number ``attempt`` for ``rows``, or close them when none are left."""
+    if not rows:
+        return
+    delays = _retry_delays()
+    if attempt <= len(delays):
+        try:
+            retry_emails.apply_async(
+                (delivery.id, attempt), countdown=delays[attempt - 1]
+            )
+        except Exception:  # pylint: disable=broad-except
+            # The emails already sent stand, so this must not fail the run
+            logger.exception("could not schedule retry for delivery %s", delivery.id)
+        return
+    db = _load_db()
+    for row in rows:
+        reason = str(row.error_message).removeprefix(RETRY_PREFIX)
+        row.error_message = f"{GAVE_UP_PREFIX}{reason}"
+    db.session.commit()
+
+
+def _retry_pending(
+    alert: MohAlert, delivery: MohAlertDelivery, rows: list[Any]
+) -> None:
+    """Resend to ``rows`` using current data, committing after each recipient.
+
+    Committing as it goes means a timeout part-way through cannot lead to a
+    recipient being emailed twice by the next retry.
+    """
+    db = _load_db()
+    extra = _load_extra(alert)
+    seen, per_user, _ = _resolve_targets(alert, get_moh_database(alert.database_id))
+    email_cap = current_app.config.get("MOH_ALERTS_EMAIL_CAP", 50)
+    consecutive_temporary = 0
+    for row in rows:
+        subset = [seen[f] for f in per_user.get(row.username, []) if f in seen]
+        if not subset:
+            row.error_message = NO_LONGER_FLAGGED_MESSAGE
+            db.session.commit()
+            continue
+        subject = render_subject(alert, extra, subset)
+        failure = _send_alert_email(
+            alert, extra, subset, row.email, subject, delivery.period, row.org_unit_id
+        )
+        row.subject = subject[:255]
+        row.facilities = len(subset)
+        row.facilities_shown = min(len(subset), email_cap)
+        if failure is None:
+            row.sent = True
+            row.sent_at = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+            row.error_message = None
+            delivery.recipients = (delivery.recipients or 0) + 1
+            consecutive_temporary = 0
+        else:
+            row.error_message = failure.message
+            consecutive_temporary = (
+                consecutive_temporary + 1
+                if failure.kind is FailureKind.TEMPORARY
+                else 0
+            )
+        db.session.commit()
+        if consecutive_temporary >= MAX_CONSECUTIVE_TEMPORARY_FAILURES:
+            break
+
+
+@celery_app.task(
+    name="moh_alert.retry_emails",
+    bind=True,
+    soft_time_limit=600,
+    time_limit=900,
+)
+def retry_emails(self: Task, delivery_id: int, attempt: int = 1) -> None:  # pylint: disable=unused-argument
+    """Resend a run's temporarily failed emails, then schedule the next retry."""
+    db = _load_db()
+    _, delivery_model, recipient_model = _load_models()
+    delivery = db.session.get(delivery_model, delivery_id)
+    if delivery is None:
+        return
+    pending = (
+        db.session.query(recipient_model)
+        .filter(
+            recipient_model.delivery_id == delivery_id,
+            recipient_model.sent.is_(False),
+            recipient_model.error_message.startswith(RETRY_PREFIX),
+        )
+        .all()
+    )
+    if not pending:
+        return
+    if not delivery.alert.enabled:
+        for row in pending:
+            row.error_message = ALERT_DISABLED_MESSAGE
+        db.session.commit()
+        return
+    try:
+        _retry_pending(delivery.alert, delivery, pending)
+    except Exception:  # pylint: disable=broad-except
+        db.session.rollback()
+        logger.exception("moh alert delivery %s: email retry failed", delivery_id)
+    remaining = [
+        row
+        for row in pending
+        if not row.sent and str(row.error_message).startswith(RETRY_PREFIX)
+    ]
+    _schedule_retry_or_give_up(delivery, remaining, attempt + 1)
 
 
 def _evaluate(alert: MohAlert, database: Database) -> list[Any]:

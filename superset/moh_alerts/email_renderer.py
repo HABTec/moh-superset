@@ -34,6 +34,15 @@ if TYPE_CHECKING:
     from superset.models.moh_alert import MohAlert
 
 
+# Per-alert descriptions of the data, kept in ``html_extra`` (key, email label)
+ABOUT_DATA_FIELDS = (
+    ("data_source", "Data source"),
+    ("time_range", "Time range"),
+    ("formula", "Formula"),
+    ("threshold", "Threshold"),
+)
+
+
 def _cell(value: Any) -> str:
     """HTML-escape a value for display in a table cell."""
     if value is None:
@@ -115,6 +124,7 @@ def render_alert_email(
         message_html,
         table,
         link_html,
+        _about_data_section(extra),
         '<hr style="border:none;border-top:1px solid #ddd;margin:18px 0">',
         '<p style="color:#888;font-size:12px;margin:0">You received this because '
         "you are assigned to an org unit at this facility or an overseeing level. "
@@ -122,6 +132,26 @@ def render_alert_email(
         "</div>",
     ]
     return "\n".join(lines)
+
+
+def _about_data_section(extra: dict[str, Any]) -> str:
+    """Render the alert's data description, or nothing when none is configured."""
+    rows = "".join(
+        "<tr>"
+        "<td style='padding:3px 12px 3px 0;color:#444;vertical-align:top;"
+        f"white-space:nowrap'><b>{label}</b></td>"
+        f"<td style='padding:3px 0;color:#444'>{html.escape(str(extra[key]))}</td>"
+        "</tr>"
+        for key, label in ABOUT_DATA_FIELDS
+        if extra.get(key)
+    )
+    if not rows:
+        return ""
+    return (
+        '<h3 style="color:#12346b;font-size:14px;margin:16px 0 6px">'
+        "About this data</h3>"
+        f"<table style='border-collapse:collapse;font-size:13px'>{rows}</table>"
+    )
 
 
 def _row_value(rows: list[Any], column: str) -> Any:

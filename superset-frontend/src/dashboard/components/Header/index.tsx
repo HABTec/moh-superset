@@ -525,8 +525,12 @@ const Header = (): JSX.Element => {
 
   useEffect(() => {
     const syncMobileActionsHost = () => {
+      // The slot sits in the navbar that the portal bar hides for readers, so
+      // their menu stays in the header, from where it moves to the portal bar.
       setMobileDashboardActionsHost(
-        document.getElementById('moh-mobile-dashboard-actions-slot'),
+        document.getElementById('mohPortalBar')
+          ? null
+          : document.getElementById('moh-mobile-dashboard-actions-slot'),
       );
     };
 

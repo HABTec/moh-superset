@@ -35,6 +35,7 @@ from flask_login import current_user
 from sqlalchemy import text
 
 from superset.moh_alerts.connection import get_moh_database
+from superset.moh_alerts.email_renderer import ABOUT_DATA_FIELDS
 from superset.utils import json
 
 if TYPE_CHECKING:
@@ -135,11 +136,12 @@ def upsert(alert_id: int | None = None):
         )
         alert.subject_template = request.form.get("subject_template") or None
         extra = json.loads(request.form.get("html_extra") or "{}")
-        message = (request.form.get("message") or "").strip()
-        if message:
-            extra["message"] = message
-        else:
-            extra.pop("message", None)
+        for key in ("message", *(key for key, _ in ABOUT_DATA_FIELDS)):
+            value = (request.form.get(key) or "").strip()
+            if value:
+                extra[key] = value
+            else:
+                extra.pop(key, None)
         alert.html_extra = json.dumps(extra)
         alert.owner_id = (
             int(request.form["owner_id"]) if request.form.get("owner_id") else None
@@ -196,7 +198,12 @@ def test(alert_id: int):
         return redirect(url_for("moh_alerts.list_alerts"))
 
     # Dry-run: evaluate + resolve recipients, never send.
-    result: dict[str, Any] = {"alert": alert, "databases": databases, "test": None}
+    result: dict[str, Any] = {
+        "alert": alert,
+        "databases": databases,
+        "extra": json.loads(alert.html_extra or "{}"),
+        "test": None,
+    }
     try:
         database = get_moh_database(alert.database_id)
         with database.get_sqla_engine() as engine:

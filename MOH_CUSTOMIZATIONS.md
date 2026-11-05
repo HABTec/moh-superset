@@ -32,9 +32,11 @@ The same customizations work in two runtimes:
 | `superset/moh_ai_chat.py` | **NEW** | Flask blueprint for the AI Assistant page (`/ai-chat/`). Supports Gemini, Claude, OpenAI via `MOH_AI_PROVIDER` env var |
 | `superset/templates/superset/ai_chat.html` | **NEW** | AI chat UI — auto-embeds Superset URLs from the bot reply as inline iframes |
 | `superset/templates/head_custom_extra.html` | **NEW** | Global responsive CSS for mobile dashboards — breakpoints at 901px, 767px, 640px, 380px. Handles grid collapse, touch targets (44x44px), chart sizing |
-| `superset/templates/superset/user_guide.html` | **NEW** | The dashboard Help & User Guide page, served at `/guide/` and linked from a landing-page tile |
-| `superset/templates/superset/guide_images/` | **NEW** | 13 screenshot PNGs used by the user guide, served under `/moh-static/guide_images/` |
-| `superset/moh_assets.py` | **MODIFIED** | Adds the `moh_guide_bp` blueprint (serves `/guide/`) and allowlists the guide images |
+| `moh-user-guide/` | **NEW** | React/Vite source of the dashboard Help & User Guide. See its `README.md` |
+| `superset/templates/superset/user_guide_app/` | **NEW** | Built user guide, served at `/guide/` (sign-in required). Rebuild with `npm run build` in `moh-user-guide/` |
+| `superset/templates/superset/user_guide.html` | **NEW** | The previous user guide page, no longer served |
+| `superset/templates/superset/guide_images/` | **NEW** | Screenshots of the previous user guide, still served under `/moh-static/guide_images/` |
+| `superset/moh_assets.py` | **MODIFIED** | Adds the `moh_guide_bp` blueprint (serves `/guide/` and its files) and allowlists the previous guide's images |
 | `docker/requirements-local.txt` | **NEW** | AI provider SDKs installed on every container start (`google-genai`, `anthropic`, `openai`) |
 | `docker-compose.override.yml` | **MODIFIED** *(gitignored)* | Adds `superset-mcp` service running the bundled MCP server on port 5008 |
 | `docs/AI_CHAT_INTEGRATION.md` | **NEW** | Line-by-line integration guide for the AI Assistant |
@@ -80,7 +82,7 @@ appbuilder.indexview = MoHLandingView
 
 **`superset/moh_ai_chat.py`** + **`ai_chat.html`** — Self-contained Flask blueprint registered via `BLUEPRINTS = [ai_chat_bp]` in `moh_branding.py` (no edits to `init_views()`). Handler reads `MOH_AI_PROVIDER` and dispatches to `_ask_gemini`, `_ask_claude`, or `_ask_openai`; each opens an MCP session against `superset-mcp:5008` and runs the agent loop. Replies that contain a Superset explore/dashboard URL are auto-embedded inline as iframes (`?standalone=3`). Full details in [`docs/AI_CHAT_INTEGRATION.md`](docs/AI_CHAT_INTEGRATION.md).
 
-**`user_guide.html`** + **`moh_guide_bp`** (in `superset/moh_assets.py`) — Renders the dashboard Help & User Guide at `/guide/` (login required). The 13 embedded screenshots live in `superset/templates/superset/guide_images/` and are served through the existing `/moh-static/<path:filename>` allowlist route (names prefixed `guide_images/`). The landing page has a **User Guide** tile linking to `/guide/` (plus a top-nav link for signed-in users). To edit the guide, update `superset/templates/superset/user_guide.html` directly.
+**`moh-user-guide/`** + **`moh_guide_bp`** (in `superset/moh_assets.py`) — The dashboard Help & User Guide at `/guide/` (login required). To edit it, change the source in `moh-user-guide/`, run `npm run build` there, and commit the rebuilt `superset/templates/superset/user_guide_app/`. The landing page has a **User Guide** link to `/guide/`.
 
 **`superset/moh_ai_insights.py`** + **`AiInsightPanel/`** — Per-chart AI insights. On dashboards with the `MOH_AI_INSIGHTS` feature flag enabled (visible only in view mode, not while editing, maximizing, or on responsive layouts), every chart gets an insight panel on its right. The React panel reads the chart's already-loaded query data from Redux, summarizes it (numeric stats, trend direction, top values, up to 5 sample rows) without re-running SQL, and POSTs it to `/ai-insights/chart/<chart_id>/`. The blueprint builds a prompt and calls the configured LLM — falling back to a deterministic demo generator on missing credentials or any provider error — and caches results in-process by payload hash. Register the blueprint via `BLUEPRINTS` and the feature flag via `FEATURE_FLAGS["MOH_AI_INSIGHTS"] = True` in `superset_config.py`.
 
@@ -372,7 +374,7 @@ celery -A superset.tasks.celery_app:app beat \
 superset mcp run --host 127.0.0.1 --port 5008
 ```
 
-### 3.9 Run as system services (systemd) 
+### 3.9 Run as system services (systemd)
 
 Use this instead of section 3.8 for a persistent setup that survives reboots.
 All 4 services are managed by systemd — no terminal stays open.
