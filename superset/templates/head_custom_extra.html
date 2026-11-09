@@ -898,9 +898,21 @@ _moh_roles %}
       panel.classList.remove("moh-nav-dashboard-actions");
     }
 
+    // React only hears events inside its root (#app), so actions moved to a
+    // bar outside it would render but ignore every click. The panel exists
+    // only after React's first render, which clears #app, so the bar is safe.
+    function keepPortalBarInReactRoot() {
+      var bar = document.getElementById("mohPortalBar");
+      var app = document.getElementById("app");
+      if (bar && app && bar.parentNode !== app) {
+        app.insertBefore(bar, app.firstChild);
+      }
+    }
+
     function mountToNav(panel) {
       var target = getNavTarget();
       if (!panel || !target) return false;
+      keepPortalBarInReactRoot();
       if (
         panel.classList.contains("moh-nav-dashboard-actions") &&
         target.contains(panel)
