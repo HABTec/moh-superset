@@ -1,0 +1,221 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Feedback{% endblock %} — MoH Analytics Portal</title>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      try {
+        var mode = window.localStorage.getItem('superset-theme-mode');
+        var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (mode === 'dark' || (mode === 'system' && systemDark)) root.setAttribute('data-theme-mode', 'dark');
+        if (window.localStorage.getItem('moh-high-contrast') === 'on') root.setAttribute('data-moh-contrast', 'high');
+      } catch (e) { /* storage blocked: the default look is used */ }
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #f4f7fb; --card: #fff; --text: #1c2b3a; --heading: #0a2540; --muted: #5b6b7d;
+      --line: #d3deec; --line-soft: #e3e9f0; --field: #bcc9d9; --soft: #f7f9fc; --head: #eaf0f8;
+      --blue: #1a5cff; --chip: #e7efff; --chip-text: #1447c0; --red-bg: #fdeaea; --red: #a32626;
+      --amber-bg: #fdf6e7; --amber: #c98a00; --green-bg: #dff3e7; --green: #0d5c3b;
+    }
+    html[data-theme-mode="dark"] {
+      --bg: #10161f; --card: #1a2230; --text: #e4e9f0; --heading: #f1f4f8; --muted: #a2afbe;
+      --line: #36435a; --line-soft: #2b3648; --field: #4a5a72; --soft: #222c3c; --head: #243044;
+      --blue: #7ba3ff; --chip: #24355a; --chip-text: #bcd0ff; --red-bg: #4a2226; --red: #ffb4b4;
+      --amber-bg: #41351c; --amber: #e7b64b; --green-bg: #1c4031; --green: #a3e6c3;
+    }
+    html[data-moh-contrast="high"] { --muted: var(--text); --line: var(--text); --line-soft: var(--text); --field: var(--text); }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Ethiopic", Helvetica, Arial, sans-serif;
+           margin: 0; background: var(--bg); color: var(--text); line-height: 1.45; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 18px;
+              padding: 8px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+    .topbar img { height: 38px; display: block; }
+    .topbar > a { color: var(--heading); font-weight: 600; text-decoration: none; }
+    .portal-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; }
+    .portal-nav a { color: var(--heading); font-weight: 600; text-decoration: none; font-size: 14px; }
+    .portal-nav a[aria-current] { color: var(--blue); }
+    .portal-nav button { margin: 0; padding: 5px 11px; font-size: 13px; background: transparent;
+                         color: var(--heading); border: 1px solid var(--line); }
+    .wrap { max-width: 900px; margin: 20px auto 32px; padding: 0 16px;
+            display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .wrap.single { display: block; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+    h1 { color: var(--heading); font-size: 22px; margin: 0 0 16px; }
+    h2 { color: var(--heading); font-size: 15px; margin: 18px 0 8px; }
+    h2:first-child { margin-top: 0; }
+    label, legend { display: block; font-weight: 600; font-size: 14px; color: var(--heading); margin: 16px 0 6px; padding: 0; }
+    fieldset { border: 0; margin: 0; padding: 0; }
+    textarea, select, input[type=search], input[type=file] { width: 100%; padding: 9px; border: 1px solid var(--field);
+              border-radius: 6px; font: inherit; background: var(--card); color: var(--text); }
+    textarea { min-height: 120px; resize: vertical; }
+    .types { display: flex; flex-wrap: wrap; gap: 8px; }
+    .types label { margin: 0; font-weight: 500; border: 1px solid var(--field); border-radius: 999px;
+                   padding: 6px 14px; background: var(--card); color: var(--text); cursor: pointer; }
+    .types input { margin-right: 6px; }
+    .hint { color: var(--muted); font-size: 13px; }
+    .warning { background: var(--amber-bg); border-left: 3px solid var(--amber); padding: 7px 10px; font-size: 13px; margin: 10px 0 0; }
+    .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; font-size: 14px; }
+    .message.error { background: var(--red-bg); color: var(--red); }
+    .message.success { background: var(--green-bg); color: var(--green); }
+    button { margin-top: 16px; background: var(--blue); color: #fff; border: 0; border-radius: 6px;
+             padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+    html[data-theme-mode="dark"] button:not(.secondary):not(.danger):not(.link):not(#theme-toggle) { color: #0b1220; }
+    button:disabled { opacity: .6; cursor: default; }
+    button.secondary { background: transparent; color: var(--blue); border: 1px solid var(--blue); }
+    button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+    button.compact { margin-top: 8px; padding: 7px 13px; font-size: 14px; }
+    button.link { margin: 6px 0 0; padding: 0; background: none; border: 0; color: var(--muted);
+                  font-size: 12px; font-weight: 500; text-decoration: underline; }
+    dl { margin: 0; font-size: 14px; }
+    dt { color: var(--muted); font-size: 13px; margin-top: 8px; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    .tabs { max-width: 900px; margin: 18px auto 0; padding: 0 16px; display: flex; flex-wrap: wrap; gap: 4px 22px;
+            border-bottom: 1px solid var(--line); }
+    .tabs a { color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none; padding: 4px 0 8px;
+              border-bottom: 2px solid transparent; white-space: nowrap; }
+    .tabs a[aria-current="page"] { color: var(--blue); border-bottom-color: var(--blue); }
+    .count { display: inline-block; min-width: 19px; padding: 0 5px; margin-left: 3px; border-radius: 999px;
+             background: var(--red-bg); color: var(--red); font-size: 12px; font-weight: 700; text-align: center; }
+    a.inline { color: var(--blue); }
+    .status { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 12px; font-weight: 700;
+              background: var(--chip); color: var(--chip-text); white-space: nowrap; }
+    .status.overdue, .status.high, .status.you { background: var(--red-bg); color: var(--red); }
+    .status.empty { background: var(--soft); color: var(--muted); }
+    .items { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .items th { text-align: left; color: var(--heading); background: var(--head); padding: 8px 10px; }
+    .items td { padding: 9px 10px; border-top: 1px solid var(--line-soft); vertical-align: top; overflow-wrap: anywhere; }
+    .items a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    .items tr.attention td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+    .pager { display: flex; justify-content: space-between; margin-top: 14px; font-size: 14px; }
+    .pager a { color: var(--blue); font-weight: 600; text-decoration: none; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .filters input[type=search] { flex: 2 1 200px; width: auto; }
+    .filters select { flex: 1 1 130px; width: auto; }
+    .filters button { margin: 0; padding: 9px 14px; }
+    .feedback-text { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--soft);
+                     border: 1px solid var(--line-soft); border-radius: 6px; padding: 12px; margin: 0; }
+    .hidden-text { font-style: italic; color: var(--muted); }
+    .history { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+    .history li { padding: 8px 0; border-top: 1px solid var(--line-soft); overflow-wrap: anywhere; }
+    .history li:first-child { border-top: 0; }
+    .history li.internal { background: var(--amber-bg); padding: 8px; border-radius: 6px; }
+    .event-text { margin-top: 6px; padding: 8px 10px; font-size: 14px; }
+    .heading-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .heading-row h1 { margin: 0; }
+    .choice { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 0 0 6px; padding: 9px 11px;
+              border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); cursor: pointer; }
+    .choice:has(input:checked) { border-color: var(--blue); background: var(--soft); }
+    .choice small { display: block; color: var(--muted); font-size: 12.5px; }
+    .unit-option { display: block; width: 100%; margin: 6px 0 0; padding: 8px 10px; text-align: left; background: var(--card);
+                   color: inherit; border: 1px solid var(--line); border-radius: 6px; font-weight: 400; }
+    .unit-option.selected { border-color: var(--blue); background: var(--soft); }
+    .unit-option:disabled { opacity: .65; }
+    .unit-option .status { margin-left: 6px; }
+    [hidden] { display: none !important; }
+    .respond { margin-top: 18px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+    .respond textarea { min-height: 90px; }
+    .callout { background: var(--chip); color: var(--chip-text); border-radius: 6px; padding: 9px 12px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn-row button { margin-top: 10px; }
+    .divider { border: 0; border-top: 1px solid var(--line-soft); margin: 14px 0; }
+    details.more { border: 1px solid var(--line); border-radius: 6px; margin-top: 8px; padding: 0 12px; }
+    details.more > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--heading); padding: 10px 0; }
+    details.more[open] { padding-bottom: 12px; }
+    details.more label:first-of-type { margin-top: 2px; }
+    .person-picker button { margin-top: 8px; }
+    .person-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 8px 10px; margin-top: 6px;
+                  border: 1px solid var(--line); border-radius: 6px; background: var(--card); overflow-wrap: anywhere; }
+    .person-row > div { min-width: 0; }
+    .person-row > form, .person-row > button { flex: none; }
+    .person-row button { margin-top: 0; white-space: nowrap; }
+    .screenshots { display: flex; flex-wrap: wrap; gap: 10px; }
+    .screenshots a { display: block; width: 180px; text-decoration: none; overflow-wrap: anywhere; }
+    .screenshots img { display: block; width: 100%; max-height: 140px; object-fit: contain; background: var(--soft);
+                       border: 1px solid var(--line-soft); border-radius: 6px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile { border: 1px solid var(--line-soft); border-radius: 6px; padding: 12px; }
+    .tile strong { display: block; font-size: 24px; color: var(--heading); }
+    .tile span { color: var(--muted); font-size: 13px; }
+    .stat-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; align-items: start; }
+    .view-links { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; margin: -6px 0 12px; }
+    .view-links a { color: var(--muted); font-weight: 600; text-decoration: none; }
+    .view-links a[aria-current] { color: var(--blue); }
+    @media (max-width: 720px) {
+      .wrap { grid-template-columns: minmax(0, 1fr); }
+      .topbar { padding: 8px 16px; }
+      .items thead { display: none; }
+      .items, .items tbody, .items tr, .items td { display: block; width: 100%; }
+      .items tr { border-top: 1px solid var(--line-soft); padding: 8px 0; }
+      .items td { border: 0; padding: 3px 0; }
+      .items td::before { content: attr(data-label) ": "; color: var(--muted); font-size: 13px; }
+      .items tr.attention td:first-child { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" aria-label="MOH Analytics Portal home">
+      <img src="/moh-static/logomohnewww.png" alt="Ministry of Health">
+    </a>
+    <nav class="portal-nav" aria-label="Portal">
+      <a href="/">Home</a>
+      <a href="/reports/">Reports</a>
+      <a href="/guide/">User Guide</a>
+      <a href="{{ url_for('moh_feedback.new_feedback') }}" aria-current="page">Feedback</a>
+      <button type="button" id="theme-toggle" aria-pressed="false">Dark mode</button>
+    </nav>
+  </header>
+
+  <nav class="tabs" aria-label="Feedback">
+    <a href="{{ url_for('moh_feedback.new_feedback') }}"
+       {% if active_tab == 'new' %}aria-current="page"{% endif %}>Send feedback</a>
+    <a href="{{ url_for('moh_feedback.my_feedback') }}"
+       {% if active_tab == 'mine' %}aria-current="page"{% endif %}>My feedback{% if mine_count %}<span class="count" title="Waiting for you">{{ mine_count }}</span>{% endif %}</a>
+    {% if show_waiting_tab %}
+    <a href="{{ url_for('moh_feedback.waiting_on_me') }}"
+       {% if active_tab == 'waiting' %}aria-current="page"{% endif %}>Waiting on me{% if waiting_count %}<span class="count" title="Needs action">{{ waiting_count }}</span>{% endif %}</a>
+    {% if show_stats_tab %}
+    <a href="{{ url_for('moh_feedback.area_numbers') }}"
+       {% if active_tab == 'stats' %}aria-current="page"{% endif %}>Area numbers</a>
+    {% endif %}
+    {% endif %}
+  </nav>
+
+{% block content %}{% endblock %}
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var button = document.getElementById('theme-toggle');
+      var dark = root.getAttribute('data-theme-mode') === 'dark';
+      button.textContent = dark ? 'Light mode' : 'Dark mode';
+      button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      button.addEventListener('click', function () {
+        try { window.localStorage.setItem('superset-theme-mode', dark ? 'default' : 'dark'); } catch (e) { return; }
+        window.location.reload();
+      });
+    })();
+  </script>
+</body>
+</html>

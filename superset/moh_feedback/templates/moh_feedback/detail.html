@@ -1,0 +1,293 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+{% extends "moh_feedback/layout.html" %}
+{% set active_tab = "waiting" if sees_internal else "mine" %}
+{% block title %}{{ item.reference }}{% endblock %}
+{% block content %}
+  <main class="wrap">
+    <section class="card">
+      <div class="heading-row">
+        <h1>{{ item.reference }}</h1>
+        <span class="status">{{ status_labels.get(item.display_status, item.status) }}</span>
+        {% if item.priority == 'high' and item.status != 'closed' %}<span class="status high">High priority</span>{% endif %}
+        {% if item.first_response_due_on and item_overdue(item) %}<span class="status overdue">Overdue</span>{% endif %}
+      </div>
+      {% if error %}
+      <div class="message error" role="alert">{{ error }}</div>
+      {% endif %}
+      {% if sender_can_reply %}
+      <div class="callout">Waiting for you: please answer the question below.</div>
+      {% elif sender_can_confirm %}
+      <div class="callout">Waiting for you: did this answer solve your problem?</div>
+      {% endif %}
+
+      <h2>{{ "Your message" if is_sender else "Message from " ~ item.sender_name }}</h2>
+      {% if item.hidden_on %}
+      <p class="feedback-text hidden-text">Hidden because it may contain patient details.</p>
+      {% else %}
+      <p class="feedback-text">{{ item.message }}</p>
+      {% if can_hide %}<form method="post" action="{{ url_for('moh_feedback.hide_content', feedback_uuid=item.uuid) }}" onsubmit="return confirm('Hide this for everyone? Do this only if it contains patient details.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="message"><button type="submit" class="link">Hide (contains patient details)</button></form>{% endif %}
+      {% endif %}
+
+      {% if item.attachments %}
+      <h2>Screenshots</h2>
+      <div class="screenshots">
+        {% for screenshot in item.attachments %}
+        {% if screenshot.hidden_on %}
+        <div class="hint hidden-text">Hidden because it may contain patient details.</div>
+        {% else %}
+        <div>
+          <a href="{{ url_for('moh_feedback.feedback_attachment', attachment_uuid=screenshot.uuid) }}" target="_blank" rel="noopener">
+            <img src="{{ url_for('moh_feedback.feedback_attachment', attachment_uuid=screenshot.uuid) }}" alt="Screenshot {{ loop.index }}" loading="lazy">
+            <span class="hint">{{ screenshot.original_name }}</span>
+          </a>
+          {% if can_hide %}<form method="post" action="{{ url_for('moh_feedback.hide_content', feedback_uuid=item.uuid) }}" onsubmit="return confirm('Hide this for everyone? Do this only if it contains patient details.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="attachment-{{ screenshot.id }}"><button type="submit" class="link">Hide</button></form>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <h2>Conversation</h2>
+      <ul class="history">
+        {% for event in events %}
+        <li class="{{ 'internal' if event.is_internal else '' }}">
+          <strong>{{ event_labels.get(event.event_type, event.event_type) }}{% if event.event_type in ('routed', 'assigned', 'person_added', 'person_removed', 'priority_changed', 'content_hidden') and event.message %} {{ event.message }}{% endif %}</strong>
+          <div class="hint">{{ event.created_on|moh_feedback_time }}{% if event.actor_name %} · {{ event.actor_name }}{% endif %}</div>
+          {% if event.message and event.event_type not in ('routed', 'assigned', 'person_added', 'person_removed', 'priority_changed', 'content_hidden') %}
+          {% if event.hidden_on %}
+          <p class="feedback-text event-text hidden-text">Hidden because it may contain patient details.</p>
+          {% else %}
+          <p class="feedback-text event-text">{{ event.message }}</p>
+          {% if can_hide %}<form method="post" action="{{ url_for('moh_feedback.hide_content', feedback_uuid=item.uuid) }}" onsubmit="return confirm('Hide this for everyone? Do this only if it contains patient details.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target" value="event-{{ event.id }}"><button type="submit" class="link">Hide</button></form>{% endif %}
+          {% endif %}
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% if sender_can_reply or sender_can_add %}
+      <form method="post" action="{{ url_for('moh_feedback.reply_to_feedback', feedback_uuid=item.uuid) }}" class="respond">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="reply-message">{{ "Your reply" if sender_can_reply else "Add more information (optional)" }}</label>
+        <textarea id="reply-message" name="message" required maxlength="{{ message_max_length }}">{{ draft }}</textarea>
+        <button type="submit">{{ "Send reply" if sender_can_reply else "Send" }}</button>
+      </form>
+      {% endif %}
+
+      {% if participant_can_comment %}
+      <form method="post" action="{{ url_for('moh_feedback.reply_to_feedback', feedback_uuid=item.uuid) }}" class="respond">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="comment-message">Add a comment</label>
+        <textarea id="comment-message" name="message" required maxlength="{{ message_max_length }}">{{ draft }}</textarea>
+        <button type="submit">Send comment</button>
+      </form>
+      {% endif %}
+
+      {% if sender_can_confirm %}
+      <form method="post" action="{{ url_for('moh_feedback.confirm_feedback', feedback_uuid=item.uuid) }}" class="respond">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="confirm-message">Did this answer solve your problem?</label>
+        <textarea id="confirm-message" name="message" maxlength="{{ message_max_length }}">{{ draft }}</textarea>
+        <div class="btn-row">
+          <button type="submit" name="decision" value="solved">Yes, this solved it</button>
+          <button type="submit" name="decision" value="not_solved" class="secondary">No, not solved</button>
+        </div>
+        <div class="hint">If it is not solved, please write why. A comment is optional if it is solved.</div>
+      </form>
+      {% endif %}
+
+      {% if sender_can_reopen %}
+      <details class="more" style="margin-top:18px">
+        <summary>Still a problem? Reopen this feedback</summary>
+        <form method="post" action="{{ url_for('moh_feedback.reopen_feedback', feedback_uuid=item.uuid) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="reopen-message">Why are you reopening it?</label>
+          <textarea id="reopen-message" name="message" required maxlength="{{ message_max_length }}">{{ draft }}</textarea>
+          <button type="submit" class="compact">Reopen</button>
+          <div class="hint">You can reopen feedback for {{ reopen_days }} days after it closes.</div>
+        </form>
+      </details>
+      {% endif %}
+
+      {% set response_choices = [
+        ('answer', 'Send an answer', 'The sender will be asked if this solved it.', 'Send answer'),
+        ('reply', 'Send a message', 'Write to the sender without changing the status.', 'Send message'),
+        ('ask', 'Ask for information', 'The sender will be asked to reply.', 'Ask the sender'),
+        ('note', 'Internal note', 'Only your unit can see this.', 'Save note'),
+        ('decline', 'Decline', 'Closes this feedback. Please give the reason.', 'Decline'),
+      ] %}
+      {% set available = response_choices|selectattr(0, 'in', actions)|list %}
+      {% if available %}
+      <form method="post" action="{{ url_for('moh_feedback.act_on_feedback', feedback_uuid=item.uuid) }}" class="respond" id="respond-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="expected_status" value="{{ item.status }}">
+        <h2>What do you want to do?</h2>
+        {% set chosen = request.form.get('action') %}
+        {% if chosen not in available|map(attribute=0)|list %}{% set chosen = available[0][0] %}{% endif %}
+        {% for value, title, help, button_text in available %}
+        <label class="choice"><input type="radio" name="action" value="{{ value }}" data-button="{{ button_text }}" {% if value == chosen %}checked{% endif %}>
+          <span>{{ title }}<small>{{ help }}</small></span></label>
+        {% endfor %}
+        <label for="action-message">Write your message</label>
+        <textarea id="action-message" name="message" maxlength="{{ message_max_length }}">{{ draft }}</textarea>
+        <button type="submit" id="respond-button">Send</button>
+      </form>
+      <script>
+        (function () {
+          var form = document.getElementById('respond-form');
+          var button = document.getElementById('respond-button');
+          function sync() {
+            var chosen = form.querySelector('input[name="action"]:checked');
+            if (chosen) button.textContent = chosen.getAttribute('data-button');
+          }
+          form.addEventListener('change', sync);
+          sync();
+        })();
+      </script>
+      {% endif %}
+
+      {% if 'start_review' in actions or assignable_people or 'set_priority' in actions or move_options %}
+      <h2 style="margin-top:18px">More actions</h2>
+      {% if 'start_review' in actions %}
+      <form method="post" action="{{ url_for('moh_feedback.act_on_feedback', feedback_uuid=item.uuid) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="expected_status" value="{{ item.status }}">
+        <button type="submit" name="action" value="start_review" class="secondary compact">Mark as in review</button>
+      </form>
+      {% endif %}
+      {% if assignable_people %}
+      <details class="more">
+        <summary>Assign to someone</summary>
+        <form method="post" action="{{ url_for('moh_feedback.act_on_feedback', feedback_uuid=item.uuid) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="expected_status" value="{{ item.status }}">
+          <label for="assignee">Assign to</label>
+          <select id="assignee" name="assignee_id" required>
+            <option value="">Choose a person</option>
+            {% for person in assignable_people %}
+            <option value="{{ person.id }}" {% if person.id == item.assigned_to_fk %}selected{% endif %}>{{ person.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" name="action" value="assign" class="secondary compact">Assign</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if 'set_priority' in actions %}
+      <details class="more">
+        <summary>Change priority</summary>
+        <form method="post" action="{{ url_for('moh_feedback.act_on_feedback', feedback_uuid=item.uuid) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="expected_status" value="{{ item.status }}">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority">
+            {% for value in priorities %}
+            <option value="{{ value }}" {% if value == item.priority %}selected{% endif %}>{{ priority_labels[value] }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" name="action" value="set_priority" class="secondary compact">Save priority</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if move_options %}
+      <details class="more">
+        <summary>Not for your unit? Pass it on</summary>
+        {% include "moh_feedback/_move_panel.html" %}
+      </details>
+      {% endif %}
+      {% endif %}
+    </section>
+
+    <aside class="card">
+      <h2>Details</h2>
+      <dl>
+        <dt>Kind of feedback</dt>
+        <dd>{{ type_labels.get(item.type, item.type) }}</dd>
+        <dt>Sent</dt>
+        <dd>{{ item.created_on|moh_feedback_time }}</dd>
+        {% if item.priority and item.status != 'closed' %}
+        <dt>Priority</dt>
+        <dd>{{ priority_labels[item.priority] }}</dd>
+        {% if item.first_response_due_on and not item.first_response_on %}
+        <dt>{{ "You should hear back by" if is_sender else "First response by" }}</dt>
+        <dd>{{ deadline_text(item.first_response_due_on) }}</dd>
+        {% endif %}
+        {% if item.due_on %}
+        <dt>Finish by</dt>
+        <dd>{{ deadline_text(item.due_on) }}</dd>
+        {% endif %}
+        {% endif %}
+        {% if item.assignee_name %}
+        <dt>Assigned to</dt>
+        <dd>{{ item.assignee_name }}</dd>
+        {% endif %}
+        <dt>Sent to</dt>
+        <dd>{% if item.target_path %}{{ item.target_path }}{% else %}Waiting for an office{% endif %}</dd>
+        {% if not is_sender %}
+        <dt>From</dt>
+        <dd>{{ item.sender_name }}</dd>
+        {% endif %}
+        <dt>{{ "Your unit" if is_sender else "Their unit" }}</dt>
+        <dd>{{ item.origin_path or 'Not available' }}</dd>
+        {% if item.page_url %}
+        <dt>Page</dt>
+        <dd><a class="inline" href="{{ item.page_url }}">{{ page_label or item.page_url }}</a></dd>
+        {% endif %}
+      </dl>
+      {% if participants or can_add_people %}
+      <hr class="divider">
+      <h2>People added</h2>
+      {% for person in participants %}
+      <div class="person-row">
+        <div>
+          <strong>{{ person.display_name }}</strong>
+          {% for path in (person.unit_path or 'Org unit not recorded').split('\n') %}
+          <div class="hint">{{ path }}</div>
+          {% endfor %}
+        </div>
+        {% if can_remove_people or person.user_id == current_user_id %}
+        <form method="post" action="{{ url_for('moh_feedback.remove_participant', feedback_uuid=item.uuid) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="participant_id" value="{{ person.id }}">
+          <button type="submit" class="secondary compact">{{ "Not for me" if person.user_id == current_user_id else "Remove" }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="hint" style="margin:0">Nobody has been added.</p>
+      {% endfor %}
+      {% if can_add_people and participants|length < max_people %}
+      <details class="more">
+        <summary>Add a person</summary>
+        {% set add_url = url_for('moh_feedback.add_participant', feedback_uuid=item.uuid) %}
+        {% include "moh_feedback/_person_picker.html" %}
+      </details>
+      {% endif %}
+      {% endif %}
+      <p style="margin-bottom:0">
+        {% if is_sender %}
+        <a class="inline" href="{{ url_for('moh_feedback.my_feedback') }}">&larr; Back to My feedback</a>
+        {% elif sees_internal %}
+        <a class="inline" href="{{ url_for('moh_feedback.waiting_on_me') }}">&larr; Back to Waiting on me</a>
+        {% else %}
+        <a class="inline" href="{{ url_for('moh_feedback.my_feedback', view='added') }}">&larr; Back to Added to me</a>
+        {% endif %}
+      </p>
+    </aside>
+  </main>
+{% endblock %}

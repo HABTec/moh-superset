@@ -1,0 +1,187 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+<div id="person-picker" class="person-picker"
+  data-url="{{ url_for('moh_feedback.search_people') }}"
+  data-csrf="{{ csrf_token }}"
+  data-max="{{ max_people }}"
+  {% if add_url %}data-add-url="{{ add_url }}"{% endif %}>
+  <label for="person-search">Find a person</label>
+  <input type="search" id="person-search" autocomplete="off" maxlength="320"
+    placeholder="Exact email, username, or first and last name">
+  <button type="button" id="person-find" class="secondary compact">Find</button>
+  <div class="hint" id="person-status" role="status"></div>
+  <div id="person-results"></div>
+  <div id="person-selected"></div>
+  <div class="hint">This person will be able to read this feedback and reply. They do not become responsible for it.</div>
+</div>
+<script type="application/json" id="person-initial">{{ (selected_people or [])|tojson }}</script>
+<script>
+  (function () {
+    var root = document.getElementById('person-picker');
+    var search = document.getElementById('person-search');
+    var find = document.getElementById('person-find');
+    var status = document.getElementById('person-status');
+    var results = document.getElementById('person-results');
+    var selected = document.getElementById('person-selected');
+    var addUrl = root.getAttribute('data-add-url');
+    var csrf = root.getAttribute('data-csrf');
+    var max = Number(root.getAttribute('data-max'));
+    var chosen = [];
+    var latest = 0;
+    var searchFailures = {
+      400: 'This page expired. Please reload it and try again.',
+      429: 'You have searched many times. Please wait a few minutes and try again.'
+    };
+
+    function addText(parent, tag, className, value) {
+      var element = document.createElement(tag);
+      element.className = className;
+      element.textContent = value;
+      parent.appendChild(element);
+    }
+
+    function hidden(parent, name, value) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      parent.appendChild(input);
+    }
+
+    function describe(row, person) {
+      var details = document.createElement('div');
+      addText(details, 'strong', '', person.name);
+      (person.paths.length ? person.paths : ['Org unit not recorded']).forEach(function (path) {
+        addText(details, 'div', 'hint', path);
+      });
+      row.appendChild(details);
+    }
+
+    function button(row, label, onClick) {
+      var element = document.createElement('button');
+      element.type = 'button';
+      element.className = 'secondary compact';
+      element.textContent = label;
+      // Keeps the search box focused, so the list cannot shift under the pointer
+      element.addEventListener('mousedown', function (event) { event.preventDefault(); });
+      element.addEventListener('click', onClick);
+      row.appendChild(element);
+    }
+
+    function identity(person) {
+      return person.name + '|' + person.paths.join('|');
+    }
+
+    function addToForm(person) {
+      var row = document.createElement('div');
+      row.className = 'person-row';
+      describe(row, person);
+      hidden(row, 'person_token', person.token);
+      var key = identity(person);
+      chosen.push(key);
+      button(row, 'Remove', function () {
+        chosen.splice(chosen.indexOf(key), 1);
+        row.remove();
+      });
+      selected.appendChild(row);
+    }
+
+    function submitNow(person) {
+      var form = document.createElement('form');
+      form.method = 'post';
+      form.action = addUrl;
+      hidden(form, 'csrf_token', csrf);
+      hidden(form, 'person_token', person.token);
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    function select(person) {
+      if (addUrl) {
+        submitNow(person);
+        return;
+      }
+      if (chosen.indexOf(identity(person)) !== -1) {
+        status.textContent = 'You have already selected this person.';
+        return;
+      }
+      if (chosen.length >= max) {
+        status.textContent = 'You can add up to ' + max + ' people.';
+        return;
+      }
+      addToForm(person);
+      results.textContent = '';
+      search.value = '';
+      status.textContent = 'Selected: ' + person.name;
+    }
+
+    function show(people) {
+      results.textContent = '';
+      status.textContent = people.length
+        ? 'Check the organisation before you select.'
+        : 'No exact match. Check the spelling and try again.';
+      people.forEach(function (person) {
+        var row = document.createElement('div');
+        row.className = 'person-row';
+        describe(row, person);
+        button(row, 'Select', function () { select(person); });
+        results.appendChild(row);
+      });
+    }
+
+    function runSearch() {
+      var term = search.value.trim();
+      var request = ++latest;
+      results.textContent = '';
+      if (term.length < 3) {
+        status.textContent = 'Type the full email, username, or first and last name.';
+        return;
+      }
+      status.textContent = 'Searching...';
+      var body = new URLSearchParams();
+      body.append('csrf_token', csrf);
+      body.append('q', term);
+      fetch(root.getAttribute('data-url'), { method: 'POST', credentials: 'same-origin', body: body })
+        .then(function (response) {
+          if (!response.ok) {
+            var failure = new Error('search failed');
+            failure.statusCode = response.status;
+            throw failure;
+          }
+          return response.json();
+        })
+        .then(function (data) {
+          if (request === latest) show(data.result);
+        })
+        .catch(function (failure) {
+          if (request === latest) {
+            status.textContent = searchFailures[failure.statusCode] || 'Search is unavailable. Please try again.';
+          }
+        });
+    }
+
+    find.addEventListener('click', runSearch);
+    search.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        runSearch();
+      }
+    });
+    JSON.parse(document.getElementById('person-initial').textContent).forEach(addToForm);
+  })();
+</script>
