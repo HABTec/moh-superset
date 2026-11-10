@@ -35,6 +35,7 @@ from flask import (
     request,
     Response,
     send_from_directory,
+    url_for,
 )
 from flask_login import current_user
 from werkzeug.wrappers import Response as WerkzeugResponse
@@ -1158,11 +1159,23 @@ def user_guide_asset(filename: str) -> WerkzeugResponse:
     return _guide_response(filename)
 
 
+def _came_from() -> dict[str, str]:
+    """Return the portal page the user was on, for the feedback form to record."""
+    parts = urlsplit(request.referrer or "")
+    if parts.netloc != request.host or not parts.path:
+        return {}
+    query = f"?{parts.query}" if parts.query else ""
+    return {"from": f"{parts.path}{query}"}
+
+
 @moh_guide_bp.route("/feedback/")
 def feedback():
     """Serve the MoH feedback page (Google Form embedded in an iframe)."""
     if not getattr(current_user, "is_authenticated", False):
         return redirect(f"/login/?next={request.path}")
+
+    if current_app.config.get("MOH_FEEDBACK_USE_NEW_FORM", False):
+        return redirect(url_for("moh_feedback.new_feedback", **_came_from()))
 
     resp = make_response(render_template("superset/feedback.html"))
     # The page embeds a Google Form in an iframe, so frame-src must allow it.

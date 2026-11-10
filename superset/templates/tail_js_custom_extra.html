@@ -49,6 +49,7 @@
       --moh-bar-accent: #1a5cff;
       --moh-bar-shadow: rgba(10, 37, 64, 0.12);
       display: none;
+      flex: 0 0 auto;
       align-items: center;
       gap: 16px;
       padding: 8px 24px;
@@ -145,6 +146,45 @@
       font-weight: 500;
     }
 
+    /* Accessibility menu: a button that discloses a small panel of options. */
+    .moh-portal-a11y {
+      position: relative;
+    }
+
+    .moh-portal-a11y-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 220px;
+      padding: 12px 16px;
+      background: var(--moh-bar-bg);
+      border: 1px solid var(--moh-bar-line);
+      border-radius: 6px;
+      box-shadow: 0 12px 24px var(--moh-bar-shadow);
+      z-index: 1001;
+    }
+
+    .moh-portal-a11y-panel[hidden] {
+      display: none;
+    }
+
+    .moh-portal-a11y-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--moh-bar-fg);
+      cursor: pointer;
+    }
+
+    .moh-portal-a11y-option input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      cursor: pointer;
+    }
+
     /* Dashboard actions (Download, Share, ...) lifted out of the dashboard header. */
     .moh-portal-bar .moh-portal-dashboard-actions {
       display: flex;
@@ -228,6 +268,15 @@
       .moh-portal-bar nav.open {
         display: flex;
       }
+      .moh-portal-a11y-panel {
+        position: static;
+        min-width: 0;
+        padding: 12px 16px;
+        border: 0;
+        border-bottom: 1px solid var(--moh-bar-line-soft);
+        border-radius: 0;
+        box-shadow: none;
+      }
       .moh-portal-bar nav a,
       .moh-portal-bar nav .moh-portal-user,
       .moh-portal-bar nav .moh-portal-mode {
@@ -260,6 +309,15 @@
       <a href="/reports/">Reports</a>
       <a href="/guide/">User Guide</a>
       <a href="/feedback/">Feedback</a>
+      <div class="moh-portal-a11y" id="mohPortalA11y">
+        <button type="button" class="moh-portal-mode" id="mohPortalA11yToggle" aria-haspopup="true" aria-expanded="false" aria-controls="mohPortalA11yPanel">Accessibility</button>
+        <div class="moh-portal-a11y-panel" id="mohPortalA11yPanel" role="group" aria-label="Accessibility options" hidden>
+          <label class="moh-portal-a11y-option">
+            <input type="checkbox" role="switch" id="mohPortalHighContrast">
+            <span>High contrast</span>
+          </label>
+        </div>
+      </div>
       {% if config['THEME_DARK'] %}
       <button type="button" class="moh-portal-mode" id="mohPortalMode" aria-pressed="false">Dark mode</button>
       {% endif %}
@@ -348,6 +406,46 @@
           }
           window.location.reload();
         });
+      }
+
+      // Accessibility menu. High contrast is applied in place (no reload) by
+      // window.mohAccessibility, which moh_accessibility_head.html defines.
+      var a11yRoot = document.getElementById('mohPortalA11y');
+      var a11yToggle = document.getElementById('mohPortalA11yToggle');
+      var a11yPanel = document.getElementById('mohPortalA11yPanel');
+      var contrastSwitch = document.getElementById('mohPortalHighContrast');
+      var a11yApi = window.mohAccessibility;
+      if (a11yRoot && a11yToggle && a11yPanel && contrastSwitch) {
+        if (!a11yApi) {
+          a11yRoot.parentNode.removeChild(a11yRoot);  // nothing to control
+        } else {
+          var setPanelOpen = function(open) {
+            a11yPanel.hidden = !open;
+            a11yToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+          };
+          var syncContrastSwitch = function() {
+            contrastSwitch.checked = a11yApi.isHighContrast();
+          };
+          syncContrastSwitch();
+          window.addEventListener('moh-contrast-change', syncContrastSwitch);
+          contrastSwitch.addEventListener('change', function() {
+            a11yApi.setHighContrast(contrastSwitch.checked);
+          });
+          a11yToggle.addEventListener('click', function() {
+            setPanelOpen(a11yPanel.hidden);
+          });
+          document.addEventListener('click', function(event) {
+            if (!a11yRoot.contains(event.target)) {
+              setPanelOpen(false);
+            }
+          });
+          a11yRoot.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && !a11yPanel.hidden) {
+              setPanelOpen(false);
+              a11yToggle.focus();
+            }
+          });
+        }
       }
     })();
   </script>

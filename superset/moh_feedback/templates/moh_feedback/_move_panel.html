@@ -1,0 +1,131 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+<form id="move-form" method="post" action="{{ url_for('moh_feedback.move_feedback', feedback_uuid=item.uuid) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="expected_status" value="{{ item.status }}">
+  <input type="hidden" name="target_unit_id" id="move-target" value="">
+  <label for="move-reason">Why are you passing this on?</label>
+  <textarea id="move-reason" name="reason" required maxlength="{{ message_max_length }}"></textarea>
+  {% if move_options.up_name %}
+  <button type="submit" name="direction" value="up" class="secondary compact">Send up to {{ move_options.up_name }}</button>
+  {% else %}
+  <div class="hint">There is no level above that can receive this.</div>
+  {% endif %}
+  {% if move_options.can_move_down %}
+  <label for="move-search">Or find a unit below yours</label>
+  <input type="search" id="move-search" autocomplete="off"
+    placeholder="Type at least 2 letters of the unit's name"
+    data-url="{{ url_for('moh_feedback.units_below') }}"
+    data-unit="{{ move_options.responsible_id }}">
+  <div class="hint" id="move-status" role="status"></div>
+  <div id="move-results"></div>
+  <button type="submit" name="direction" value="down" class="secondary compact">Move to the chosen unit</button>
+  {% endif %}
+  <div class="hint">The new unit becomes responsible. Your unit can still read this item.</div>
+</form>
+{% if move_options.can_move_down %}
+<script>
+  (function () {
+    var form = document.getElementById('move-form');
+    var search = document.getElementById('move-search');
+    var status = document.getElementById('move-status');
+    var results = document.getElementById('move-results');
+    var target = document.getElementById('move-target');
+    var timer = null;
+    var latest = 0;
+
+    function addText(parent, tag, className, value) {
+      var element = document.createElement(tag);
+      element.className = className;
+      element.textContent = value;
+      parent.appendChild(element);
+    }
+
+    function choose(option, row) {
+      target.value = option.id;
+      status.textContent = 'Selected: ' + option.name;
+      Array.prototype.forEach.call(results.children, function (item) {
+        item.classList.toggle('selected', item === row);
+      });
+    }
+
+    function show(options) {
+      results.textContent = '';
+      status.textContent = options.length ? 'Choose one unit.' : 'No units found below yours.';
+      options.forEach(function (option) {
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'unit-option';
+        addText(row, 'strong', '', option.name);
+        addText(row, 'div', 'hint', option.path);
+        if (!option.active_users && option.goes_to) {
+          addText(row, 'div', 'hint', 'Will go to ' + option.goes_to + ' instead.');
+        }
+        if (!option.goes_to) {
+          addText(row, 'div', 'hint', 'Nobody can receive feedback for this unit.');
+          row.disabled = true;
+        }
+        // Selecting on press keeps the search box focused, so the list cannot shift under the pointer
+        row.addEventListener('mousedown', function (event) { event.preventDefault(); });
+        row.addEventListener('click', function () { choose(option, row); });
+        results.appendChild(row);
+      });
+    }
+
+    function runSearch() {
+      var term = search.value.trim();
+      var request = ++latest;
+      target.value = '';
+      results.textContent = '';
+      if (term.length < 2) {
+        status.textContent = '';
+        return;
+      }
+      status.textContent = 'Searching...';
+      var url = search.getAttribute('data-url') + '?q=' + encodeURIComponent(term) +
+        '&unit_id=' + encodeURIComponent(search.getAttribute('data-unit'));
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (response) {
+          if (!response.ok) throw new Error('search failed');
+          return response.json();
+        })
+        .then(function (data) {
+          if (request === latest) show(data.result);
+        })
+        .catch(function () {
+          if (request === latest) status.textContent = 'Search is unavailable. Please try again.';
+        });
+    }
+
+    search.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(runSearch, 300);
+    });
+    search.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') event.preventDefault();
+    });
+    form.addEventListener('submit', function (event) {
+      if (event.submitter && event.submitter.value === 'down' && !target.value) {
+        event.preventDefault();
+        status.textContent = 'Search for a unit and choose one first.';
+        search.focus();
+      }
+    });
+  })();
+</script>
+{% endif %}

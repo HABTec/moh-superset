@@ -1,0 +1,89 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+{% extends "moh_feedback/layout.html" %}
+{% set active_tab = "stats" %}
+{% block title %}Area numbers{% endblock %}
+{% block content %}
+  <main class="wrap single">
+    <section class="card">
+      <h1>Area numbers</h1>
+      {% if unavailable %}
+      <div class="message error" role="alert">
+        We cannot find your organisation unit right now. Please try again in a few minutes.
+      </div>
+      {% else %}
+      {% for path in area_paths %}
+      <div class="hint">{{ path }} and below</div>
+      {% else %}
+      <div class="hint">Your account has no organisation unit.</div>
+      {% endfor %}
+      <p class="view-links" style="margin-top:12px">
+        {% for value in day_options %}
+        <a {% if value == days %}aria-current="true"{% endif %} href="{{ url_for('moh_feedback.area_numbers', days=value) }}">Last {{ value }} days</a>
+        {% endfor %}
+      </p>
+      {% if numbers.received %}
+      <div class="tiles">
+        <div class="tile"><strong>{{ numbers.received }}</strong><span>Received</span></div>
+        <div class="tile"><strong>{{ numbers.median_first_response or '—' }}</strong><span>Typical first response</span></div>
+        <div class="tile"><strong>{% if numbers.target_met_percent is none %}—{% else %}{{ numbers.target_met_percent }}%{% endif %}</strong><span>First response on time</span></div>
+        <div class="tile"><strong>{{ numbers.overdue_now }}</strong><span>Overdue now</span></div>
+      </div>
+      <div class="stat-tables">
+        <table class="items">
+          <thead><tr><th>Kind of feedback</th><th>Items</th></tr></thead>
+          <tbody>
+            {% for label, count in numbers.by_type %}
+            <tr><td data-label="Kind">{{ label }}</td><td data-label="Items">{{ count }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <table class="items">
+          <thead><tr><th>Outcome</th><th>Items</th></tr></thead>
+          <tbody>
+            {% for label, count in numbers.outcomes %}
+            <tr><td data-label="Outcome">{{ label }}</td><td data-label="Items">{{ count }}</td></tr>
+            {% endfor %}
+            <tr><td data-label="Outcome">Said not solved at least once</td><td data-label="Items">{{ numbers.reopened }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      {% if numbers.by_office %}
+      <h2>Where items are waiting</h2>
+      <table class="items">
+        <thead><tr><th>Office</th><th>Open</th><th>Overdue</th><th>Oldest open</th></tr></thead>
+        <tbody>
+          {% for office in numbers.by_office %}
+          <tr>
+            <td data-label="Office">{{ office.name }}</td>
+            <td data-label="Open">{{ office.open_items }}</td>
+            <td data-label="Overdue">{% if office.overdue %}<span class="status overdue">{{ office.overdue }}</span>{% else %}0{% endif %}</td>
+            <td data-label="Oldest open">{{ office.oldest_days }} day{{ '' if office.oldest_days == 1 else 's' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% else %}
+      <p>No feedback was sent from or to your area in this period.</p>
+      {% endif %}
+      <p class="hint">Counts only. Messages stay with the people handling them.</p>
+      {% endif %}
+    </section>
+  </main>
+{% endblock %}

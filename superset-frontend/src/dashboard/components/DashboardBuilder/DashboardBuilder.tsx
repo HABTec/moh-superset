@@ -717,7 +717,10 @@ const StyledDashboardContent = styled.div<{
         > div {
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
-        overscroll-behavior-y: contain;
+        /* These wrappers nest around a table's own scroll area. Letting scroll
+           chain to the page avoids trapping a swipe once the table reaches its
+           end. */
+        overscroll-behavior-y: auto;
       }
 
       .dashboard-markdown .dashboard-component-chart-holder,

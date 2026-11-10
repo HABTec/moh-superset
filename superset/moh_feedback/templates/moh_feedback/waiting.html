@@ -1,0 +1,93 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+{% extends "moh_feedback/layout.html" %}
+{% set active_tab = "waiting" %}
+{% block title %}Waiting on me{% endblock %}
+{% block content %}
+  <main class="wrap single">
+    <section class="card">
+      <h1>Waiting on me</h1>
+      <p class="view-links">
+        <a {% if not show_all %}aria-current="true"{% endif %} href="{{ url_for('moh_feedback.waiting_on_me') }}">Needs action</a>
+        <a {% if show_all %}aria-current="true"{% endif %} href="{{ url_for('moh_feedback.waiting_on_me', view='all') }}">All for my unit</a>
+      </p>
+      {% if status_filters %}
+      <form class="filters" method="get" action="{{ url_for('moh_feedback.waiting_on_me') }}" role="search">
+        {% if show_all %}<input type="hidden" name="view" value="all">{% endif %}
+        <input type="search" name="q" value="{{ filters.q or '' }}" maxlength="100" placeholder="Search words, a name, or FB number" aria-label="Search">
+        <select name="status" aria-label="Status">
+          <option value="">Any status</option>
+          {% for value, label in status_filters %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="secondary">Search</button>
+        {% if filters %}<a class="inline" href="{{ url_for('moh_feedback.waiting_on_me', view='all' if show_all else None) }}">Clear</a>{% endif %}
+      </form>
+      {% endif %}
+      {% if unavailable %}
+      <div class="message error" role="alert">
+        We cannot find your organisation unit right now. Please try again in a few minutes.
+      </div>
+      {% elif items %}
+      <table class="items">
+        <thead>
+          <tr><th>Reference</th><th>From</th><th>Message</th><th>Status</th><th>Assigned to</th><th>Finish by</th></tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td data-label="Reference">
+              <a href="{{ url_for('moh_feedback.feedback_detail', feedback_uuid=item.uuid) }}">{{ item.reference }}</a>
+              <div class="hint">{{ item.created_on|moh_feedback_time }}</div>
+            </td>
+            <td data-label="From" title="{{ item.origin_path or '' }}">
+              {{ item.sender_name }}
+              <div class="hint">{{ (item.origin_path or 'Org unit not recorded').split(' › ')|last }}</div>
+            </td>
+            <td data-label="Message">
+              {% if item.hidden_on %}<span class="hidden-text">Hidden</span>{% else %}{{ item.message|truncate(90, True) }}{% endif %}
+              <div class="hint">{{ type_labels.get(item.type, item.type) }}</div>
+            </td>
+            <td data-label="Status"><span class="status">{{ status_labels.get(item.display_status, item.status) }}</span>
+              {% if item.priority == 'high' %}<span class="status high">High</span>{% endif %}
+            </td>
+            <td data-label="Assigned to">{{ item.assignee_name or 'Nobody yet' }}</td>
+            <td data-label="Finish by">
+              {% if item.first_response_due_on and item_overdue(item) %}<span class="status overdue">Overdue</span>{% endif %}
+              {% if item.due_on and item.status != 'closed' %}{{ deadline_text(item.due_on) }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pages > 1 %}
+      <div class="pager">
+        {% if page > 1 %}<a href="{{ url_for('moh_feedback.waiting_on_me', page=page - 1, view='all' if show_all else None, **(filters or {})) }}">&larr; Previous</a>{% else %}<span></span>{% endif %}
+        <span class="hint">Page {{ page }} of {{ pages }}</span>
+        {% if page < pages %}<a href="{{ url_for('moh_feedback.waiting_on_me', page=page + 1, view='all' if show_all else None, **(filters or {})) }}">Next &rarr;</a>{% else %}<span></span>{% endif %}
+      </div>
+      {% endif %}
+      {% elif filters %}
+      <p>Nothing matches your search.</p>
+      {% else %}
+      <p>Nothing is waiting on you.</p>
+      {% endif %}
+    </section>
+  </main>
+{% endblock %}

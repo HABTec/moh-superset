@@ -1,0 +1,253 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+{% extends "moh_feedback/layout.html" %}
+{% set active_tab = "new" %}
+{% block title %}Send feedback{% endblock %}
+{% block content %}
+  <main class="wrap">
+    <section class="card">
+      <h1>Send feedback</h1>
+      {% if sent_reference %}
+      <div class="message success" role="status">
+        Thank you. Your feedback was received as <strong>{{ sent_reference }}</strong>.{% if sent_due %} You should hear back by <strong>{{ sent_due }}</strong>.{% endif %}
+        <a class="inline" href="{{ url_for('moh_feedback.my_feedback') }}">See My feedback</a>
+      </div>
+      {% endif %}
+      {% if error %}
+      <div class="message error" role="alert">{{ error }}</div>
+      {% endif %}
+
+      <form id="feedback-form" method="post" enctype="multipart/form-data" action="{{ url_for('moh_feedback.submit_feedback') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="submission_id" value="{{ submission_id }}">
+        <input type="hidden" name="page_url" value="{{ page_url or '' }}">
+
+        {% if units|length > 1 %}
+        <label for="unit_id">Sending from</label>
+        <select id="unit_id" name="unit_id" required>
+          <option value="">Choose one of your units</option>
+          {% for unit in units %}
+          <option value="{{ unit.id }}" {% if values.unit_id == unit.id %}selected{% endif %}>{{ unit.path }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        <fieldset>
+          <legend>Send to</legend>
+          <label class="choice">
+            <input type="radio" name="direction" value="up"
+              {% if values.direction != 'down' %}checked{% endif %}>
+            <span><strong>{{ upper_destination or 'My upper level' }}</strong>{% if sends_to_colleagues %} (my colleagues){% elif upper_destination %} (my upper level){% endif %}</span>
+          </label>
+          {% if can_send_down %}
+          <label class="choice">
+            <input type="radio" name="direction" value="down"
+              {% if values.direction == 'down' %}checked{% endif %}>
+            <span><strong>A unit below me</strong></span>
+          </label>
+          <div id="down-panel" hidden>
+            <label for="unit-search">Find the unit</label>
+            <input type="search" id="unit-search" autocomplete="off"
+              placeholder="Type at least 2 letters of the unit's name"
+              data-url="{{ url_for('moh_feedback.units_below') }}">
+            <div class="hint">This box finds offices. To add a person, use "Add a person" further down.</div>
+            <div class="hint" id="unit-status" role="status"></div>
+            <div id="unit-results"></div>
+            <input type="hidden" name="target_unit_id" id="target-unit-id" value="">
+          </div>
+          {% endif %}
+        </fieldset>
+
+        <fieldset>
+          <legend>What kind of feedback is this?</legend>
+          <div class="types">
+            {% for value, label in feedback_types %}
+            <label><input type="radio" name="type" value="{{ value }}" required
+              {% if values.type == value %}checked{% endif %}>{{ label }}</label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <label for="message">Your message</label>
+        <textarea id="message" name="message" required minlength="10"
+          maxlength="{{ message_max_length }}">{{ values.message or '' }}</textarea>
+        <div class="hint">Up to {{ '{:,}'.format(message_max_length) }} characters.</div>
+        <p class="warning">Do not enter patient names or other patient details.</p>
+
+        {% if screenshot_limit %}
+        <label for="screenshots">Screenshot (optional)</label>
+        <input type="file" id="screenshots" name="screenshots" multiple accept="image/png,image/jpeg">
+        <div class="hint">Up to {{ screenshot_limit }} PNG or JPEG images, {{ screenshot_megabytes }} MB each. Do not show patient details.</div>
+        {% endif %}
+
+        <details class="more" style="margin-top:16px" {% if selected_people %}open{% endif %}>
+          <summary>Add a person (optional)</summary>
+          {% include "moh_feedback/_person_picker.html" %}
+        </details>
+
+        <button type="submit" id="send-button">Send feedback</button>
+      </form>
+    </section>
+
+    <aside class="card">
+      <h2>Sent with your feedback</h2>
+      <dl>
+        <dt>From</dt>
+        <dd>{{ sender_name }}</dd>
+        {% if units|length == 1 %}
+        <dt>Your unit</dt>
+        <dd>{{ units[0].path }}</dd>
+        {% elif not units %}
+        <dt>Your unit</dt>
+        <dd>Not available</dd>
+        {% endif %}
+        {% if page_url %}
+        <dt>Page</dt>
+        <dd>{{ page_label or page_url }}</dd>
+        {% endif %}
+      </dl>
+      <p class="hint">The portal fills these in from your account.</p>
+    </aside>
+  </main>
+
+  <script>
+    (function () {
+      var form = document.getElementById('feedback-form');
+      var panel = document.getElementById('down-panel');
+      var search = document.getElementById('unit-search');
+      var status = document.getElementById('unit-status');
+      var results = document.getElementById('unit-results');
+      var target = document.getElementById('target-unit-id');
+      var unitSelect = document.getElementById('unit_id');
+      var timer = null;
+      var latest = 0;
+
+      function sendingDown() {
+        var chosen = form.querySelector('input[name="direction"]:checked');
+        return !!chosen && chosen.value === 'down';
+      }
+
+      function syncPanel() {
+        if (panel) panel.hidden = !sendingDown();
+      }
+
+      function clearTarget() {
+        if (target) target.value = '';
+      }
+
+      function select(option, row) {
+        target.value = option.id;
+        status.textContent = 'Selected: ' + option.name;
+        Array.prototype.forEach.call(results.children, function (item) {
+          item.classList.toggle('selected', item === row);
+        });
+      }
+
+      function addText(parent, tag, className, value) {
+        var element = document.createElement(tag);
+        element.className = className;
+        element.textContent = value;
+        parent.appendChild(element);
+        return element;
+      }
+
+      function show(options) {
+        results.textContent = '';
+        status.textContent = options.length ? 'Choose one unit.' : 'No units found below yours.';
+        options.forEach(function (option) {
+          var row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'unit-option';
+          addText(row, 'strong', '', option.name);
+          addText(
+            row,
+            'span',
+            'status ' + (option.active_users ? '' : 'empty'),
+            option.active_users ? option.active_users + ' active' : 'No active users'
+          );
+          addText(row, 'div', 'hint', option.path);
+          if (!option.active_users && option.goes_to) {
+            addText(row, 'div', 'hint', 'Will go to ' + option.goes_to + ' instead.');
+          }
+          if (!option.goes_to) {
+            addText(row, 'div', 'hint', 'Nobody can receive feedback for this unit.');
+            row.disabled = true;
+          }
+          // Selecting on press keeps the search box focused, so the list cannot shift under the pointer
+          row.addEventListener('mousedown', function (event) { event.preventDefault(); });
+        row.addEventListener('click', function () { select(option, row); });
+          results.appendChild(row);
+        });
+      }
+
+      function runSearch() {
+        var term = search.value.trim();
+        var request = ++latest;
+        clearTarget();
+        results.textContent = '';
+        if (term.length < 2) {
+          status.textContent = '';
+          return;
+        }
+        if (term.indexOf('@') !== -1) {
+          status.textContent = 'That looks like an email. Use "Add a person" further down to add someone.';
+          return;
+        }
+        status.textContent = 'Searching...';
+        var url = search.getAttribute('data-url') + '?q=' + encodeURIComponent(term);
+        if (unitSelect && unitSelect.value) {
+          url += '&unit_id=' + encodeURIComponent(unitSelect.value);
+        }
+        fetch(url, { credentials: 'same-origin' })
+          .then(function (response) {
+            if (!response.ok) throw new Error('search failed');
+            return response.json();
+          })
+          .then(function (data) {
+            if (request === latest) show(data.result);
+          })
+          .catch(function () {
+            if (request === latest) status.textContent = 'Search is unavailable. Please try again.';
+          });
+      }
+
+      Array.prototype.forEach.call(form.querySelectorAll('input[name="direction"]'), function (radio) {
+        radio.addEventListener('change', syncPanel);
+      });
+      if (search) {
+        search.addEventListener('input', function () {
+          clearTimeout(timer);
+          timer = setTimeout(runSearch, 300);
+        });
+        search.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') event.preventDefault();
+        });
+      }
+      form.addEventListener('submit', function (event) {
+        if (sendingDown() && !target.value) {
+          event.preventDefault();
+          status.textContent = 'Search for a unit and choose one before sending.';
+          search.focus();
+          return;
+        }
+        document.getElementById('send-button').disabled = true;
+      });
+      syncPanel();
+    })();
+  </script>
+{% endblock %}

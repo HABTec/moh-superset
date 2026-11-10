@@ -1,0 +1,87 @@
+{#
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+#}
+{% extends "moh_feedback/layout.html" %}
+{% set active_tab = "mine" %}
+{% block title %}My feedback{% endblock %}
+{% block content %}
+  <main class="wrap single">
+    <section class="card">
+      <h1>My feedback</h1>
+      <p class="view-links">
+        <a {% if not view %}aria-current="true"{% endif %} href="{{ url_for('moh_feedback.my_feedback') }}">Sent by me</a>
+        <a {% if view %}aria-current="true"{% endif %} href="{{ url_for('moh_feedback.my_feedback', view='added') }}">Added to me</a>
+      </p>
+      {% if status_filters %}
+      <form class="filters" method="get" action="{{ url_for('moh_feedback.my_feedback') }}" role="search">
+        {% if view %}<input type="hidden" name="view" value="added">{% endif %}
+        <input type="search" name="q" value="{{ filters.q or '' }}" maxlength="100" placeholder="Search words, a name, or FB number" aria-label="Search">
+        <select name="status" aria-label="Status">
+          <option value="">Any status</option>
+          {% for value, label in status_filters %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="secondary">Search</button>
+        {% if filters %}<a class="inline" href="{{ url_for('moh_feedback.my_feedback', view=view) }}">Clear</a>{% endif %}
+      </form>
+      {% endif %}
+      {% if items %}
+      <table class="items">
+        <thead>
+          <tr><th>Reference</th><th>Sent to</th><th>Message</th><th>Status</th><th>Sent</th></tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          {% set needs_you = not view and item_needs_sender and item_needs_sender(item) %}
+          <tr {% if needs_you %}class="attention"{% endif %}>
+            <td data-label="Reference">
+              <a href="{{ url_for('moh_feedback.feedback_detail', feedback_uuid=item.uuid) }}">{{ item.reference }}</a>
+            </td>
+            <td data-label="Sent to">{% if item.target_unit_name %}{{ '↓' if item.direction == 'down' else '↑' }} {{ item.target_unit_name }}{% else %}<span class="hint">Waiting for an office</span>{% endif %}</td>
+            <td data-label="Message">
+              {% if item.hidden_on %}<span class="hidden-text">Hidden</span>{% else %}{{ item.message|truncate(90, True) }}{% endif %}
+              <div class="hint">{{ type_labels.get(item.type, item.type) }}</div>
+            </td>
+            <td data-label="Status">
+              {% if needs_you and item.status == 'needs_info' %}<span class="status you">Please reply</span>
+              {% elif needs_you %}<span class="status you">Did this solve it?</span>
+              {% else %}<span class="status">{{ status_labels.get(item.display_status, item.status) }}</span>{% endif %}
+            </td>
+            <td data-label="Sent">{{ item.created_on|moh_feedback_time }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pages > 1 %}
+      <div class="pager">
+        {% if page > 1 %}<a href="{{ url_for('moh_feedback.my_feedback', page=page - 1, view=view, **(filters or {})) }}">&larr; Newer</a>{% else %}<span></span>{% endif %}
+        <span class="hint">Page {{ page }} of {{ pages }}</span>
+        {% if page < pages %}<a href="{{ url_for('moh_feedback.my_feedback', page=page + 1, view=view, **(filters or {})) }}">Older &rarr;</a>{% else %}<span></span>{% endif %}
+      </div>
+      {% endif %}
+      {% elif filters %}
+      <p>Nothing matches your search.</p>
+      {% elif view %}
+      <p>Nobody has added you to any feedback.</p>
+      {% else %}
+      <p>You have not sent any feedback yet.</p>
+      <a class="inline" href="{{ url_for('moh_feedback.new_feedback') }}">Send feedback</a>
+      {% endif %}
+    </section>
+  </main>
+{% endblock %}

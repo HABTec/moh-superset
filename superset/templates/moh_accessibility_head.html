@@ -1,0 +1,280 @@
+{#
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+  #}
+
+{#
+    High-contrast view for the MoH portal. The choice lives in <html
+    data-moh-contrast="high|normal">, set here before first paint so pages
+    don't flash. The Accessibility menu in the portal bar
+    (tail_js_custom_extra.html) flips it through window.mohAccessibility.
+
+    Canvas charts (ECharts, maps) cannot be recoloured from CSS; they only
+    get a contrast boost. Everything built from HTML (tables, filters, tabs,
+    Handlebars cards, the portal bar) is restyled.
+  #}
+<script nonce="{{ macros.get_nonce() }}">
+  (function () {
+    var KEY = 'moh-high-contrast';
+    var root = document.documentElement;
+
+    function stored() {
+      try {
+        return window.localStorage.getItem(KEY);
+      } catch (e) {
+        return null;  // storage blocked: fall back to the device setting
+      }
+    }
+
+    // An explicit choice wins; otherwise follow the device's own setting.
+    function isHighContrast() {
+      var saved = stored();
+      if (saved === 'on') {
+        return true;
+      }
+      if (saved === 'off') {
+        return false;
+      }
+      try {
+        return window.matchMedia('(prefers-contrast: more)').matches;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function apply() {
+      root.setAttribute(
+        'data-moh-contrast',
+        isHighContrast() ? 'high' : 'normal'
+      );
+    }
+
+    function setHighContrast(on) {
+      try {
+        window.localStorage.setItem(KEY, on ? 'on' : 'off');
+      } catch (e) {
+        // not saved, but still applied for this page view
+      }
+      apply();
+      window.dispatchEvent(new Event('moh-contrast-change'));
+    }
+
+    window.mohAccessibility = {
+      isHighContrast: isHighContrast,
+      setHighContrast: setHighContrast,
+    };
+    apply();
+  })();
+</script>
+
+<style>
+  html[data-moh-contrast="high"] {
+    --hc-bg: #ffffff;
+    --hc-fg: #000000;
+    --hc-surface: #ececec;
+    --hc-border: #000000;
+    --hc-link: #0000cc;
+    --hc-accent: #0000cc;
+    --hc-accent-fg: #ffffff;
+    --hc-focus: #0000cc;
+    --hc-good: #005a2b;
+    --hc-bad: #9b0000;
+  }
+
+  html[data-moh-contrast="high"][data-theme-mode="dark"] {
+    --hc-bg: #000000;
+    --hc-fg: #ffffff;
+    --hc-surface: #1a1a1a;
+    --hc-border: #ffffff;
+    --hc-link: #8ab4ff;
+    --hc-accent: #ffd60a;
+    --hc-accent-fg: #000000;
+    --hc-focus: #ffd60a;
+    --hc-good: #5eeaa0;
+    --hc-bad: #ff9a9a;
+  }
+
+  /* Page, text and links */
+  html[data-moh-contrast="high"] body,
+  html[data-moh-contrast="high"] #app {
+    background: var(--hc-bg) !important;
+    color: var(--hc-fg) !important;
+  }
+
+  html[data-moh-contrast="high"] p,
+  html[data-moh-contrast="high"] li,
+  html[data-moh-contrast="high"] label,
+  html[data-moh-contrast="high"] h1,
+  html[data-moh-contrast="high"] h2,
+  html[data-moh-contrast="high"] h3,
+  html[data-moh-contrast="high"] h4,
+  html[data-moh-contrast="high"] h5,
+  html[data-moh-contrast="high"] h6,
+  html[data-moh-contrast="high"] .ant-typography,
+  html[data-moh-contrast="high"] .ant-form-item-label > label,
+  html[data-moh-contrast="high"] .ant-select-selection-item,
+  html[data-moh-contrast="high"] .ant-select-selection-placeholder,
+  html[data-moh-contrast="high"] .ant-tabs-tab,
+  html[data-moh-contrast="high"] .ant-tabs-tab-btn,
+  html[data-moh-contrast="high"] .ant-table-cell,
+  html[data-moh-contrast="high"] .ant-collapse-header,
+  html[data-moh-contrast="high"] .header-title,
+  html[data-moh-contrast="high"] .slice-header {
+    color: var(--hc-fg) !important;
+  }
+
+  html[data-moh-contrast="high"] .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: var(--hc-link) !important;
+    font-weight: 700;
+  }
+
+  html[data-moh-contrast="high"] a:not(.ant-btn):not(.moh-portal-brand) {
+    color: var(--hc-link) !important;
+    text-decoration: underline !important;
+  }
+
+  /* Cards, charts and tables get a hard edge. Outlines are used so the
+     layout (and chart sizing) does not shift. */
+  html[data-moh-contrast="high"] .dashboard-component-chart-holder,
+  html[data-moh-contrast="high"] .ant-card,
+  html[data-moh-contrast="high"] .ant-tabs-nav,
+  html[data-moh-contrast="high"] .ant-collapse,
+  html[data-moh-contrast="high"] [data-test="filter-bar"] {
+    outline: 2px solid var(--hc-border);
+    outline-offset: -2px;
+    background-color: var(--hc-bg) !important;
+  }
+
+  html[data-moh-contrast="high"] .ant-table-thead > tr > th {
+    background: var(--hc-surface) !important;
+    color: var(--hc-fg) !important;
+    border-bottom: 2px solid var(--hc-border) !important;
+    font-weight: 700;
+  }
+
+  html[data-moh-contrast="high"] .ant-table-tbody > tr > td {
+    border-bottom: 1px solid var(--hc-border) !important;
+  }
+
+  /* Form controls and buttons */
+  html[data-moh-contrast="high"] input,
+  html[data-moh-contrast="high"] textarea,
+  html[data-moh-contrast="high"] select,
+  html[data-moh-contrast="high"] .ant-input,
+  html[data-moh-contrast="high"] .ant-input-affix-wrapper,
+  html[data-moh-contrast="high"] .ant-select-selector,
+  html[data-moh-contrast="high"] .ant-picker,
+  html[data-moh-contrast="high"] .ant-btn:not(.ant-btn-primary) {
+    background: var(--hc-bg) !important;
+    color: var(--hc-fg) !important;
+    border: 2px solid var(--hc-border) !important;
+  }
+
+  html[data-moh-contrast="high"] .ant-btn-primary,
+  html[data-moh-contrast="high"] .mobile-filter-trigger,
+  html[data-moh-contrast="high"] .mobile-filter-trigger .ant-badge,
+  html[data-moh-contrast="high"] .mobile-filter-trigger .ant-badge span,
+  html[data-moh-contrast="high"] .mobile-filter-trigger .anticon {
+    background: var(--hc-accent) !important;
+    border: 2px solid var(--hc-border) !important;
+    color: var(--hc-accent-fg) !important;
+  }
+
+  html[data-moh-contrast="high"] .ant-select-dropdown,
+  html[data-moh-contrast="high"] .ant-dropdown-menu,
+  html[data-moh-contrast="high"] .ant-popover-inner,
+  html[data-moh-contrast="high"] .ant-modal-content {
+    background: var(--hc-bg) !important;
+    color: var(--hc-fg) !important;
+    border: 2px solid var(--hc-border) !important;
+  }
+
+  html[data-moh-contrast="high"] .ant-select-item-option-selected,
+  html[data-moh-contrast="high"] .ant-select-item-option-active {
+    background: var(--hc-surface) !important;
+    font-weight: 700;
+  }
+
+  /* Keyboard focus must always be visible */
+  html[data-moh-contrast="high"] :focus-visible {
+    outline: 3px solid var(--hc-focus) !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Portal bar. The doubled class outranks the bar's own dark-mode rule,
+     which is declared later in the page. */
+  html[data-moh-contrast="high"] .moh-portal-bar.moh-portal-bar {
+    --moh-bar-bg: var(--hc-bg);
+    --moh-bar-fg: var(--hc-fg);
+    --moh-bar-line: var(--hc-border);
+    --moh-bar-line-soft: var(--hc-border);
+    --moh-bar-muted: var(--hc-fg);
+    --moh-bar-accent: var(--hc-link);
+    border-bottom-width: 2px;
+  }
+
+  /* Doubled class so this outranks the generic link rule above. */
+  html[data-moh-contrast="high"] .moh-portal-bar.moh-portal-bar nav a,
+  html[data-moh-contrast="high"] .moh-portal-bar.moh-portal-bar nav .moh-portal-mode {
+    color: var(--hc-fg) !important;
+    text-decoration: none !important;
+  }
+
+  /* Status chips use tinted text on tinted backgrounds that fall below the
+     4.5:1 minimum; flatten them to plain text on a neutral surface. */
+  html[data-moh-contrast="high"] .ant-tag,
+  html[data-moh-contrast="high"] [data-test="reporting-completeness"],
+  html[data-moh-contrast="high"] [data-test="reporting-completeness"] strong {
+    background: var(--hc-surface) !important;
+    color: var(--hc-fg) !important;
+    border: 1px solid var(--hc-border) !important;
+  }
+
+  html[data-moh-contrast="high"] [data-test="reporting-completeness"] strong {
+    border: 0 !important;
+  }
+
+  /* Handlebars cards: their colours come from --hb-* variables (see the
+     dark-mode block in head_custom_extra.html) plus a few inline colours. */
+  html[data-moh-contrast="high"] .handlebars {
+    --hb-label: var(--hc-fg);
+    --hb-value: var(--hc-fg);
+    --hb-strong: var(--hc-fg);
+    --hb-muted: var(--hc-fg);
+    --hb-faint: var(--hc-fg);
+    --hb-title: var(--hc-link);
+    --hb-name: var(--hc-link);
+    --hb-head-bg: var(--hc-surface);
+    --hb-line: var(--hc-border);
+    --hb-row-line: var(--hc-border);
+    --hb-good-text: var(--hc-good);
+    --hb-bad-text: var(--hc-bad);
+    --hb-good: var(--hc-good);
+    --hb-bad: var(--hc-bad);
+  }
+
+  html[data-moh-contrast="high"] .handlebars [style*="color: rgb(107, 114, 128)"],
+  html[data-moh-contrast="high"] .handlebars [style*="color: rgb(156, 163, 175)"],
+  html[data-moh-contrast="high"] .handlebars [style*="color: rgb(55, 65, 81)"] {
+    color: var(--hc-fg) !important;
+  }
+
+  /* Canvas charts cannot be recoloured; boost contrast, leaving maps alone. */
+  html[data-moh-contrast="high"] [data-test-viz-type]:not([data-test-viz-type^="deck_"]) canvas {
+    filter: contrast(1.25) saturate(1.15);
+  }
+</style>
