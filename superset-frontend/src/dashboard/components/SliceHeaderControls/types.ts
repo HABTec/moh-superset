@@ -52,7 +52,7 @@ export interface SliceHeaderControlsProps {
   exportFullCSV?: (sliceId: number) => void;
   exportXLSX?: (sliceId: number) => void;
   exportFullXLSX?: (sliceId: number) => void;
-  handleToggleFullSize: () => void;
+  handleToggleFullSize: (nativeFullscreen?: boolean) => void;
 
   addDangerToast: (message: string) => void;
   addSuccessToast: (message: string) => void;

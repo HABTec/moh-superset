@@ -22,7 +22,15 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Layer } from '@deck.gl/core';
 import { supersetTheme, ThemeProvider } from '@apache-superset/core/theme';
-import DeckGLPolygon, { getLayer, getPoints } from './Polygon';
+import DeckGLPolygon, {
+  getContextLayers,
+  getFeatureKey,
+  clearSeenFeatures,
+  getFeaturesLeftOut,
+  getLayer,
+  getSeenFeatures,
+  getPoints,
+} from './Polygon';
 import { COLOR_SCHEME_TYPES } from '../../utilities/utils';
 import * as utils from '../../utils';
 
@@ -386,7 +394,7 @@ test('getLayer paints missing metric values with the no-data color', () => {
     emitCrossFilters: false,
   } as any);
   const polygonLayer = Array.isArray(layer) ? layer[0] : layer;
-  const getFillColor = (polygonLayer.props as any).getFillColor;
+  const { getFillColor } = polygonLayer.props as any;
 
   expect(getFillColor(features[0]).slice(0, 3)).toEqual([200, 210, 220]);
   expect(getFillColor(features[1]).slice(0, 3)).toEqual([10, 20, 30]);
@@ -455,4 +463,145 @@ test('shows polygon lines without region rows only when stroked is enabled', () 
     getLineColor: [70, 70, 70, 120],
   });
   expect(unstroked.props).toMatchObject({ stroked: false });
+});
+
+const woreda = (id: string, x: number) => ({
+  population: 1000 + x,
+  polygon: [
+    [x, 0],
+    [x + 1, 0],
+    [x + 1, 1],
+    [x, 0],
+  ],
+  extraProps: { woreda_id: id, layer_type: 'woreda' },
+});
+const region = {
+  polygon: [
+    [0, 0],
+    [9, 0],
+    [9, 9],
+    [0, 0],
+  ],
+  extraProps: { layer_type: 'region', woreda: '', zone: '' },
+};
+
+// Each test starts with maps that have drawn nothing yet
+afterEach(() => {
+  clearSeenFeatures();
+});
+
+test('woredas left out by a filter are remembered for grey context', () => {
+  const seen = new Map();
+  const all = [woreda('a', 0), woreda('b', 2), woreda('c', 4), region];
+
+  expect(getFeaturesLeftOut(seen, all)).toEqual([]);
+
+  const leftOut = getFeaturesLeftOut(seen, [woreda('b', 2), region]);
+  expect(leftOut.map(getFeatureKey)).toEqual([
+    getFeatureKey(woreda('a', 0)),
+    getFeatureKey(woreda('c', 4)),
+  ]);
+
+  // Clearing the filter shows everything again, with nothing in grey
+  expect(getFeaturesLeftOut(seen, all)).toEqual([]);
+});
+
+test('region outlines left out by a filter are kept as outlines', () => {
+  const seen = new Map();
+  getFeaturesLeftOut(seen, [woreda('a', 0), region]);
+
+  const leftOut = getFeaturesLeftOut(seen, [woreda('a', 0)]);
+  expect(leftOut).toEqual([region]);
+
+  const layers = getContextLayers(leftOut, 7);
+  expect(layers).toHaveLength(1);
+  expect(layers[0].id).toBe('context-region-layer-7');
+  expect(layers[0].props.pickable).toBe(false);
+});
+
+test('a chart remembers its areas while it reloads, separately per chart', () => {
+  getFeaturesLeftOut(getSeenFeatures(501), [woreda('a', 0), woreda('b', 2)]);
+
+  // A reload rebuilds the component; the memory lives on for the same chart
+  expect(
+    getFeaturesLeftOut(getSeenFeatures(501), [woreda('b', 2)]).map(
+      getFeatureKey,
+    ),
+  ).toEqual([getFeatureKey(woreda('a', 0))]);
+  expect(getFeaturesLeftOut(getSeenFeatures(502), [woreda('b', 2)])).toEqual(
+    [],
+  );
+});
+
+test('a chart that changes dataset does not grey out the old areas', () => {
+  getFeaturesLeftOut(getSeenFeatures(601, '1__table'), [woreda('a', 0)]);
+
+  expect(
+    getFeaturesLeftOut(getSeenFeatures(601, '2__table'), [woreda('b', 2)]),
+  ).toEqual([]);
+});
+
+test('only the most recently used maps are remembered', () => {
+  for (let id = 0; id < 25; id += 1) {
+    getFeaturesLeftOut(getSeenFeatures(700 + id), [woreda('a', 0)]);
+  }
+
+  // The first map was forgotten, the latest is still known
+  expect(getSeenFeatures(700).size).toBe(0);
+  expect(getSeenFeatures(724).size).toBe(1);
+});
+
+test('same-named areas without an id are kept apart', () => {
+  const seen = new Map();
+  const first = { name: 'Shared Name', polygon: woreda('x', 6).polygon };
+  const second = { name: 'Shared Name', polygon: woreda('y', 9).polygon };
+  getFeaturesLeftOut(seen, [first, second]);
+
+  expect(getFeaturesLeftOut(seen, [second])).toEqual([first]);
+});
+
+test('areas without an id are matched by their shape', () => {
+  const seen = new Map();
+  const shapeOnly = { polygon: woreda('x', 6).polygon };
+  getFeaturesLeftOut(seen, [shapeOnly, woreda('a', 0)]);
+
+  expect(getFeaturesLeftOut(seen, [woreda('a', 0)])).toEqual([shapeOnly]);
+});
+
+test('grey context layers cannot be clicked or hovered', () => {
+  const layers = getContextLayers([woreda('a', 0)], 7);
+
+  expect(layers).toHaveLength(2);
+  layers.forEach(layer => expect(layer.props.pickable).toBe(false));
+  expect(layers[0].props).toMatchObject({
+    getFillColor: [190, 190, 190, 150],
+  });
+  expect(getContextLayers([], 7)).toEqual([]);
+});
+
+test('the map keeps rendering when a filter shrinks its data', () => {
+  const features = [woreda('a', 0), woreda('b', 2)];
+  const props = {
+    ...mockProps,
+    payload: { ...mockProps.payload, data: { features } },
+  };
+  const { rerender } = render(
+    <ThemeProvider theme={supersetTheme}>
+      <DeckGLPolygon {...props} />
+    </ThemeProvider>,
+  );
+
+  rerender(
+    <ThemeProvider theme={supersetTheme}>
+      <DeckGLPolygon
+        {...props}
+        payload={{ ...props.payload, data: { features: [woreda('b', 2)] } }}
+      />
+    </ThemeProvider>,
+  );
+
+  // The map keeps rendering after the data shrinks
+  expect(
+    document.querySelector('[data-testid="deckgl-container"]'),
+  ).toBeInTheDocument();
 });

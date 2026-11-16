@@ -72,7 +72,7 @@ type SliceHeaderProps = SliceHeaderControlsProps & {
   annotationError?: object;
   sliceName?: string;
   filters: object;
-  handleToggleFullSize: () => void;
+  handleToggleFullSize: (nativeFullscreen?: boolean) => void;
   formData: object;
   width: number;
   height: number;

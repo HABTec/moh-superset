@@ -192,8 +192,22 @@ const ChartHolder = ({
     ? AI_INSIGHT_PANEL_WIDTH
     : aiInsightPanelWidth;
 
-  const popupSize = useMemo(
-    () => ({
+  // The popup fills the screen while it is in browser fullscreen, and is a
+  // centred card the rest of the time.
+  const measurePopup = useCallback(() => {
+    if (
+      typeof document !== 'undefined' &&
+      popupCardRef.current &&
+      document.fullscreenElement === popupCardRef.current
+    ) {
+      // Leave room for the card's padding and border on each side
+      const frame = 2 * (theme.sizeUnit * 4 + 1);
+      return {
+        width: window.innerWidth - frame,
+        height: window.innerHeight - frame,
+      };
+    }
+    return {
       width: Math.floor(
         Math.min(
           window.innerWidth * AI_POPUP_WIDTH_FRACTION,
@@ -206,9 +220,38 @@ const ChartHolder = ({
           AI_POPUP_MAX_HEIGHT,
         ),
       ),
-    }),
-    [],
-  );
+    };
+  }, [theme.sizeUnit]);
+  const [popupSize, setPopupSize] = useState(measurePopup);
+  // Set by "View fullscreen", which shows the popup in browser fullscreen
+  const [nativeFullscreenRequested, setNativeFullscreenRequested] =
+    useState(false);
+
+  useEffect(() => {
+    if (!isFullSize) {
+      return undefined;
+    }
+    const updatePopupSize = () => setPopupSize(measurePopup());
+    updatePopupSize();
+    window.addEventListener('resize', updatePopupSize);
+    document.addEventListener('fullscreenchange', updatePopupSize);
+    return () => {
+      window.removeEventListener('resize', updatePopupSize);
+      document.removeEventListener('fullscreenchange', updatePopupSize);
+    };
+  }, [isFullSize, measurePopup]);
+
+  useEffect(() => {
+    if (!isFullSize || !nativeFullscreenRequested) {
+      return;
+    }
+    setNativeFullscreenRequested(false);
+    const card = popupCardRef.current;
+    if (card?.requestFullscreen && document.fullscreenElement !== card) {
+      // If the browser refuses, the chart stays visible in the popup
+      card.requestFullscreen().catch(() => undefined);
+    }
+  }, [isFullSize, nativeFullscreenRequested]);
 
   const focusHighlightStyles = useFilterFocusHighlightStyles(chartId ?? 0);
   const directPathToChild = useSelector(
@@ -487,9 +530,15 @@ const ChartHolder = ({
     [component, updateComponents],
   );
 
-  const handleToggleFullSize = useCallback(() => {
-    setFullSizeChartId(isFullSize ? null : (chartId ?? null));
-  }, [chartId, isFullSize, setFullSizeChartId]);
+  // Pass true to show the popup in browser fullscreen. Other callers, such as
+  // the AI panel's click handler, may pass an event, which is ignored.
+  const handleToggleFullSize = useCallback(
+    (nativeFullscreen?: unknown) => {
+      setNativeFullscreenRequested(!isFullSize && nativeFullscreen === true);
+      setFullSizeChartId(isFullSize ? null : (chartId ?? null));
+    },
+    [chartId, isFullSize, setFullSizeChartId],
+  );
 
   const handleExtraControl = useCallback((name: string, value: unknown) => {
     setExtraControls(current => ({
@@ -584,13 +633,16 @@ const ChartHolder = ({
           )}
         >
           <AntdThemeProvider
-            getPopupContainer={(triggerNode: HTMLElement) =>
-              document.fullscreenElement
-                ? (triggerNode?.closest?.(
-                    '[data-test="dashboard-component-chart-holder"]',
-                  ) as HTMLElement) || document.body
-                : document.body
-            }
+            getPopupContainer={(triggerNode: HTMLElement) => {
+              // Menus, tooltips and dialogs must stay inside the fullscreen
+              // element, or the browser does not show them. Dialogs such as
+              // View as table pass no trigger.
+              const fullscreen = document.fullscreenElement;
+              return fullscreen instanceof HTMLElement &&
+                (!triggerNode || fullscreen.contains(triggerNode))
+                ? fullscreen
+                : document.body;
+            }}
           >
             {!editMode && (
               <AnchorLink

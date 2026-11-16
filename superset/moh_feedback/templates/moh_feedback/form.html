@@ -87,12 +87,11 @@ under the License.
         <textarea id="message" name="message" required minlength="10"
           maxlength="{{ message_max_length }}">{{ values.message or '' }}</textarea>
         <div class="hint">Up to {{ '{:,}'.format(message_max_length) }} characters.</div>
-        <p class="warning">Do not enter patient names or other patient details.</p>
 
         {% if screenshot_limit %}
         <label for="screenshots">Screenshot (optional)</label>
         <input type="file" id="screenshots" name="screenshots" multiple accept="image/png,image/jpeg">
-        <div class="hint">Up to {{ screenshot_limit }} PNG or JPEG images, {{ screenshot_megabytes }} MB each. Do not show patient details.</div>
+        <div class="hint">Up to {{ screenshot_limit }} PNG or JPEG images, {{ screenshot_megabytes }} MB each.</div>
         {% endif %}
 
         <details class="more" style="margin-top:16px" {% if selected_people %}open{% endif %}>

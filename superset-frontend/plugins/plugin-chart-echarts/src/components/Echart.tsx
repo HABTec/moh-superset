@@ -403,6 +403,11 @@ function Echart(
   const legendTooltipHideTimer = useRef<ReturnType<typeof setTimeout>>();
   const chartTooltipClickRef = useRef<ChartTooltipClickState | null>(null);
   const lastDomChartPointerRef = useRef<DomChartPointerState | null>(null);
+  // The listeners this component put on the chart's zrender instance, so they
+  // can be replaced without removing the ones ECharts relies on
+  const zrListenersRef = useRef<
+    Record<string, NonNullable<EventHandlers[string]>>
+  >({});
   const [legendTooltip, setLegendTooltip] = useState<LegendTooltipState | null>(
     null,
   );
@@ -708,14 +713,23 @@ function Echart(
         ...Object.keys(zrEventHandlers || {}),
         ...Object.keys(internalZrEventHandlers),
       ]);
+      // Remove only this component's earlier listeners. Calling off(name)
+      // without a handler would also remove ECharts' own zrender listeners,
+      // which turn clicks into chart events, so no chart could be clicked.
+      const zr = chartRef.current?.getZr();
+      Object.entries(zrListenersRef.current).forEach(([name, listener]) => {
+        zr?.off(name, listener);
+      });
+      zrListenersRef.current = {};
       zrEventNames.forEach(name => {
         const userHandler = zrEventHandlers?.[name];
         const internalHandler = internalZrEventHandlers[name];
-        chartRef.current?.getZr().off(name);
-        chartRef.current?.getZr().on(name, params => {
+        const listener: NonNullable<EventHandlers[string]> = params => {
           internalHandler?.(params);
           userHandler?.(params);
-        });
+        };
+        zrListenersRef.current[name] = listener;
+        zr?.on(name, listener);
       });
 
       const getEchartsTheme = (options: any) => {
