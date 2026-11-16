@@ -71,6 +71,17 @@ import { Point } from '../../types';
 
 const WOREDA_LINE_COLOR: [number, number, number, number] = [70, 70, 70, 120];
 const WOREDA_LINE_WIDTH_PX = 1;
+// Areas a dashboard filter leaves out stay on the map in grey, for context
+const CONTEXT_FILL_COLOR: [number, number, number, number] = [
+  190, 190, 190, 150,
+];
+const CONTEXT_LINE_COLOR: [number, number, number, number] = [
+  140, 140, 140, 110,
+];
+const CONTEXT_REGION_LINE_COLOR: [number, number, number, number] = [
+  90, 90, 90, 220,
+];
+const CONTEXT_REGION_LINE_WIDTH_PX = 2;
 
 function getElevation(
   d: JsonObject,
@@ -155,6 +166,124 @@ function isRegionBoundaryFeature(d: JsonObject): boolean {
   return (
     isBlank(getFeatureProp(d, 'woreda')) && isBlank(getFeatureProp(d, 'zone'))
   );
+}
+
+/** Identifies an area across queries, so one left out by a filter is known. */
+export function getFeatureKey(d: JsonObject): string {
+  const layerType = String(getLayerType(d) ?? '');
+  const id = getFeatureProp(d, 'woreda_id') ?? getFeatureProp(d, 'id');
+  if (!isBlank(id)) {
+    return `${layerType}:id:${String(id)}`;
+  }
+  // Names repeat across zones, so the shape tells same-named areas apart
+  const points = getPointsFromPolygon(d as { polygon: Point[] });
+  return `${layerType}:shape:${String(d.name ?? '')}:${JSON.stringify(
+    points.slice(0, 3),
+  )}`;
+}
+
+// The areas each map has drawn. Kept outside the component because a chart
+// is rebuilt while it reloads, which would otherwise forget them.
+const seenFeaturesByMap = new Map<string, Map<string, JsonObject>>();
+// Older maps are forgotten first, so memory stays bounded on long visits
+const MAX_REMEMBERED_MAPS = 20;
+
+/**
+ * The areas this chart has drawn from this dataset during this page visit.
+ * Changing the dataset starts afresh, so its old areas are not shown in grey.
+ */
+export function getSeenFeatures(
+  sliceId: number | string | undefined,
+  datasource?: string,
+): Map<string, JsonObject> {
+  const key = `${sliceId ?? 'unsaved'}|${datasource ?? ''}`;
+  const seen = seenFeaturesByMap.get(key) ?? new Map<string, JsonObject>();
+  // Re-inserting marks it as the most recently used
+  seenFeaturesByMap.delete(key);
+  seenFeaturesByMap.set(key, seen);
+  while (seenFeaturesByMap.size > MAX_REMEMBERED_MAPS) {
+    const oldest = seenFeaturesByMap.keys().next().value;
+    if (oldest === undefined) break;
+    seenFeaturesByMap.delete(oldest);
+  }
+  return seen;
+}
+
+/** Forgets every map's areas. */
+export function clearSeenFeatures(): void {
+  seenFeaturesByMap.clear();
+}
+
+/**
+ * The areas and region outlines drawn before that the current data leaves
+ * out, such as woredas outside a cross-filter.
+ */
+export function getFeaturesLeftOut(
+  seen: Map<string, JsonObject>,
+  features: JsonObject[],
+): JsonObject[] {
+  const shown = new Set<string>();
+  features.forEach(feature => {
+    const key = getFeatureKey(feature);
+    shown.add(key);
+    seen.set(key, feature);
+  });
+  return [...seen.entries()]
+    .filter(([key]) => !shown.has(key))
+    .map(([, feature]) => feature);
+}
+
+/**
+ * Unclickable context for what a filter leaves out: areas in grey, and region
+ * outlines kept so the country's shape stays readable.
+ */
+export function getContextLayers(
+  features: JsonObject[],
+  sliceId: number | string | undefined,
+): Layer[] {
+  const areas = features.filter(d => !isRegionBoundaryFeature(d));
+  const regions = features.filter(isRegionBoundaryFeature);
+  const pathOf = (d: JsonObject) =>
+    getPointsFromPolygon(d as { polygon: Point[] });
+  const layers: Layer[] = [];
+  if (areas.length) {
+    layers.push(
+      new PolygonLayer({
+        id: `context-layer-${sliceId}` as const,
+        data: areas,
+        filled: true,
+        stroked: false,
+        pickable: false,
+        getPolygon: getPointsFromPolygon,
+        getFillColor: CONTEXT_FILL_COLOR,
+      }),
+      new PathLayer({
+        id: `context-outline-layer-${sliceId}` as const,
+        data: areas,
+        pickable: false,
+        widthUnits: 'pixels',
+        getPath: pathOf,
+        getColor: CONTEXT_LINE_COLOR,
+        getWidth: WOREDA_LINE_WIDTH_PX,
+      }),
+    );
+  }
+  if (regions.length) {
+    layers.push(
+      new PathLayer({
+        id: `context-region-layer-${sliceId}` as const,
+        data: regions,
+        pickable: false,
+        widthUnits: 'pixels',
+        getPath: pathOf,
+        getColor: CONTEXT_REGION_LINE_COLOR,
+        getWidth: CONTEXT_REGION_LINE_WIDTH_PX,
+        jointRounded: true,
+        capRounded: true,
+      }),
+    );
+  }
+  return layers;
 }
 
 export const getLayer = function ({
@@ -477,8 +606,14 @@ const DeckGLPolygon = (props: DeckGLPolygonProps) => {
       filterState,
       emitCrossFilters,
     });
+    const layers = Array.isArray(layer) ? layer : [layer];
+    const leftOut = getFeaturesLeftOut(
+      getSeenFeatures(formData.slice_id, formData.datasource),
+      payload.data.features as JsonObject[],
+    );
 
-    return Array.isArray(layer) ? layer : [layer];
+    // Grey areas go first, so the coloured ones are drawn on top
+    return [...getContextLayers(leftOut, formData.slice_id), ...layers];
   }, [setTooltip, props]);
 
   const { payload, formData, setControlValue } = props;

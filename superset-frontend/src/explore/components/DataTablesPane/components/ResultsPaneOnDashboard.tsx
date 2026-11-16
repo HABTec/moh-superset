@@ -35,7 +35,8 @@ const Wrapper = styled.div`
     height: 100%;
   }
 
-  .ant-tabs-tabpane {
+  /* Only the open tab: styling every pane would show the hidden ones too */
+  .ant-tabs-tabpane-active {
     display: flex;
     flex-direction: column;
   }

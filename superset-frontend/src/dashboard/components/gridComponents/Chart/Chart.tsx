@@ -96,7 +96,7 @@ interface ChartProps {
   height: number;
   updateSliceName: (sliceId: number, name: string) => void;
   isComponentVisible?: boolean;
-  handleToggleFullSize: () => void;
+  handleToggleFullSize: (nativeFullscreen?: boolean) => void;
   setControlValue?: (controlName: string, value: unknown) => void;
   sliceName: string;
   isFullSize?: boolean;

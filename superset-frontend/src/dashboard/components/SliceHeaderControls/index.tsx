@@ -134,7 +134,7 @@ export interface SliceHeaderControlsProps {
   exportFullCSV?: (sliceId: number) => void;
   exportXLSX?: (sliceId: number) => void;
   exportFullXLSX?: (sliceId: number) => void;
-  handleToggleFullSize: () => void;
+  handleToggleFullSize: (nativeFullscreen?: boolean) => void;
   exportPivotExcel?: (tableSelector: string, sliceName: string) => void;
 
   addDangerToast: (message: string) => void;
@@ -209,24 +209,6 @@ const SliceHeaderControls = (
     }
   };
 
-  const requestChartFullscreen = () => {
-    const chartHolder = props.chartHolderRef?.current;
-
-    if (!chartHolder?.requestFullscreen) {
-      props.addDangerToast(t('Fullscreen is not supported in this browser.'));
-      return;
-    }
-
-    chartHolder.requestFullscreen().catch(error => {
-      props.addDangerToast(
-        t(
-          'Error enabling fullscreen: %s',
-          error instanceof Error ? error.message : t('Unknown error'),
-        ),
-      );
-    });
-  };
-
   const exitChartFullscreen = () => {
     if (!document.exitFullscreen) {
       props.handleToggleFullSize();
@@ -287,7 +269,10 @@ const SliceHeaderControls = (
             queueChartResize();
           }
         } else {
-          requestChartFullscreen();
+          // The chart is shown in the popup, which then goes fullscreen.
+          // Making the dashboard's own chart box fullscreen showed a blank
+          // page, because the chart is drawn in the popup instead.
+          props.handleToggleFullSize(true);
         }
         break;
       }

@@ -322,33 +322,45 @@ test('Should "Force refresh"', () => {
   expect(props.addSuccessToast).toHaveBeenCalledTimes(1);
 });
 
-test('Should sync local state after entering fullscreen', async () => {
+test('View fullscreen opens the popup and asks for browser fullscreen', async () => {
   const mockDiv = document.createElement('div');
-  let fullscreenElement: Element | null = null;
-  mockFullscreenElement(() => fullscreenElement);
-  mockDiv.requestFullscreen = jest.fn().mockImplementation(async () => {
-    fullscreenElement = mockDiv;
-  });
-  const originalExitFullscreen = document.exitFullscreen;
-  (document as any).exitFullscreen = jest.fn().mockResolvedValue(undefined);
+  mockDiv.requestFullscreen = jest.fn().mockResolvedValue(undefined);
   const props = {
     ...createProps(),
     chartHolderRef: { current: mockDiv },
   };
   renderWrapper(props);
   openMenu();
-  expect(props.handleToggleFullSize).toHaveBeenCalledTimes(0);
   const fullscreenItem = screen.getByRole('menuitem', {
     name: /view fullscreen/i,
   });
   await userEvent.click(fullscreenItem);
+
+  expect(props.handleToggleFullSize).toHaveBeenCalledTimes(1);
+  expect(props.handleToggleFullSize).toHaveBeenCalledWith(true);
+  // The dashboard's chart box itself is never made fullscreen
+  expect(mockDiv.requestFullscreen).not.toHaveBeenCalled();
+});
+
+test('Leaving browser fullscreen closes the popup', async () => {
+  const mockDiv = document.createElement('div');
+  let fullscreenElement: Element | null = mockDiv;
+  mockFullscreenElement(() => fullscreenElement);
+  const props = {
+    ...createProps(),
+    isFullSize: true,
+    chartHolderRef: { current: mockDiv },
+  };
+  renderWrapper(props);
+
+  document.dispatchEvent(new Event('fullscreenchange'));
   expect(props.handleToggleFullSize).toHaveBeenCalledTimes(0);
-  expect(mockDiv.requestFullscreen).toHaveBeenCalled();
+
+  fullscreenElement = null;
   document.dispatchEvent(new Event('fullscreenchange'));
   await waitFor(() => {
     expect(props.handleToggleFullSize).toHaveBeenCalledTimes(1);
   });
-  (document as any).exitFullscreen = originalExitFullscreen;
 });
 
 test('Should sync local state after exiting fullscreen', async () => {

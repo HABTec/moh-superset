@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import { useState } from 'react';
 import { combineReducers, createStore, applyMiddleware, compose } from 'redux';
 import { Provider } from 'react-redux';
 import thunk from 'redux-thunk';
@@ -54,6 +55,12 @@ const DEFAULT_HEADER_HEIGHT = 22;
 
 // eslint-disable-next-line no-restricted-globals -- TODO: Migrate from describe blocks
 describe('ChartHolder', () => {
+  const originalRequestFullscreen = HTMLElement.prototype.requestFullscreen;
+  // Tests that replace requestFullscreen get it back even when they fail
+  afterEach(() => {
+    HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
+  });
+
   let scrollViewBase: any;
 
   const defaultProps = {
@@ -475,7 +482,91 @@ describe('ChartHolder', () => {
       responsiveDashboardEnabled: true,
     });
 
-    expect(screen.getByLabelText('Collapse AI insight panel')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Collapse AI insight panel'),
+    ).toBeInTheDocument();
+  });
+
+  const PoppingHarness = () => {
+    const [fullSizeChartId, setFullSizeChartId] = useState<number | null>(null);
+    return (
+      <ChartHolder
+        {...defaultProps}
+        isInView
+        fullSizeChartId={fullSizeChartId}
+        setFullSizeChartId={setFullSizeChartId}
+      />
+    );
+  };
+
+  const renderHarness = () =>
+    render(<PoppingHarness />, {
+      useRouter: true,
+      useDnd: true,
+      useRedux: true,
+      store: createMockStore(),
+    });
+
+  test('View fullscreen shows the popup in fullscreen with the chart inside', async () => {
+    const requestFullscreen = jest.fn().mockResolvedValue(undefined);
+    const original = HTMLElement.prototype.requestFullscreen;
+    HTMLElement.prototype.requestFullscreen = requestFullscreen;
+    renderHarness();
+
+    userEvent.click(screen.getByRole('button', { name: 'More Options' }));
+    userEvent.click(
+      await screen.findByRole('menuitem', { name: /view fullscreen/i }),
+    );
+
+    const popup = await screen.findByTestId('full-size-popup');
+    await waitFor(() => expect(requestFullscreen).toHaveBeenCalledTimes(1));
+    const fullscreenTarget = requestFullscreen.mock.contexts[0] as HTMLElement;
+    expect(popup.contains(fullscreenTarget)).toBe(true);
+    expect(
+      fullscreenTarget.querySelector('[data-test="chart-container"]'),
+    ).not.toBeNull();
+    HTMLElement.prototype.requestFullscreen = original;
+  });
+
+  test('the AI panel pop-out button opens the popup without fullscreen', async () => {
+    const requestFullscreen = jest.fn().mockResolvedValue(undefined);
+    const original = HTMLElement.prototype.requestFullscreen;
+    HTMLElement.prototype.requestFullscreen = requestFullscreen;
+    renderHarness();
+
+    // The pop-out button shows once the AI panel is collapsed
+    userEvent.click(
+      screen.getByRole('button', { name: 'Collapse AI insight panel' }),
+    );
+    userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Pop out chart and AI insight',
+      }),
+    );
+
+    expect(await screen.findByTestId('full-size-popup')).toBeInTheDocument();
+    expect(requestFullscreen).not.toHaveBeenCalled();
+    HTMLElement.prototype.requestFullscreen = original;
+  });
+
+  test('the chart stays visible in the popup when fullscreen is refused', async () => {
+    const original = HTMLElement.prototype.requestFullscreen;
+    HTMLElement.prototype.requestFullscreen = jest
+      .fn()
+      .mockRejectedValue(new Error('denied'));
+    renderHarness();
+
+    userEvent.click(screen.getByRole('button', { name: 'More Options' }));
+    userEvent.click(
+      await screen.findByRole('menuitem', { name: /view fullscreen/i }),
+    );
+
+    const popup = await screen.findByTestId('full-size-popup');
+    await waitFor(() =>
+      expect(HTMLElement.prototype.requestFullscreen).toHaveBeenCalled(),
+    );
+    expect(popup.querySelector('[data-test="chart-container"]')).not.toBeNull();
+    HTMLElement.prototype.requestFullscreen = original;
   });
 
   test('does not render the popup when not popped out', async () => {
