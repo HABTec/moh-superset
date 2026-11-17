@@ -101,7 +101,7 @@ _MAX_CELL_CHARS = 200
 _MAX_REQUEST_BYTES = 64 * 1024
 _DEFAULT_MODELS = {
     "openai": "gpt-4o-mini",
-    "gemini": "gemini-1.5-flash",
+    "gemini": "gemini-2.5-flash",
     "claude": "claude-3-5-haiku-latest",
 }
 

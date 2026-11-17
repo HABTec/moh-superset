@@ -289,6 +289,9 @@ MCP_TOOL_SEARCH_CONFIG = {"enabled": False}
 # -----------------------------------------------------------------------------
 from superset.hpc import hpc_bp as _hpc_bp  # noqa: E402
 from superset.moh_ai_chat import ai_chat_bp as _ai_chat_bp  # noqa: E402
+from superset.moh_ai_intelligence import (  # noqa: E402
+    ai_intelligence_bp as _ai_intelligence_bp,
+)
 from superset.moh_ai_insights import ai_insights_bp as _ai_insights_bp  # noqa: E402
 from superset.moh_assets import moh_assets_bp as _moh_assets_bp  # noqa: E402
 from superset.moh_assets import moh_guide_bp as _moh_guide_bp  # noqa: E402
@@ -300,6 +303,7 @@ from superset.moh_reports import moh_reports_bp as _moh_reports_bp  # noqa: E402
 
 BLUEPRINTS = [
     _ai_chat_bp,
+    _ai_intelligence_bp,
     _ai_insights_bp,
     _moh_orgunits_bp,
     _moh_assets_bp,
@@ -416,11 +420,14 @@ MOH_AA_PORTAL_TITLE = os.environ.get(
 # The e.g. Health Intelligence dashboard shows an AI-generated insight next to
 # every chart. Leave MOH_AI_INSIGHTS_PROVIDER empty for the built-in demo
 # generator (no credentials needed); set it to "openai", "gemini" or "claude"
-# for real LLM generation. On any LLM failure the demo generator takes over.
+# for real LLM generation. AI Intelligence also uses this provider to match
+# questions to charts and extract filters; it does not generate SQL.
 MOH_AI_INSIGHTS_PROVIDER = os.environ.get("MOH_AI_INSIGHTS_PROVIDER", "")
 MOH_AI_INSIGHTS_API_KEY = os.environ.get("MOH_AI_INSIGHTS_API_KEY", "")
 MOH_AI_INSIGHTS_MODEL = os.environ.get("MOH_AI_INSIGHTS_MODEL", "")
 MOH_AI_INSIGHTS_TIMEOUT = int(os.environ.get("MOH_AI_INSIGHTS_TIMEOUT", "20"))
+# Optional model override for the separate AI Intelligence page.
+MOH_AI_INTELLIGENCE_MODEL = os.environ.get("MOH_AI_INTELLIGENCE_MODEL", "")
 # Seconds to cache an insight for a given chart + query payload.
 MOH_AI_INSIGHTS_CACHE_TTL = int(os.environ.get("MOH_AI_INSIGHTS_CACHE_TTL", "300"))
 
