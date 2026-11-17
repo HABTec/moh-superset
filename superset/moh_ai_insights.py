@@ -62,7 +62,8 @@ POST /ai-insights/chart/<chart_id>/
     generator answers instead.
 
 Registered with Flask via the BLUEPRINTS list in superset_config.py — no
-edits to upstream Superset init code.
+edits to upstream Superset init code. The endpoint accepts browser sessions
+and mobile Bearer tokens.
 """
 
 from __future__ import annotations
@@ -75,18 +76,86 @@ import re
 import time
 from collections import deque, OrderedDict
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
-from flask import Blueprint, current_app, g, has_app_context, jsonify, request
-from flask_login import login_required
+from flask import Blueprint, abort, current_app, g, has_app_context, jsonify, request
+from flask_login import current_user, login_required
+from flask_wtf.csrf import CSRFError, validate_csrf
+from wtforms.validators import ValidationError
 
 from superset.exceptions import SupersetSecurityException
-from superset.extensions import db, security_manager
+from superset.extensions import csrf, db, security_manager
+from superset.moh_mobile_api import _authenticate_bearer
 from superset.superset_typing import FlaskResponse
 
 logger = logging.getLogger(__name__)
 
 ai_insights_bp = Blueprint("moh_ai_insights", __name__)
+csrf.exempt(ai_insights_bp)
+
+
+def _validate_session_csrf() -> None:
+    """Retain Flask-WTF CSRF checks for requests authenticated by a session."""
+    field_name = current_app.config["WTF_CSRF_FIELD_NAME"]
+    token = request.form.get(field_name)
+    if token is None:
+        token = next(
+            (
+                request.form.get(key)
+                for key in request.form
+                if key.endswith("-" + field_name)
+            ),
+            None,
+        )
+    if token is None:
+        token = next(
+            (
+                request.headers.get(header_name)
+                for header_name in current_app.config["WTF_CSRF_HEADERS"]
+                if request.headers.get(header_name)
+            ),
+            None,
+        )
+
+    try:
+        validate_csrf(token)
+    except ValidationError as ex:
+        raise CSRFError(str(ex)) from ex
+
+    if request.is_secure and current_app.config.get("WTF_CSRF_SSL_STRICT", True):
+        if not request.referrer:
+            raise CSRFError("The referrer header is missing.")
+        try:
+            referrer = urlsplit(request.referrer)
+            origin = urlsplit(request.host_url)
+            referrer_port = referrer.port or 443
+            origin_port = origin.port or 443
+        except ValueError as ex:
+            raise CSRFError("The referrer origin is invalid.") from ex
+        if (
+            referrer.scheme != "https"
+            or referrer.hostname != origin.hostname
+            or referrer_port != origin_port
+            or referrer.username is not None
+            or referrer.password is not None
+        ):
+            raise CSRFError("The referrer does not match the host.")
+    g.csrf_valid = True
+
+
+@ai_insights_bp.before_request
+def _authenticate_ai_insights() -> FlaskResponse | tuple[FlaskResponse, int] | None:
+    """Accept the existing browser session or the mobile Bearer token."""
+    if request.headers.get("Authorization", "").startswith("Bearer "):
+        return _authenticate_bearer()
+
+    if current_app.config.get("WTF_CSRF_ENABLED", True):
+        _validate_session_csrf()
+    if not current_user.is_authenticated:
+        abort(401)
+    g.user = current_user._get_current_object()
+    return None
 
 # In-process cache: cache_key -> (expiry_ts, payload), oldest entries evicted
 # first once MOH_AI_INSIGHTS_CACHE_MAX_ENTRIES is reached. Per Gunicorn worker;
