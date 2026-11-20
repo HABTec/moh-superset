@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { BUDGET_FILE, RESULTS_DIR, STATE_FILE } from '../lib/env';
+import { BUDGET_FILE, RESULTS_DIR, STATE_FILE, TARGET } from '../lib/env';
 import { pagesForProfile, viewportsFor } from '../lib/pages';
 import { probeStable as probe, Counts } from '../lib/probes';
 
@@ -31,6 +31,13 @@ const budget: Budget = fs.existsSync(BUDGET_FILE)
 
 // Recorded and reported, never gated: depends on server timing, not on the page.
 const NOT_GATED = new Set(['PERF-STUCK-LOADER']);
+
+// Named, capped exceptions (budgets/exceptions.json): documented, never silent.
+const exceptions: Record<string, Record<string, Record<string, { max: number; reason: string }>>> =
+  fs.existsSync(path.join(path.dirname(BUDGET_FILE), 'exceptions.json'))
+    ? JSON.parse(fs.readFileSync(path.join(path.dirname(BUDGET_FILE), 'exceptions.json'), 'utf8'))
+    : {};
+const EXC = exceptions[TARGET] || {};
 
 function allowed(id: string, base: number): number {
   if (EXACT.has(id)) return base;
@@ -85,7 +92,9 @@ for (const pg of pagesForProfile()) {
           if (SEVERE.has(id)) problems.push(`${id}: ${n} on a page with no budget (severe issues are never allowed)`);
           continue;
         }
-        const max = allowed(id, base[id] ?? 0);
+        const exc = EXC[key]?.[id];
+        if (exc) info.annotations.push({ type: 'exception', description: `${key} ${id} capped at ${exc.max}: ${exc.reason}` });
+        const max = Math.max(allowed(id, base[id] ?? 0), exc?.max ?? 0);
         if (n > max) {
           problems.push(`${id}: ${n} > budget ${base[id] ?? 0} (e.g. ${(r!.samples[id] || []).join(' | ')})`);
         }
