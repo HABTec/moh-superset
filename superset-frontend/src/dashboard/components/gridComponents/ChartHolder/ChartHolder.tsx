@@ -721,7 +721,10 @@ const ChartHolder = ({
                   }
                   height={
                     responsiveLayout
-                      ? Math.min(chartHeight, AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT)
+                      ? Math.min(
+                          chartHeight,
+                          AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT,
+                        )
                       : chartHeight
                   }
                   inView={isComponentVisible && isInView}

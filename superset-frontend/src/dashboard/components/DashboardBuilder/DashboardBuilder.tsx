@@ -1006,7 +1006,8 @@ const DashboardBuilder = () => {
 
   // The portal script shows its "rotate your device" overlay only for dashboards
   // that opted out; this class is its single signal (no id lists, no URL regex).
-  const responsiveDashboardOptedOut = isResponsiveDashboardOptedOut(dashboardInfo);
+  const responsiveDashboardOptedOut =
+    isResponsiveDashboardOptedOut(dashboardInfo);
   useEffect(() => {
     document.body.classList.toggle(
       RESPONSIVE_DASHBOARD_OPTOUT_BODY_CLASS,
