@@ -822,8 +822,9 @@ _moh_roles %}
     var POLL_MS = 250;
 
     function isDashboardPage() {
+      // a dashboard view, not the dashboard list (/dashboard/list/)
       return (
-        /\/dashboard\//.test(window.location.pathname) ||
+        /\/dashboard\/(?!list(?:\/|$))[^/]+/.test(window.location.pathname) ||
         !!document.querySelector('[data-test="dashboard-header-container"]')
       );
     }
@@ -840,16 +841,15 @@ _moh_roles %}
       return !!document.body && document.body.contains(element);
     }
 
-    function isResponsiveDashboardPath() {
-      return /\/dashboard\/(?:3|8)(?:\/|$)/.test(window.location.pathname);
+    // Responsive mode is the default for every dashboard. The app marks the few
+    // dashboards that opted out (metadata responsive_dashboard_disabled) with a
+    // body class; that class is the only signal, there is no id list here.
+    function isResponsiveDashboardOptedOut() {
+      return bodyHasClass("moh-responsive-optout");
     }
 
     function isResponsiveMobileDashboard() {
-      return (
-        isMobileOrTablet() &&
-        (bodyHasClass("moh-responsive-dashboard-mobile") ||
-          isResponsiveDashboardPath())
-      );
+      return isMobileOrTablet() && !isResponsiveDashboardOptedOut();
     }
 
     function shouldDisableChartZoom() {
@@ -996,9 +996,33 @@ _moh_roles %}
 
     function initLandscapeOverlay() {
       if (!isDashboardPage()) return;
-      if (window.innerWidth > TABLET_BP) return;
-      if (isResponsiveMobileDashboard()) return;
-      if (document.getElementById("moh-rotate-overlay")) return;
+      // the opt-out class is set by the app after the dashboard mounts, so watch
+      // for it instead of deciding once
+      if (window.MutationObserver && document.body) {
+        new MutationObserver(syncLandscapeOverlay).observe(document.body, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+      window.addEventListener("resize", syncLandscapeOverlay);
+      syncLandscapeOverlay();
+    }
+
+    function syncLandscapeOverlay() {
+      var existing = document.getElementById("moh-rotate-overlay");
+      var wanted =
+        isDashboardPage() &&
+        window.innerWidth <= TABLET_BP &&
+        isResponsiveDashboardOptedOut();
+      if (!wanted) {
+        if (existing) existing.parentNode.removeChild(existing);
+        return;
+      }
+      if (existing) return;
+      showLandscapeOverlay();
+    }
+
+    function showLandscapeOverlay() {
 
       var el = document.createElement("div");
       el.id = "moh-rotate-overlay";
