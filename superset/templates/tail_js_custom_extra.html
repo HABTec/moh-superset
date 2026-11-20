@@ -238,6 +238,22 @@
       color: var(--moh-bar-fg);
     }
 
+    /* Tablet widths: the brand plus the full nav is wider than the screen and
+       the nav, including the accessibility toggle, ran off the right edge. */
+    @media (min-width: 761px) and (max-width: 1100px) {
+      .moh-portal-bar {
+        flex-wrap: wrap;
+        row-gap: 4px;
+      }
+      .moh-portal-bar nav {
+        flex-wrap: wrap;
+        margin-left: auto;
+        max-width: 100%;
+        min-width: 0;
+        row-gap: 4px;
+      }
+    }
+
     @media (max-width: 760px) {
       .moh-portal-bar {
         padding: 8px 12px;
