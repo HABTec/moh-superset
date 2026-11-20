@@ -80,7 +80,9 @@ import {
   RESPONSIVE_DASHBOARD_CLASS,
   RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS,
   RESPONSIVE_DASHBOARD_MOBILE_CLASS,
+  RESPONSIVE_DASHBOARD_OPTOUT_BODY_CLASS,
   isResponsiveDashboardEnabled,
+  isResponsiveDashboardOptedOut,
   isResponsiveDashboardMobileViewport,
 } from 'src/dashboard/util/responsiveDashboard';
 import { getRootLevelTabsComponent, shouldFocusTabs } from './utils';
@@ -982,6 +984,19 @@ const DashboardBuilder = () => {
       window.removeEventListener('orientationchange', syncViewportSize);
     };
   }, []);
+
+  // The portal script shows its "rotate your device" overlay only for dashboards
+  // that opted out; this class is its single signal (no id lists, no URL regex).
+  const responsiveDashboardOptedOut = isResponsiveDashboardOptedOut(dashboardInfo);
+  useEffect(() => {
+    document.body.classList.toggle(
+      RESPONSIVE_DASHBOARD_OPTOUT_BODY_CLASS,
+      responsiveDashboardOptedOut,
+    );
+    return () => {
+      document.body.classList.remove(RESPONSIVE_DASHBOARD_OPTOUT_BODY_CLASS);
+    };
+  }, [responsiveDashboardOptedOut]);
 
   useEffect(() => {
     document.body.classList.toggle(
