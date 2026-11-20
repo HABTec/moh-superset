@@ -296,6 +296,13 @@ const DashboardContentWrapper = styled.div`
       min-width: 0;
       overflow-x: hidden;
       width: 100%;
+
+      /* wide tables scroll inside their card instead of being cut off */
+      .slice_container div:has(> table),
+      .slice_container div:has(> div > table) {
+        max-width: 100%;
+        overflow-x: auto !important;
+      }
     }
 
     &.dashboard--editing {
