@@ -6,7 +6,7 @@
  *
  * Needs: backups of the current params in /var/tmp/moh-a11y-chart-backup-<target>/<id>.json
  * (written by the dump step) and a logged-in storage state with edit rights
- * (.auth/<target>.json produced by running the suite with that account's MOH_UI_USER/PASS).
+ * (the script logs in itself; see readCreds below).
  * DRY=1 prints before/after without writing. Usage: node fix-handlebars-kpi.mjs all|<id...>
  */
 import {chromium} from '@playwright/test';
@@ -23,7 +23,35 @@ const MAP = [
   [/color:\s*#6b7280/gi, 'color:#4b5563'],
 ];
 const b = await chromium.launch({channel:'chrome'});
-const c = await b.newContext({storageState: '../.auth/training.json'});
+// Log in with the owner/admin account. Credentials: MOH_UI_USER/MOH_UI_PASS, or a file outside the
+// repo (MOH_UI_CREDS_FILE, default ~/.config/moh-ui-test/training-admin.env) holding either
+// MOH_UI_USER=... / MOH_UI_PASS=... lines or "Username:" / <user> / "Password:" / <pass>. Never printed.
+import os from 'os';
+import path from 'path';
+function readCreds() {
+  if (process.env.MOH_UI_USER && process.env.MOH_UI_PASS) return { user: process.env.MOH_UI_USER, pass: process.env.MOH_UI_PASS };
+  const f = process.env.MOH_UI_CREDS_FILE || path.join(os.homedir(), '.config', 'moh-ui-test', 'training-admin.env');
+  if (!fs.existsSync(f)) { console.error('No credentials: create ' + f + ' or set MOH_UI_USER/MOH_UI_PASS'); process.exit(2); }
+  const lines = fs.readFileSync(f, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+  const kv = Object.fromEntries(lines.map(l => l.match(/^(MOH_UI_USER|MOH_UI_PASS)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]]));
+  if (kv.MOH_UI_USER && kv.MOH_UI_PASS) return { user: kv.MOH_UI_USER, pass: kv.MOH_UI_PASS };
+  const at = re => { const i = lines.findIndex(l => re.test(l)); return i >= 0 ? lines[i + 1] : undefined; };
+  const user = at(/^username:?$/i), pass = at(/^password:?$/i);
+  if (!user || !pass) { console.error('Unrecognised credentials format in ' + f); process.exit(2); }
+  return { user, pass };
+}
+const { user, pass } = readCreds();
+const c = await b.newContext({ ignoreHTTPSErrors: true });
+{
+  const pg = await c.newPage();
+  await pg.goto('https://sstraining.habtechsolution.com/login/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await pg.fill('#username', user);
+  await pg.fill('#password', pass);
+  await pg.click('button[type=submit], input[type=submit]');
+  await pg.waitForURL(u => !/\/login\//.test(u.toString()), { timeout: 30000 }).catch(() => { console.error('Login failed'); process.exit(2); });
+  await pg.close();
+}
+console.log('logged in; account will be used only for chart edits listed above');
 const base='https://sstraining.habtechsolution.com';
 const csrf = (await (await c.request.get(base+'/api/v1/security/csrf_token/')).json()).result;
 let ok=0, fail=0;
