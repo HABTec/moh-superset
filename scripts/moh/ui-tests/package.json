@@ -7,7 +7,10 @@
     "test": "playwright test",
     "test:smoke": "playwright test tests/smoke.spec.ts",
     "test:quality": "playwright test tests/ui-quality.spec.ts",
-    "budget:update": "MOH_UI_UPDATE_BUDGET=1 playwright test tests/ui-quality.spec.ts"
+    "budget:update": "MOH_UI_UPDATE_BUDGET=1 playwright test tests/ui-quality.spec.ts",
+    "test:unit": "node tools/gate-summary.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "gate": "./run-gate.sh"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

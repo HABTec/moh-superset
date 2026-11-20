@@ -21,6 +21,7 @@
 #   /var/etls/moh-superset/scripts/moh/deploy.sh --dry-run    # preflight only, changes nothing
 #   /var/etls/moh-superset/scripts/moh/deploy.sh              # full deploy of origin/master
 #   /var/etls/moh-superset/scripts/moh/deploy.sh --rollback   # undo the last deploy
+#   /var/etls/moh-superset/scripts/moh/deploy.sh --ui-check   # only run the responsive/accessibility gate on the live site
 #
 # Steps of a full deploy:
 #   1. Preflight checks: service health, a clean git tree, a fast-forward-only update, the Node
@@ -78,6 +79,9 @@ MIN_DISK_GB="${MIN_DISK_GB:-5}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-240}" # TimeoutStartSec=120 + 8 workers to boot
 STABILITY_WAIT="${STABILITY_WAIT:-45}"
 KEEP_RELEASES="${KEEP_RELEASES:-5}"     # each keeps an assets tarball and a DB dump
+UI_GATE="${UI_GATE:-warn}"              # on | warn | off: responsive/accessibility gate after the restart
+UI_GATE_URL="${UI_GATE_URL:-}"          # URL the gate browses (default: PUBLIC_URL)
+UI_GATE_TARGET="${UI_GATE_TARGET:-prod}" # selects budgets/<target>.json in scripts/moh/ui-tests
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$STATE_DIR/uv-cache}"   # /home is small
 
 # Changes under these paths make `superset init` run (permissions/roles sync).
@@ -102,6 +106,13 @@ Options:
   --allow-node-mismatch   build with a Node that does not match .nvmrc
   --force-low-memory      build even if MemAvailable < MIN_MEM_GB
   --no-auto-rollback      leave the failed state in place for debugging
+  --ui-gate=on|warn|off   responsive/accessibility gate (about 8 min) after the restart:
+                            on   a regression rolls the release back (never after a DB migration)
+                            warn report it, keep the release (default)
+                            off  skip
+                          NOT VERIFIED (could not measure) never rolls back; it is reported loudly.
+  --skip-ui-gate          same as --ui-gate=off
+  --ui-check              run only the gate against the live site (no deploy); exit 0 pass, 1 regression, 3 not verified
   --rollback              restore the previous release (code, packages, assets) and restart
   --rollback --restore-db also restore the metadata DB from that release's dump
                           (discards dashboard/chart/user edits made since the deploy)
@@ -123,6 +134,10 @@ while [[ $# -gt 0 ]]; do
     --allow-node-mismatch) ALLOW_NODE_MISMATCH=1 ;;
     --force-low-memory) FORCE_MEM=1 ;;
     --no-auto-rollback) AUTO_ROLLBACK=0 ;;
+    --ui-gate=*) UI_GATE="${1#*=}" ;;
+    --ui-gate) UI_GATE="$2"; shift ;;
+    --skip-ui-gate) UI_GATE=off ;;
+    --ui-check) MODE=uicheck ;;
     --rollback) MODE=rollback ;;
     --restore-db) RESTORE_DB=1 ;;
     --prune-assets) MODE=prune ;;
@@ -131,6 +146,7 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+case "$UI_GATE" in on|warn|off) ;; *) echo "--ui-gate must be on, warn or off (got '$UI_GATE')" >&2; exit 2 ;; esac
 (( DO_FRONTEND || DO_BACKEND )) || { echo "--frontend-only and --backend-only together leave nothing to do" >&2; exit 2; }
 
 # --- Logging ----------------------------------------------------------------------
@@ -372,6 +388,58 @@ deployed_releases() {
   return 0
 }
 
+# --- UI gate (responsive + accessibility) -------------------------------------------
+# run-gate.sh exit codes: 0 pass, 1 regression over budget, 3 NOT VERIFIED (could not measure).
+UI_GATE_READY=0
+ui_gate_url() { echo "${UI_GATE_URL:-$PUBLIC_URL}"; }
+
+# $1 = "on"/"warn" policy for a failed prerequisite, $2 = 1 if the runner script exists
+ui_gate_preflight() {
+  local policy="$1" runner_ok="$2" why=""
+  local url; url="$(ui_gate_url)"
+  local creds="${MOH_UI_CREDS_FILE:-$HOME/.config/moh-ui-test/$UI_GATE_TARGET.env}"
+  [[ -n "$url" ]] || why="no URL to browse (set PUBLIC_URL or UI_GATE_URL)"
+  if [[ -z "$why" && "$runner_ok" != 1 ]]; then why="this commit has no scripts/moh/ui-tests/run-gate.sh"; fi
+  if [[ -z "$why" ]] && ! command -v node >/dev/null 2>&1; then why="node not found on PATH"; fi
+  if [[ -z "$why" ]] && ! { [[ -n "${MOH_UI_USER:-}" && -n "${MOH_UI_PASS:-}" ]] || [[ -r "$creds" ]]; }; then
+    why="no test credentials (set MOH_UI_USER/MOH_UI_PASS or create $creds, readable by $(id -un))"
+  fi
+  if [[ -z "$why" ]] && [[ "$(http_code "$url/health")" != 200 ]]; then
+    why="$url/health is not 200"
+  fi
+  if [[ -z "$why" ]]; then
+    UI_GATE_READY=1; ok "UI gate ready: $url (target $UI_GATE_TARGET, policy $UI_GATE)"
+  elif [[ "$policy" == on ]]; then
+    refuse "UI gate is 'on' but cannot run: $why. Fix it, or use --ui-gate=warn / --skip-ui-gate"
+  else
+    UI_GATE_READY=0; warn "UI gate will NOT run: $why"
+  fi
+}
+
+# $1 = checkout holding scripts/moh/ui-tests, $2 = directory for the report. Returns the gate's code.
+ui_gate_run() {
+  local dir="$1/scripts/moh/ui-tests" out="$2/ui-gate" rc=0
+  mkdir -p "$out"
+  info "read-only, about 8 minutes; report in $out"
+  "$dir/run-gate.sh" --target "$UI_GATE_TARGET" --url "$(ui_gate_url)" --out "$out" || rc=$?
+  return "$rc"
+}
+
+# --- Mode: UI check only -----------------------------------------------------------
+if [[ "$MODE" == uicheck ]]; then
+  step "UI gate on the live site (no deploy)"
+  check_dir="${UI_CHECK_DIR:-$LIVE_DIR}"
+  have=0; [[ -x "$check_dir/scripts/moh/ui-tests/run-gate.sh" ]] && have=1
+  ui_gate_preflight on "$have"
+  rc=0; ui_gate_run "$check_dir" "$STATE_DIR/ui-checks/$TS" || rc=$?
+  case "$rc" in
+    0) ok "UI gate PASS" ;;
+    1) warn "UI gate: REGRESSION (see the report above)" ;;
+    *) warn "UI gate: NOT VERIFIED (the site could not be measured; this is not a pass)"; rc=3 ;;
+  esac
+  exit "$rc"
+fi
+
 # --- Mode: rollback -----------------------------------------------------------------
 if [[ "$MODE" == rollback ]]; then
   last="$(deployed_releases | tail -1)"
@@ -504,6 +572,13 @@ if (( DO_BACKEND )); then
   info "backend steps: pg_dump $DB_NAME, pip install, superset db upgrade$( (( RUN_INIT )) && echo ', superset init (relevant files changed)')"
 fi
 info "restart: $SERVICE$( (( RESTART_CELERY )) && echo " + celery ($CELERY_UNITS)")"
+if [[ "$UI_GATE" != off ]]; then
+  have_runner=0
+  git_live cat-file -e "$TARGET:scripts/moh/ui-tests/run-gate.sh" 2>/dev/null && have_runner=1
+  ui_gate_preflight "$UI_GATE" "$have_runner"
+else
+  info "UI gate: off"
+fi
 
 if pgrep -f 'data_refreshing_scripts/.*\.sh' >/dev/null; then
   warn "an ETL refresh is running now:"
@@ -689,6 +764,25 @@ echo "  waiting ${STABILITY_WAIT}s, then checking again ..."
 sleep "$STABILITY_WAIT"
 verify_service "$since" "$nr_before" "$EXPECT_MANIFEST" "$RESTART_CELERY" || false
 
+UI_GATE_RESULT=skipped
+if [[ "$UI_GATE" != off && "$UI_GATE_READY" == 1 ]]; then
+  step "UI quality gate (responsive + accessibility)"
+  gate_rc=0; ui_gate_run "$BUILD_DIR" "$REL" || gate_rc=$?
+  case "$gate_rc" in
+    0) UI_GATE_RESULT=pass; ok "UI gate PASS" ;;
+    1) UI_GATE_RESULT=regression
+       echo "$UI_GATE_RESULT" >"$REL/ui_gate"
+       if [[ "$UI_GATE" == on ]]; then
+         warn "UI gate found regressions and the policy is 'on': treating the deploy as failed"
+         false   # on_fail rolls back (not after a DB migration)
+       fi
+       warn "UI gate found regressions (policy 'warn': release kept). Fix them, or roll back with --rollback" ;;
+    *) UI_GATE_RESULT=not_verified
+       warn "UI gate NOT VERIFIED: it could not measure the site (not a pass). Release kept; re-run with --ui-check" ;;
+  esac
+  echo "$UI_GATE_RESULT" >"$REL/ui_gate"
+fi
+
 ROLLBACK_ARMED=0
 trap - ERR
 set_status deployed "$REL"
@@ -698,6 +792,7 @@ ls -1d "$STATE_DIR"/releases/*/ | head -n -"$KEEP_RELEASES" | xargs -r rm -rf --
 
 step "${c_grn}Deploy OK${c_off}: $(git_live log --oneline -1)"
 echo "  Release record: $REL"
+echo "  UI gate:        ${UI_GATE_RESULT:-skipped}$( [[ "${UI_GATE_RESULT:-}" == regression || "${UI_GATE_RESULT:-}" == not_verified ]] && echo "  <-- needs attention: $REL/ui-gate/summary.txt")"
 echo "  Undo:           $LIVE_DIR/scripts/moh/deploy.sh --rollback$( [[ "$(release_flag "$REL" db_migrated)" == 1 ]] && echo ' --restore-db')"
 echo "  Browser check:  hard-refresh (Ctrl+Shift+R) a dashboard; the PWA service worker may serve the old shell once."
 echo "  Log: $LOG"

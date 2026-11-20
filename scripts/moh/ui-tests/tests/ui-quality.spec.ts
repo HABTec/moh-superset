@@ -63,6 +63,16 @@ for (const pg of pagesForProfile()) {
         const page = await ctx.newPage();
         try {
           await page.goto(pg.path, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+          // Test-only proof hook (never set in normal runs): add an element wider than
+          // the viewport to the home page so a run can demonstrate that the gate fails.
+          if (process.env.MOH_UI_INJECT_VIOLATION === '1' && pg.id === 'home') {
+            await page.evaluate(() => {
+              const d = document.createElement('div');
+              d.id = 'moh-injected-violation';
+              d.style.cssText = 'width:2400px;height:12px;background:#c00';
+              document.body.appendChild(d);
+            });
+          }
           r = await probe(page, !!pg.tv);
           fs.mkdirSync(path.join(RESULTS_DIR, 'shots'), { recursive: true });
           await page.screenshot({ path: path.join(RESULTS_DIR, 'shots', `${pg.id}_${w}.png`) });
