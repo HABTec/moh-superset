@@ -1,6 +1,6 @@
 /**
  * Raise the contrast and minimum size of KPI-card text stored in Handlebars chart
- * definitions (clamp(8..10px) -> 11px min; #6b7280 -> #4b5563). This is a CONTENT
+ * definitions (clamp(8..10px) -> 11px min; #6b7280 -> #4b5563; text #9ca3af -> #5b6472). This is a CONTENT
  * change to chart definitions in the database, so it needs an owner/admin account:
  * the read-only test account gets 403.
  *
@@ -21,6 +21,8 @@ const MAP = [
   [/font-size:\s*clamp\(10px,\s*2vh,\s*13px\)/gi, 'font-size:clamp(11px,2vh,13px)'],
   [/font-size:\s*clamp\(10px,\s*2vh,\s*14px\)/gi, 'font-size:clamp(11px,2vh,14px)'],
   [/color:\s*#6b7280/gi, 'color:#4b5563'],
+  [/color:\s*rgb\(\s*107,\s*114,\s*128\s*\)/gi, 'color:#4b5563'],
+  [/color:\s*#9ca3af/gi, 'color:#5b6472'],
 ];
 const b = await chromium.launch({channel:'chrome'});
 // Log in with the owner/admin account. Credentials: MOH_UI_USER/MOH_UI_PASS, or a file outside the

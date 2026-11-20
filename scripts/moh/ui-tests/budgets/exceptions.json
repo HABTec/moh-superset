@@ -1,19 +1,4 @@
 {
   "_doc": "Named, capped exceptions to a budget. Each needs a reason and a way out. Never raise a budget instead of adding an entry here, and remove the entry when the cause is fixed.",
-  "training": {
-    "dash18-tab1@375": {
-      "RESP-TINY-TEXT": {
-        "max": 6,
-        "reason": "KPI cards (Handlebars charts) carry inline font-size:clamp(8px,1.4vh,10px/11px) in the chart definition stored in the database, not in the repository.",
-        "way_out": "Edit the chart templates (backups and script: scripts/moh/ui-tests/tools/fix-handlebars-kpi.mjs) with an owner/admin account, then delete this entry."
-      }
-    },
-    "dash18-tab4@375": {
-      "color-contrast": {
-        "max": 8,
-        "reason": "Same KPI cards: color:#6b7280 on #f4f5f7 is 4.43:1 (needs 4.5:1); stored in chart definitions in the database.",
-        "way_out": "Same as above (#6b7280 -> #4b5563 gives 6.9:1), then delete this entry."
-      }
-    }
-  }
+  "training": {}
 }
