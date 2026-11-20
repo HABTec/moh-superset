@@ -64,6 +64,9 @@ import {
   getResponsiveChartWidth,
 } from 'src/dashboard/util/responsiveDashboard';
 
+/** Max height of the AI insight panel when it sits under the chart (phone layout). */
+const AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT = 220;
+
 export const CHART_MARGIN = 32;
 const PHEM_FILL_HEIGHT_CHART_IDS = new Set([153, 154]);
 const PHEM_TALL_VIEWPORT_CHART_OFFSET = 470;
@@ -663,8 +666,11 @@ const ChartHolder = ({
                 data-test="chart-with-ai-insight"
                 style={{
                   display: 'flex',
+                  // phone layout: each chart already takes a full row, so the insight
+                  // goes under it; a fixed side column would squeeze the chart to ~40px
+                  flexDirection: responsiveLayout ? 'column' : 'row',
                   gap: AI_INSIGHT_PANEL_GUTTER,
-                  height: '100%',
+                  height: responsiveLayout ? 'auto' : '100%',
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -700,8 +706,16 @@ const ChartHolder = ({
                     component.meta.sliceName ||
                     ''
                   }
-                  width={effectiveAiPanelWidth}
-                  height={chartHeight}
+                  width={
+                    responsiveLayout && chartWidth > 0
+                      ? chartWidth
+                      : effectiveAiPanelWidth
+                  }
+                  height={
+                    responsiveLayout
+                      ? Math.min(chartHeight, AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT)
+                      : chartHeight
+                  }
                   inView={isComponentVisible && isInView}
                   collapsed={aiInsightCollapsed}
                   onToggleCollapsed={handleToggleAiInsightCollapsed}
