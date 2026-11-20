@@ -37,7 +37,8 @@ export const RESPONSIVE_DASHBOARD_MIN_CHART_WIDTH = 240;
  * The older opt-in keys (`responsive_mobile_enabled`, `responsive_dashboard_enabled`)
  * are still accepted and have no effect, so existing metadata stays valid.
  */
-const RESPONSIVE_DASHBOARD_OPTOUT_METADATA_KEY = 'responsive_dashboard_disabled';
+const RESPONSIVE_DASHBOARD_OPTOUT_METADATA_KEY =
+  'responsive_dashboard_disabled';
 
 type ResponsiveDashboardInfo = {
   id?: number;
