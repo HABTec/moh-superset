@@ -1,0 +1,21 @@
+import {chromium} from '@playwright/test';
+import fs from 'fs';
+const [,, url, state, cssFile] = process.argv;
+const b = await chromium.launch({channel:'chrome'});
+const c = await b.newContext({storageState: state, viewport:{width:768,height:1024}, hasTouch:true});
+const p = await c.newPage();
+await p.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
+await p.waitForFunction(()=>document.body.getElementsByTagName('*').length>800,{timeout:60000}).catch(()=>{});
+await p.waitForTimeout(12000);
+if (cssFile) await p.addStyleTag({content: fs.readFileSync(cssFile,'utf8')}).then(()=>p.waitForTimeout(1500));
+if (cssFile) await p.addStyleTag({content: fs.readFileSync(cssFile,'utf8')}).then(()=>p.waitForTimeout(1200));
+const r = await p.evaluate(()=>{
+  const nav=document.getElementById("mohPortalNav"); if(!nav) return "no nav";
+  const d=e=>e.tagName.toLowerCase()+(e.id?"#"+e.id:"")+(typeof e.className==="string"&&e.className?"."+e.className.trim().split(/\s+/).slice(0,2).join("."):"");
+  const f=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return `${d(e)} L=${Math.round(r.left)} R=${Math.round(r.right)} w=${Math.round(r.width)} disp=${s.display} wrap=${s.flexWrap} ws=${s.whiteSpace} flex=${s.flex}`};
+  const out=["vw="+innerWidth,"NAV "+f(nav)];
+  [...nav.children].forEach(c=>{out.push(" child "+f(c)); [...c.children].slice(0,8).forEach(g=>out.push("   gchild "+f(g)))});
+  out.push("PARENT "+f(nav.parentElement));
+  return out;
+});
+console.log(JSON.stringify(r,null,1)); await b.close();
