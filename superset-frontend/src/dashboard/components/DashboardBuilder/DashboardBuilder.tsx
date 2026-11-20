@@ -297,6 +297,18 @@ const DashboardContentWrapper = styled.div`
       overflow-x: hidden;
       width: 100%;
 
+      /* touch targets: dashboard tabs and chart footnote links reach 24px (WCAG 2.5.8) */
+      .ant-tabs-tab-btn {
+        align-items: center;
+        display: inline-flex;
+        min-height: 24px;
+      }
+      [data-test='chart-footer'] a {
+        align-items: center;
+        display: inline-flex;
+        min-height: 24px;
+      }
+
       /* wide tables scroll inside their card instead of being cut off */
       .slice_container div:has(> table),
       .slice_container div:has(> div > table) {
