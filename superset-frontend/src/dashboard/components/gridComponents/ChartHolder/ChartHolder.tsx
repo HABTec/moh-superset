@@ -67,6 +67,9 @@ import {
 /** Max height of the AI insight panel when it sits under the chart (phone layout). */
 const AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT = 220;
 
+/** Horizontal padding of the chart plot container, taken off the measured width. */
+const RESPONSIVE_CHART_INNER_PADDING = 24;
+
 export const CHART_MARGIN = 32;
 const PHEM_FILL_HEIGHT_CHART_IDS = new Set([153, 154]);
 const PHEM_TALL_VIEWPORT_CHART_OFFSET = 470;
@@ -359,7 +362,12 @@ const ChartHolder = ({
       Math.max(holderRect.left, 0) -
       horizontalPadding -
       2;
-    const nextWidth = getResponsiveChartWidth(measuredWidth, viewportWidth);
+    // chart plots sit inside a container with its own horizontal padding
+    // (12px each side); without this the canvas is 24px wider than its box
+    const nextWidth = getResponsiveChartWidth(
+      measuredWidth - RESPONSIVE_CHART_INNER_PADDING,
+      viewportWidth,
+    );
 
     setResponsiveChartWidth(current =>
       current === nextWidth ? current : nextWidth,
