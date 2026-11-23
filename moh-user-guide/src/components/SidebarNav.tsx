@@ -70,6 +70,7 @@ export const SidebarNav: React.FC<Props> = ({
     'GETTING STARTED',
     'USING THE DASHBOARD',
     'COMPARING AND EXPLORING DATA',
+    'GIVING FEEDBACK',
     'REFERENCE'
   ] as const;
 
@@ -87,6 +88,7 @@ export const SidebarNav: React.FC<Props> = ({
       'GETTING STARTED': true,
       'USING THE DASHBOARD': true,
       'COMPARING AND EXPLORING DATA': true,
+      'GIVING FEEDBACK': true,
       'REFERENCE': true,
     };
   });

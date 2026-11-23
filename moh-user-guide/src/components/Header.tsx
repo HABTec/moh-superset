@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-4 text-slate-300">
             <div className="flex items-center gap-1.5 text-slate-400">
               <Calendar className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-              <span>Last updated: 3 November 2026</span>
+              <span>Last updated: 16 November 2026</span>
             </div>
             <button
               onClick={onOpenSupport}

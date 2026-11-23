@@ -56,7 +56,7 @@ from superset.moh_alerts.email_renderer import (
     render_alert_email,
     render_subject,
 )
-from superset.moh_alerts.recipient_resolver import resolve
+from superset.moh_alerts.recipient_resolver import min_recipient_level, resolve
 from superset.tasks.cron_util import cron_schedule_window
 from superset.utils import json
 
@@ -357,6 +357,7 @@ def _resolve_targets(
         max_per_query=current_app.config.get(
             "MOH_ALERTS_MAX_FACILITIES_PER_QUERY", 5000
         ),
+        min_level=min_recipient_level(_load_extra(alert)),
     )
     return seen, per_user, ignored + resolver_ignored
 

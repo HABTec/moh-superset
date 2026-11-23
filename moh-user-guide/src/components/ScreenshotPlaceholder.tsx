@@ -25,6 +25,7 @@ interface Props {
 }
 
 const WIDTH_CLASS = {
+  narrow: 'max-w-md',
   small: 'max-w-2xl',
   medium: 'max-w-4xl',
   large: 'max-w-6xl',
