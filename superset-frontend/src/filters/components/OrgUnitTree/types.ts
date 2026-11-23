@@ -11,13 +11,15 @@ export type OrgUnit = {
   level: number;
   path: string;
   children?: OrgUnit[];
+  /** Ancestors from the top of the hierarchy down (search results only). */
+  ancestors?: Array<Pick<OrgUnit, 'id' | 'displayName' | 'level'>>;
 };
 
 /** Filter plugin form data (admin-configurable settings). */
 export type OrgUnitTreeFormData = {
   apiBaseUrl?: string; // default '/api/v1/moh/dhis2'
-  rootLevel?: number;  // default 1
-  maxLevel?: number;   // default 6
+  rootLevel?: number; // default 1
+  maxLevel?: number; // default 6
   // Injected by FilterValue when cascade parents (e.g. CBMP) are configured.
   extra_form_data?: {
     filters?: Array<{ col?: string; op?: string; val?: unknown }>;
@@ -41,6 +43,8 @@ export type OrgUnitTreeFilterProps = PluginFilterStylesProps & {
   filterState: { value?: string[] | null };
   setDataMask: (dataMask: {
     filterState?: { value?: string[] | null };
-    extraFormData?: { filters?: Array<{ col: string; op: string; val: string[] }> };
+    extraFormData?: {
+      filters?: Array<{ col: string; op: string; val: string[] }>;
+    };
   }) => void;
 };

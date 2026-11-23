@@ -718,7 +718,9 @@ const FilterValue: FC<FilterValueProps> = ({
             <div
               style={{
                 width: 340,
-                maxHeight: 480,
+                // Never taller than the viewport, so antd can shift the popup
+                // fully on screen instead of pushing its top out of view.
+                maxHeight: 'min(480px, calc(100vh - 24px))',
                 overflow: 'auto',
                 padding: theme.sizeUnit * 2,
                 background: theme.colorBgElevated,
