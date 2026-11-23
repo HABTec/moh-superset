@@ -62,9 +62,11 @@ const BarWrapper = styled.div<{ height: number | string; width: number }>`
   position: relative;
   width: ${({ theme }) => theme.sizeUnit * 8}px;
 
+  /* Bounded to the viewport so the bottom filters and the Apply / Clear
+     buttons stay reachable; the filter list scrolls inside the bar. */
   &.open {
-    height: auto;
-    max-height: none;
+    height: ${({ height }) => cssLength(height)};
+    max-height: ${({ height }) => cssLength(height)};
     overflow: visible;
   }
 
@@ -114,9 +116,9 @@ const Bar = styled.div<{ height: number | string; width: number }>`
 
     &.open {
       display: flex;
-      height: auto;
-      max-height: none;
-      overflow: visible;
+      height: ${cssLength(height)};
+      max-height: ${cssLength(height)};
+      overflow: hidden;
     }
 
     @media (max-width: 575px) {
@@ -219,6 +221,16 @@ const FilterControlsWrapper = styled.div`
   `}
 `;
 
+/* The filter list scrolls inside the viewport-bounded bar, so the header and
+   the Apply / Clear actions stay in view. Select dropdowns render into
+   document.body, so this scroll container does not clip them. */
+const FilterListScroller = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+`;
+
 export const FilterBarScrollContext = createContext(false);
 const VerticalFilterBar: FC<VerticalBarProps> = ({
   actions,
@@ -264,14 +276,6 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
       document.onscroll = null;
     };
   }, [onScroll]);
-
-  const tabPaneStyle = useMemo(
-    () => ({
-      flex: '0 1 auto',
-      minHeight: 0,
-    }),
-    [],
-  );
 
   const dataMask = useSelector<RootState, DataMaskStateWithId>(
     state => state.dataMask,
@@ -401,12 +405,12 @@ const VerticalFilterBar: FC<VerticalBarProps> = ({
               <Loading position="inline-centered" size="s" muted />
             </div>
           ) : (
-            <div css={tabPaneStyle} onScroll={onScroll}>
+            <FilterListScroller onScroll={onScroll}>
               <>
                 <CrossFiltersVertical hideHeader={hasOnlyOneSectionType} />
                 {filterControls}
               </>
-            </div>
+            </FilterListScroller>
           )}
           {actions}
         </Bar>

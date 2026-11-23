@@ -4,6 +4,8 @@
  */
 import { NativeFilterType } from '@superset-ui/core';
 import {
+  describeSearchResult,
+  toggleSelection,
   getCbmpTypesFromFormData,
   getCbmpTypesFromDashboard,
 } from './OrgUnitTreeFilter';
@@ -105,4 +107,36 @@ test('getCbmpTypesFromDashboard returns empty when CBMP not selected', () => {
   expect(getCbmpTypesFromDashboard(filters as any, dataMask as any)).toEqual(
     [],
   );
+});
+
+test('toggleSelection adds and removes one unit without touching others', () => {
+  const amhara = { id: 'R1', displayName: 'Amhara', level: 2 };
+  const bole = { id: 'W1', displayName: 'Bole', level: 4 };
+  const added = toggleSelection([amhara], bole, true);
+  expect(added).toEqual([amhara, bole]);
+  expect(toggleSelection(added, bole, true)).toEqual([amhara, bole]);
+  expect(toggleSelection(added, amhara, false)).toEqual([bole]);
+});
+
+test('describeSearchResult shows the level and ancestor trail', () => {
+  expect(
+    describeSearchResult({
+      id: 'W1',
+      displayName: 'Dabat',
+      level: 4,
+      path: '/R1/Z1/W1',
+      ancestors: [
+        { id: 'R1', displayName: 'Amhara ', level: 2 },
+        { id: 'Z1', displayName: 'North Gondar', level: 3 },
+      ],
+    }),
+  ).toBe('Woreda · Amhara › North Gondar');
+  expect(
+    describeSearchResult({
+      id: 'R1',
+      displayName: 'Amhara',
+      level: 2,
+      path: '/R1',
+    }),
+  ).toBe('Region');
 });

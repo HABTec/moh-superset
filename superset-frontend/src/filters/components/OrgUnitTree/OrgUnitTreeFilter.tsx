@@ -19,12 +19,23 @@
  * the tree watches any native filter named/columned like CBMP and calls
  * organisationUnits?cbmp_type=…. Empty CBMP selection → full tree.
  *
+ * Search: typing two or more characters queries organisationUnits/search
+ * across every level (the tree lazy-loads, so a client-side search would
+ * only see expanded nodes). Matches are listed flat with their ancestors and
+ * can be checked directly; selected units show as removable tags.
+ *
  * Datasets are untouched — they continue to read filter_values('region') etc.
  */
 import { NativeFilterType } from '@superset-ui/core';
 import { t } from '@apache-superset/core/translation';
 import { styled } from '@apache-superset/core/theme';
-import { Tree, type TreeDataNode } from '@superset-ui/core/components';
+import {
+  Checkbox,
+  Input,
+  Tag,
+  Tree,
+  type TreeDataNode,
+} from '@superset-ui/core/components';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Key as ReactKey } from 'react';
 import { useSelector } from 'react-redux';
@@ -44,6 +55,19 @@ const LEVEL_TO_DIM: Record<number, string> = {
   5: 'phcu',
   6: 'health_post',
 };
+
+const LEVEL_LABELS: Record<number, string> = {
+  1: t('Country'),
+  2: t('Region'),
+  3: t('Zone'),
+  4: t('Woreda'),
+  5: t('PHCU'),
+  6: t('Health post'),
+};
+
+/** Minimum characters before the server-side name search runs. */
+export const SEARCH_MIN_CHARS = 2;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const CBMP_COLUMN_NAMES = new Set(['cbmp_type', 'cbmp']);
 
@@ -94,6 +118,7 @@ const Wrapper = styled.div`
 const TreeBox = styled.div`
   flex: 1;
   min-height: 240px;
+  max-height: min(320px, 50vh);
   overflow: auto;
   border: 1px solid ${({ theme }) => theme.colorBorder};
   border-radius: 6px;
@@ -132,6 +157,74 @@ const ToolbarLink = styled.button`
     text-decoration: none;
   }
 `;
+
+/* Search, toolbar and selected tags stay visible while the list scrolls,
+   including when the whole filter sits inside a scrolling popup. */
+const StickyHeader = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: 2px;
+  background: ${({ theme }) => theme.colorBgElevated};
+`;
+
+const SelectedTags = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 0 4px 6px;
+`;
+
+const ResultRow = styled.label`
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.colorFillTertiary};
+  }
+`;
+
+const ErrorText = styled.div`
+  color: ${({ theme }) => theme.colorError};
+`;
+
+const ResultMeta = styled.div`
+  color: ${({ theme }) => theme.colorTextSecondary};
+  font-size: 11px;
+`;
+
+/** "Region · Amhara › North Gondar" — level plus ancestor trail. */
+export function describeSearchResult(unit: OrgUnit): string {
+  const level = LEVEL_LABELS[unit.level] || t('Level %(n)s', { n: unit.level });
+  const trail = (unit.ancestors || [])
+    .map(a => (a.displayName || '').trim())
+    .filter(Boolean)
+    .join(' › ');
+  return trail ? `${level} · ${trail}` : level;
+}
+
+function toSelection(u: OrgUnit): OrgUnitSelection {
+  return {
+    id: u.id,
+    displayName: (u.displayName || '').trim() || u.id,
+    level: u.level,
+  };
+}
+
+/** Add or remove one unit, keeping every other selection untouched. */
+export function toggleSelection(
+  current: OrgUnitSelection[],
+  unit: OrgUnitSelection,
+  checked: boolean,
+): OrgUnitSelection[] {
+  const without = current.filter(s => s.id !== unit.id);
+  return checked ? [...without, unit] : without;
+}
 
 type Node = TreeDataNode & {
   unit: OrgUnit;
@@ -402,82 +495,200 @@ export default function OrgUnitTreeFilter({
     [apiBaseUrl, maxLevel, cbmpTypes],
   );
 
+  // -- server-side name search ---------------------------------------------
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<OrgUnit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const trimmedQuery = query.trim();
+  const isSearchMode = trimmedQuery.length >= SEARCH_MIN_CHARS;
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    // Show the spinner through the debounce, not only once the request starts.
+    setSearching(value.trim().length >= SEARCH_MIN_CHARS);
+  }, []);
+
+  // Results are only rendered in search mode, so stale ones from an earlier
+  // query never show once the box is cleared.
+  useEffect(() => {
+    if (!isSearchMode) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const url = withCbmpParams(
+          `${apiBaseUrl}/organisationUnits/search?q=${encodeURIComponent(
+            trimmedQuery,
+          )}`,
+          cbmpKey ? cbmpKey.split('|') : [],
+        );
+        const r = await fetch(url, { credentials: 'same-origin' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        if (cancelled) return;
+        setResults(data.organisationUnits || []);
+        setSearchError(null);
+      } catch (e) {
+        if (!cancelled) {
+          setSearchError(
+            e instanceof Error ? e.message : t('Failed to search org units'),
+          );
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [apiBaseUrl, cbmpKey, isSearchMode, trimmedQuery]);
+
   // -- handlers -------------------------------------------------------------
   // Commit on every check change. Superset's native filter sidebar has its
   // own global Apply / Clear buttons that batch and dispatch dataMasks.
-  const onCheck = (_: any, info: { checkedNodes: Node[] }) => {
-    const sels: OrgUnitSelection[] = info.checkedNodes
-      .filter(n => n.unit)
-      .map(n => ({
-        id: n.unit.id,
-        displayName: n.unit.displayName.trim(),
-        level: n.unit.level,
-      }));
-    setSelected(sels);
-    setDataMask(buildDataMask(sels));
+  const commit = useCallback(
+    (next: OrgUnitSelection[]) => {
+      setSelected(next);
+      setDataMask(buildDataMask(next));
+    },
+    [setDataMask],
+  );
+
+  // Toggle only the clicked node: units picked from search results may not
+  // be loaded in the tree, so rebuilding from the tree's checked nodes would
+  // drop them.
+  const onCheck = (_: unknown, info: { checked: boolean; node: Node }) => {
+    if (!info.node?.unit) return;
+    commit(
+      toggleSelection(selected, toSelection(info.node.unit), info.checked),
+    );
   };
 
   const checkedKeys = useMemo(() => selected.map(s => s.id), [selected]);
+  const selectedIds = useMemo(() => new Set(checkedKeys), [checkedKeys]);
 
   const handleExpand = useCallback((keys: ReactKey[]) => {
     setExpandedKeys(keys.map(String));
   }, []);
 
   const allRootsChecked =
-    treeData.length > 0 &&
-    treeData.every(n => selected.some(s => s.id === n.unit.id));
+    treeData.length > 0 && treeData.every(n => selectedIds.has(n.unit.id));
+  const allResultsChecked =
+    results.length > 0 && results.every(u => selectedIds.has(u.id));
 
+  // In search mode "Select all" adds every match to the selection; otherwise
+  // it selects the tree's root units.
   const handleSelectAll = useCallback(() => {
-    const sels: OrgUnitSelection[] = treeData
-      .filter(n => n.unit)
-      .map(n => ({
-        id: n.unit.id,
-        displayName: n.unit.displayName.trim(),
-        level: n.unit.level,
-      }));
-    setSelected(sels);
-    setDataMask(buildDataMask(sels));
-  }, [treeData, setDataMask]);
+    if (isSearchMode) {
+      const missing = results
+        .filter(u => !selectedIds.has(u.id))
+        .map(toSelection);
+      commit([...selected, ...missing]);
+      return;
+    }
+    commit(treeData.filter(n => n.unit).map(n => toSelection(n.unit)));
+  }, [isSearchMode, results, selectedIds, selected, treeData, commit]);
 
-  const handleClearAll = useCallback(() => {
-    setSelected([]);
-    setDataMask(buildDataMask([]));
-  }, [setDataMask]);
+  const handleClearAll = useCallback(() => commit([]), [commit]);
 
   return (
     <Wrapper>
-      <Toolbar>
-        <ToolbarLink
-          type="button"
-          onClick={handleSelectAll}
-          disabled={loading || !!error || allRootsChecked}
-        >
-          {t('Select all')}
-        </ToolbarLink>
-        <ToolbarLink
-          type="button"
-          onClick={handleClearAll}
-          disabled={loading || selected.length === 0}
-        >
-          {t('Clear')}
-        </ToolbarLink>
-        <Status>
-          {cbmpTypes.length
-            ? t('CBMP: %(types)s · %(n)s roots', {
-                types: cbmpTypes.join(', '),
-                n: treeData.length,
-              })
-            : scopeName
-              ? t('Within %(name)s · %(n)s roots', {
-                  name: scopeName,
+      <StickyHeader>
+        <Input.Search
+          allowClear
+          size="small"
+          value={query}
+          onChange={e => handleQueryChange(e.target.value)}
+          placeholder={t('Search org units (region, zone, woreda…)')}
+          aria-label={t('Search org units')}
+          loading={isSearchMode && searching}
+        />
+        <Toolbar>
+          <ToolbarLink
+            type="button"
+            onClick={handleSelectAll}
+            disabled={
+              isSearchMode
+                ? searching || results.length === 0 || allResultsChecked
+                : loading || !!error || allRootsChecked
+            }
+          >
+            {isSearchMode ? t('Select all matches') : t('Select all')}
+          </ToolbarLink>
+          <ToolbarLink
+            type="button"
+            onClick={handleClearAll}
+            disabled={loading || selected.length === 0}
+          >
+            {t('Clear')}
+          </ToolbarLink>
+          <Status>
+            {cbmpTypes.length
+              ? t('CBMP: %(types)s · %(n)s roots', {
+                  types: cbmpTypes.join(', '),
                   n: treeData.length,
                 })
-              : t('All org units · %(n)s roots', { n: treeData.length })}
-        </Status>
-      </Toolbar>
-      <TreeBox>
+              : scopeName
+                ? t('Within %(name)s · %(n)s roots', {
+                    name: scopeName,
+                    n: treeData.length,
+                  })
+                : t('All org units · %(n)s roots', { n: treeData.length })}
+          </Status>
+        </Toolbar>
+        {selected.length > 0 && (
+          <SelectedTags aria-label={t('Selected org units')}>
+            {selected.map(s => (
+              <Tag
+                key={s.id}
+                closable
+                onClose={e => {
+                  e.preventDefault();
+                  commit(toggleSelection(selected, s, false));
+                }}
+                title={LEVEL_LABELS[s.level]}
+              >
+                {s.displayName}
+              </Tag>
+            ))}
+          </SelectedTags>
+        )}
+      </StickyHeader>
+      {isSearchMode && (
+        <TreeBox role="list" aria-label={t('Search results')}>
+          {searchError && <ErrorText>{searchError}</ErrorText>}
+          {!searchError && !searching && results.length === 0 && (
+            <div style={{ padding: 8, opacity: 0.7 }}>
+              {t('No org units match "%(q)s"', { q: trimmedQuery })}
+            </div>
+          )}
+          {!searchError &&
+            results.map(u => (
+              <ResultRow key={u.id} role="listitem">
+                <Checkbox
+                  checked={selectedIds.has(u.id)}
+                  onChange={e =>
+                    commit(
+                      toggleSelection(
+                        selected,
+                        toSelection(u),
+                        e.target.checked,
+                      ),
+                    )
+                  }
+                />
+                <div>
+                  <div>{(u.displayName || '').trim() || u.id}</div>
+                  <ResultMeta>{describeSearchResult(u)}</ResultMeta>
+                </div>
+              </ResultRow>
+            ))}
+        </TreeBox>
+      )}
+      <TreeBox hidden={isSearchMode}>
         {loading && t('Loading…')}
-        {error && <div style={{ color: 'red' }}>{error}</div>}
+        {error && <ErrorText>{error}</ErrorText>}
         {!loading && !error && treeData.length === 0 && (
           <div style={{ padding: 8, opacity: 0.7 }}>
             {cbmpTypes.length
