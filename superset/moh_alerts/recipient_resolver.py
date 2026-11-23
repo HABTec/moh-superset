@@ -54,21 +54,43 @@ def _qualified(schema: str | None, table: str) -> str:
     return f"{q(schema)}.{q(table)}" if schema else q(table)
 
 
+def min_recipient_level(extra: dict[str, Any]) -> int:
+    """Return the highest org-unit level an alert notifies, from ``html_extra``.
+
+    ``min_recipient_level`` = N leaves out users assigned above level N, e.g.
+    2 skips the national level (level 1). Missing or invalid values give 1,
+    which notifies every level.
+    """
+    if not isinstance(extra, dict):
+        return 1
+    value = extra.get("min_recipient_level", 1)
+    if isinstance(value, bool):
+        return 1
+    try:
+        level = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 1
+    return min(max(level, 1), len(_SCOPE_LEVEL_COLS))
+
+
 def get_ancestor_map(
     database: Database,
     facility_ids: Iterable[str],
     schema: str,
     org_units_table: str,
     max_per_query: int = 5000,
+    min_level: int = 1,
 ) -> dict[str, set[str]]:
     """Map each facility id to its org-unit chain.
 
-    chain(f) = {f} union {non-null ancestor ids of f}. Missing facilities
-    are absent from the result and are tracked by the caller.
+    chain(f) = {f} union {non-null ancestor ids of f at level ``min_level``
+    or below}. The facility itself is always kept. Missing facilities are
+    absent from the result and are tracked by the caller.
     """
     ids = list(dict.fromkeys(str(i) for i in facility_ids))
     if not ids:
         return {}
+    level_cols = _SCOPE_LEVEL_COLS[max(min_level, 1) - 1 :]
     cols = ", ".join(_SCOPE_LEVEL_COLS)
     table = _qualified(schema, org_units_table)
     result: dict[str, set[str]] = {}
@@ -84,7 +106,7 @@ def get_ancestor_map(
                 ).mappings()
                 for row in rows:
                     chain = {str(row["id"])}
-                    for col in _SCOPE_LEVEL_COLS:
+                    for col in level_cols:
                         val = row.get(col)
                         if val is not None:
                             chain.add(str(val))
@@ -130,15 +152,19 @@ def resolve(
     org_units_table: str = "org_units",
     user_org_units_table: str = "dim_user_orgunit",
     max_per_query: int = 5000,
+    min_level: int = 1,
 ) -> tuple[dict[str, list[str]], int]:
     """Resolve recipients for a set of failing facilities.
+
+    ``min_level`` leaves out users assigned above that org-unit level
+    (1 notifies every level).
 
     Returns (username -> sorted failing facility ids in that user's scope,
     number of facilities ignored because they are not in org_units).
     """
     ids = list(dict.fromkeys(str(f) for f in failing_facilities))
     ancestor_map = get_ancestor_map(
-        database, ids, schema, org_units_table, max_per_query
+        database, ids, schema, org_units_table, max_per_query, min_level
     )
     ignored = len(ids) - len(ancestor_map)
 

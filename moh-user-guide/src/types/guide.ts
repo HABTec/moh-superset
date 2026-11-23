@@ -19,7 +19,7 @@
 export interface NavItem {
   id: string;
   title: string;
-  category: 'GETTING STARTED' | 'USING THE DASHBOARD' | 'COMPARING AND EXPLORING DATA' | 'REFERENCE';
+  category: 'GETTING STARTED' | 'USING THE DASHBOARD' | 'COMPARING AND EXPLORING DATA' | 'GIVING FEEDBACK' | 'REFERENCE';
 }
 
 export interface ScreenshotAnnotation {
@@ -35,7 +35,7 @@ export interface ScreenshotData {
   title: string;
   altText: string;
   imagePath: string;
-  displaySize?: 'small' | 'medium' | 'large' | 'full';
+  displaySize?: 'narrow' | 'small' | 'medium' | 'large' | 'full';
   annotations?: ScreenshotAnnotation[];
 }
 

@@ -33,6 +33,12 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'module-health-intelligence', title: 'Health Intelligence', category: 'COMPARING AND EXPLORING DATA' },
   { id: 'module-ai-assistant', title: 'AI Assistant', category: 'COMPARING AND EXPLORING DATA' },
 
+  { id: 'feedback-overview', title: 'How feedback works', category: 'GIVING FEEDBACK' },
+  { id: 'feedback-send', title: 'Sending feedback', category: 'GIVING FEEDBACK' },
+  { id: 'feedback-follow', title: 'Following your feedback', category: 'GIVING FEEDBACK' },
+  { id: 'feedback-receive', title: 'Answering feedback', category: 'GIVING FEEDBACK' },
+  { id: 'feedback-help', title: 'Feedback questions', category: 'GIVING FEEDBACK' },
+
   { id: 'data-sources', title: 'Data sources', category: 'REFERENCE' },
   { id: 'troubleshooting', title: 'Troubleshooting', category: 'REFERENCE' },
   { id: 'support', title: 'Getting help', category: 'REFERENCE' },

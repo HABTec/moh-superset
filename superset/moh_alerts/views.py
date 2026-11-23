@@ -36,6 +36,7 @@ from sqlalchemy import text
 
 from superset.moh_alerts.connection import get_moh_database
 from superset.moh_alerts.email_renderer import ABOUT_DATA_FIELDS
+from superset.moh_alerts.recipient_resolver import min_recipient_level
 from superset.utils import json
 
 if TYPE_CHECKING:
@@ -165,8 +166,7 @@ def toggle(alert_id: int):
         return _denied()
     db = _load_db()
     alert_model, _, _ = _load_models()
-    alert = db.session.get(alert_model, alert_id)
-    if alert:
+    if alert := db.session.get(alert_model, alert_id):
         alert.enabled = not alert.enabled
         db.session.commit()
     return redirect(url_for("moh_alerts.list_alerts"))
@@ -179,8 +179,7 @@ def run_now(alert_id: int):
     db = _load_db()
     alert_model, _, _ = _load_models()
     execute = _load_execute()
-    alert = db.session.get(alert_model, alert_id)
-    if alert:
+    if alert := db.session.get(alert_model, alert_id):
         execute.apply_async((alert.id,))
         logger.info("moh alert %s run-now dispatched", alert_id)
     return redirect(url_for("moh_alerts.list_alerts"))
@@ -225,6 +224,7 @@ def test(alert_id: int):
             schema=schema,
             org_units_table=org_table,
             user_org_units_table=user_table,
+            min_level=min_recipient_level(result["extra"]),
         )
         result["test"] = {
             "facilities": len(seen),

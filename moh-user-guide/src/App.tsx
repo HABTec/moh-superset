@@ -27,6 +27,7 @@ import { SupportModal } from './components/SupportModal';
 import { AccessibilityMenu } from './components/AccessibilityMenu';
 import { BackToTop } from './components/BackToTop';
 import { ModuleGuideSection } from './components/ModuleGuideSection';
+import { FeedbackGuide } from './components/FeedbackGuide';
 import { AccessibilitySettings, DEFAULT_ACCESSIBILITY_SETTINGS } from './types/accessibility';
 import {
   DATA_SOURCES,
@@ -227,6 +228,19 @@ export default function App() {
   const troubleshootingMatches = isMatch('troubleshoot') || isMatch('error') || isMatch('problem') || isMatch('no data') || isMatch('empty') || TROUBLESHOOTING_ITEMS.some((t) => isMatch(t.issue));
   const supportMatches = isMatch('support') || isMatch('help') || isMatch('contact') || isMatch('feedback') || isMatch('administrator');
 
+  // Each feedback page shows when the search matches its words
+  const feedbackWords: Record<string, string[]> = {
+    'feedback-overview': ['feedback', 'how feedback works', 'reference number', 'fb-', 'receiver', 'sender', 'who can read', 'quick start'],
+    'feedback-send': ['feedback', 'send', 'report a problem', 'wrong data', 'suggestion', 'screenshot', 'add a person', 'upper level'],
+    'feedback-follow': ['feedback', 'my feedback', 'reply', 'solved', 'reopen', 'status', 'added to me', 'not for me'],
+    'feedback-receive': ['feedback', 'waiting on me', 'answer', 'assign', 'deadline', 'overdue', 'pass it on', 'priority', 'area numbers', 'decline', 'hide'],
+    'feedback-help': ['feedback', 'email', 'expired', 'no exact match', 'question', 'amharic', 'phone'],
+  };
+  const feedbackVisible = Object.fromEntries(
+    Object.entries(feedbackWords).map(([id, words]) => [id, filterQuery === '' || words.some((w) => w.includes(filterQuery) || filterQuery.includes(w))]),
+  );
+  const feedbackVisibleCount = Object.values(feedbackVisible).filter(Boolean).length;
+
   // Count matching modules
   const matchingModules = MODULES_DATA.filter((m) =>
     isMatch(m.name) ||
@@ -242,6 +256,7 @@ export default function App() {
     (filtersMatches ? 1 : 0) +
     (readingChartsMatches ? 1 : 0) +
     matchingModules.length +
+    feedbackVisibleCount +
     (dataSourcesMatches ? 1 : 0) +
     (troubleshootingMatches ? 1 : 0) +
     (supportMatches ? 1 : 0);
@@ -355,7 +370,7 @@ export default function App() {
                 </Callout>
 
                 <Callout type="note" title="About the pictures in this guide">
-                  The pictures were taken from the dashboard on 3 November 2026. The numbers in them are examples only, so always use the live dashboard. What you see may differ depending on your account.
+                  The dashboard pictures were taken on 3 November 2026, and the feedback pictures use sample names and offices. The numbers in them are examples only, so always use the live dashboard. What you see may differ depending on your account.
                 </Callout>
               </section>
             )}
@@ -553,6 +568,9 @@ export default function App() {
               ))}
             </div>
 
+            {/* GIVING FEEDBACK */}
+            <FeedbackGuide visible={feedbackVisible} onNavigate={handleNavigate} />
+
             {/* SECTION 12: DATA SOURCES */}
             {dataSourcesMatches && (
               <section id="data-sources" className="pt-8 pb-12 border-b border-slate-200 scroll-mt-24">
@@ -602,17 +620,17 @@ export default function App() {
             {supportMatches && (
               <section id="support" className="pt-8 pb-12 scroll-mt-24">
                 <SectionHeading group="Reference" title="Getting help">
-                  For a login or access problem, contact the person in your organisation who gave you your account, or your dashboard administrator. To report a problem or suggest an improvement, use the Feedback form.
+                  For a login or access problem, contact the person in your organisation who gave you your account, or your dashboard administrator. To report a problem or suggest an improvement, use Feedback. The Giving Feedback part of this guide explains how.
                 </SectionHeading>
                 <a
                   href="/feedback/"
                   className="no-print mt-2 inline-flex items-center gap-2 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" aria-hidden="true" />
-                  <span>Open the Feedback form</span>
+                  <span>Open Feedback</span>
                 </a>
                 <Callout type="note" title="Include these details">
-                  Your username and organisation unit, the section and tab, the chart name and filters, and a screenshot of the problem. Do not include personal information about patients.
+                  The section and tab, the chart name and filters, and a screenshot of the problem. Your name and office are added for you.
                 </Callout>
               </section>
             )}
@@ -625,7 +643,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="font-bold text-white block text-sm">MOH Performance Monitoring Dashboard — User Guide</span>
-            <span className="text-slate-400">Ministry of Health, Ethiopia · Last updated 3 November 2026</span>
+            <span className="text-slate-400">Ministry of Health, Ethiopia · Last updated 16 November 2026</span>
           </div>
           <div className="no-print flex items-center gap-4">
             <button type="button" onClick={() => handleNavigate('welcome')} className="text-slate-400 hover:text-white transition-colors cursor-pointer">Top of guide</button>
