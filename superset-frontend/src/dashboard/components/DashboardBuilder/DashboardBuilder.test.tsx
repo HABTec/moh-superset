@@ -160,22 +160,43 @@ describe('DashboardBuilder', () => {
   });
 
   test('keeps responsive sizing for viewing but turns it off while editing', () => {
-    const pilotDashboard = { ...mockState.dashboardInfo, id: 8 };
-    const viewing = setup({ dashboardInfo: pilotDashboard });
+    // any dashboard, not only an allowlisted one: responsive mode is the default
+    const anyDashboard = { ...mockState.dashboardInfo, id: 987 };
+    const viewing = setup({ dashboardInfo: anyDashboard });
     expect(document.body).toHaveClass('moh-responsive-dashboard');
+    expect(document.body).not.toHaveClass('moh-responsive-optout');
     expect(viewing.getByTestId('dashboard-content-wrapper')).toHaveClass(
       'dashboard--responsive-mode',
     );
     viewing.unmount();
 
     const editing = setup({
-      dashboardInfo: pilotDashboard,
+      dashboardInfo: anyDashboard,
       dashboardState: { ...mockState.dashboardState, editMode: true },
     });
     expect(document.body).not.toHaveClass('moh-responsive-dashboard');
     expect(editing.getByTestId('dashboard-content-wrapper')).not.toHaveClass(
       'dashboard--responsive-mode',
     );
+  });
+
+  test('a dashboard that opts out via metadata is not responsive and is marked for the rotate overlay', () => {
+    const optedOut = {
+      ...mockState.dashboardInfo,
+      id: 3,
+      metadata: {
+        ...(mockState.dashboardInfo as { metadata?: object }).metadata,
+        responsive_dashboard_disabled: true,
+      },
+    };
+    const view = setup({ dashboardInfo: optedOut });
+    expect(document.body).not.toHaveClass('moh-responsive-dashboard');
+    expect(document.body).toHaveClass('moh-responsive-optout');
+    expect(view.getByTestId('dashboard-content-wrapper')).not.toHaveClass(
+      'dashboard--responsive-mode',
+    );
+    view.unmount();
+    expect(document.body).not.toHaveClass('moh-responsive-optout');
   });
 
   test('should render a DragDroppable DashboardHeader', () => {

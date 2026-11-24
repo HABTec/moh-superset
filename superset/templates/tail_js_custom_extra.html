@@ -45,7 +45,7 @@
       --moh-bar-fg: #0a2540;
       --moh-bar-line: #d6e3ff;
       --moh-bar-line-soft: #eef4ff;
-      --moh-bar-muted: #6b7c93;
+      --moh-bar-muted: #5b6b82; /* 5.4:1 on white (was #6b7c93 at 4.26:1, below WCAG AA 4.5) */
       --moh-bar-accent: #1a5cff;
       --moh-bar-shadow: rgba(10, 37, 64, 0.12);
       display: none;
@@ -236,6 +236,22 @@
       padding: 8px;
       cursor: pointer;
       color: var(--moh-bar-fg);
+    }
+
+    /* Tablet widths: the brand plus the full nav is wider than the screen and
+       the nav, including the accessibility toggle, ran off the right edge. */
+    @media (min-width: 761px) and (max-width: 1100px) {
+      .moh-portal-bar {
+        flex-wrap: wrap;
+        row-gap: 4px;
+      }
+      .moh-portal-bar nav {
+        flex-wrap: wrap;
+        margin-left: auto;
+        max-width: 100%;
+        min-width: 0;
+        row-gap: 4px;
+      }
     }
 
     @media (max-width: 760px) {
@@ -514,8 +530,8 @@
       position: absolute;
       top: -6px;
       left: -6px;
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       border: 1px solid var(--moh-ai-border);
       background: var(--moh-ai-surface);
@@ -896,5 +912,84 @@
           closePanel();
         }
       });
+    })();
+  </script>
+
+  <script nonce="{{ macros.get_nonce() }}">
+    /* A11Y: pages rendered by the React app have no <h1>. Add one, visually hidden, that follows document.title,
+       inside a labelled region so it also satisfies the "content in landmarks" rule. Purely additive, outside the React root. */
+    (function() {
+      function ensure() {
+        if (document.getElementById('moh-page-h1')) return;
+        var host = document.createElement('div');
+        host.setAttribute('role', 'region');
+        host.setAttribute('aria-label', 'Page title');
+        host.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+        var h = document.createElement('h1');
+        h.id = 'moh-page-h1';
+        host.appendChild(h);
+        document.body.insertBefore(host, document.body.firstChild);
+      }
+      function sync() {
+        ensure();
+        var t = (document.title || '').trim();
+        var h = document.getElementById('moh-page-h1');
+        if (h && h.textContent !== t) h.textContent = t;
+      }
+      function start() {
+        sync();
+        var titleEl = document.querySelector('title');
+        if (titleEl) new MutationObserver(sync).observe(titleEl, { childList: true, characterData: true, subtree: true });
+      }
+      if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+    })();
+  </script>
+
+  <script nonce="{{ macros.get_nonce() }}">
+    /* A11Y: give names to a few built-in controls that render without one. Runs on DOM changes (debounced) and only
+       sets an attribute when it is missing, so it never overrides a label the app provides. */
+    (function() {
+      var RULES = [
+        ['button.ant-alert-close-icon', function() { return 'Close'; }],
+        ['[data-test="filter-bar__collapsable"][role="button"]', function() { return 'Show or hide the filter panel'; }],
+        ['.deck-widget-container', function() { return 'Map controls'; }],
+        ['ul.ant-menu[tabindex="0"]', function() { return 'Menu'; }]
+      ];
+      var timer = null;
+      /* big-number captions can be sized by the chart to under 11px; keep them readable */
+      function floorFonts() {
+        document.querySelectorAll('.subtitle-line, .subheader-line').forEach(function(el) {
+          if (parseFloat(getComputedStyle(el).fontSize) < 11) el.style.setProperty('font-size', '11px', 'important');
+        });
+      }
+      /* a scrolling region needs a keyboard stop if it has nothing focusable inside */
+      function focusableScrollers() {
+        document.querySelectorAll('[style*="overflow"]').forEach(function(el) {
+          if (el.hasAttribute('tabindex')) return;
+          var cs = getComputedStyle(el);
+          if (!/auto|scroll/.test(cs.overflowY + cs.overflowX)) return;
+          if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) return;
+          if (el.querySelector('a[href],button,input,select,textarea,[tabindex]')) return;
+          el.setAttribute('tabindex', '0');
+        });
+      }
+      function label() {
+        timer = null;
+        floorFonts();
+        focusableScrollers();
+        RULES.forEach(function(rule) {
+          document.querySelectorAll(rule[0]).forEach(function(el) {
+            if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.getAttribute('title')) return;
+            if (el.classList.contains('deck-widget-container')) el.setAttribute('role', 'group');
+            el.setAttribute('aria-label', rule[1](el));
+          });
+        });
+      }
+      function schedule() { if (!timer) timer = setTimeout(label, 400); }
+      function start() {
+        label();
+        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+      }
+      if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
     })();
   </script>

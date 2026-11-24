@@ -1,0 +1,640 @@
+{
+ "dash10-tab1@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 4,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 5,
+  "RESP-TINY-TEXT": 3,
+  "color-contrast": 3,
+  "nested-interactive": 4,
+  "page-has-heading-one": 1
+ },
+ "dash10-tab1@375": {
+  "A11Y-NO-NAME": 2,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-BLOCKER": 1,
+  "RESP-TAP-TARGET": 5,
+  "RESP-TINY-TEXT": 1,
+  "aria-required-children": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash10-tab1@768": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-BLOCKER": 1,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 11,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 5,
+  "RESP-TINY-TEXT": 5,
+  "color-contrast": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash10-tab4@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 8,
+  "RESP-TABLE-CLIP": 2,
+  "RESP-TAP-TARGET": 8,
+  "color-contrast": 3,
+  "nested-interactive": 4,
+  "page-has-heading-one": 1
+ },
+ "dash10-tab4@375": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 2,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-BLOCKER": 1,
+  "RESP-CHART-CLIP": 1,
+  "RESP-INNER-CLIP": 7,
+  "RESP-TAP-TARGET": 6,
+  "aria-required-children": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash10-tab4@768": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-BLOCKER": 1,
+  "RESP-CHART-CLIP": 1,
+  "RESP-INNER-CLIP": 12,
+  "RESP-TABLE-CLIP": 2,
+  "RESP-TAP-TARGET": 7,
+  "color-contrast": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash10@1440": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-TAP-TARGET": 5,
+  "color-contrast": 3,
+  "nested-interactive": 4,
+  "page-has-heading-one": 1
+ },
+ "dash10@375": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 2,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 7,
+  "RESP-TAP-TARGET": 5,
+  "RESP-TINY-TEXT": 3,
+  "aria-required-children": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash10@768": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 5,
+  "RESP-TINY-TEXT": 3,
+  "color-contrast": 1,
+  "nested-interactive": 4,
+  "region": 2
+ },
+ "dash14-tab1@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 3,
+  "RESP-CHART-CLIP": 3,
+  "RESP-INNER-CLIP": 6,
+  "RESP-TAP-TARGET": 16,
+  "color-contrast": 8,
+  "label-content-name-mismatch": 6,
+  "link-in-text-block": 3,
+  "nested-interactive": 12,
+  "page-has-heading-one": 1
+ },
+ "dash14-tab1@375": {
+  "A11Y-NO-NAME": 3,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 5,
+  "RESP-TAP-TARGET": 13,
+  "RESP-TINY-TEXT": 3,
+  "aria-required-children": 2,
+  "color-contrast": 2,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 12,
+  "region": 2,
+  "scrollable-region-focusable": 3
+ },
+ "dash14-tab1@768": {
+  "A11Y-NO-NAME": 2,
+  "PERF-STUCK-LOADER": 3,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 4,
+  "RESP-TAP-TARGET": 17,
+  "aria-required-children": 1,
+  "color-contrast": 4,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 12,
+  "region": 2
+ },
+ "dash14-tab4@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 2,
+  "RESP-TAP-TARGET": 8,
+  "color-contrast": 3,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 7,
+  "page-has-heading-one": 1
+ },
+ "dash14-tab4@375": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 3,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 5,
+  "RESP-TAP-TARGET": 8,
+  "aria-required-children": 2,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 7,
+  "region": 2
+ },
+ "dash14-tab4@768": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 8,
+  "color-contrast": 1,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 7,
+  "region": 2
+ },
+ "dash14-tab5@1440": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 3,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 2,
+  "RESP-TAP-TARGET": 9,
+  "RESP-TINY-TEXT": 4,
+  "color-contrast": 10,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 6,
+  "page-has-heading-one": 1
+ },
+ "dash14-tab5@375": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 5,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 8,
+  "RESP-TAP-TARGET": 9,
+  "RESP-TINY-TEXT": 4,
+  "aria-required-children": 2,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 6,
+  "region": 2,
+  "scrollable-region-focusable": 5
+ },
+ "dash14-tab5@768": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 3,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 11,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 9,
+  "RESP-TINY-TEXT": 4,
+  "color-contrast": 6,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 6,
+  "region": 2
+ },
+ "dash14@1440": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 13,
+  "color-contrast": 51,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 12,
+  "page-has-heading-one": 1,
+  "scrollable-region-focusable": 1
+ },
+ "dash14@375": {
+  "A11Y-NO-FOCUS": 3,
+  "A11Y-NO-NAME": 3,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 5,
+  "RESP-TAP-TARGET": 13,
+  "aria-required-children": 2,
+  "color-contrast": 7,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 12,
+  "region": 2,
+  "scrollable-region-focusable": 1
+ },
+ "dash14@768": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 2,
+  "RESP-BLOCKER": 1,
+  "RESP-INNER-CLIP": 10,
+  "RESP-TAP-TARGET": 13,
+  "aria-required-children": 1,
+  "color-contrast": 41,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 12,
+  "region": 2,
+  "scrollable-region-focusable": 1
+ },
+ "dash3-tab1@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 3,
+  "RESP-CHART-CLIP": 3,
+  "RESP-INNER-CLIP": 6,
+  "RESP-TAP-TARGET": 15,
+  "RESP-TINY-TEXT": 3,
+  "color-contrast": 8,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1
+ },
+ "dash3-tab1@375": {
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 15,
+  "RESP-TINY-TEXT": 6,
+  "color-contrast": 4,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash3-tab1@768": {
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 15,
+  "RESP-TINY-TEXT": 3,
+  "color-contrast": 5,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash3-tab4@1440": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 3,
+  "PERF-STUCK-LOADER": 3,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 2,
+  "RESP-TAP-TARGET": 11,
+  "RESP-TINY-TEXT": 4,
+  "color-contrast": 13,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 8,
+  "page-has-heading-one": 1
+ },
+ "dash3-tab4@375": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 2,
+  "RESP-CHART-CLIP": 1,
+  "RESP-INNER-CLIP": 10,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 11,
+  "RESP-TINY-TEXT": 4,
+  "color-contrast": 10,
+  "label-content-name-mismatch": 4,
+  "nested-interactive": 8,
+  "page-has-heading-one": 1,
+  "scrollable-region-focusable": 4,
+  "target-size": 1
+ },
+ "dash3-tab4@768": {
+  "A11Y-NO-FOCUS": 1,
+  "A11Y-NO-NAME": 2,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 11,
+  "RESP-TINY-TEXT": 4,
+  "color-contrast": 11,
+  "label-content-name-mismatch": 6,
+  "nested-interactive": 8,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash3-tab5@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-CHART-CLIP": 2,
+  "RESP-INNER-CLIP": 2,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 5,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1
+ },
+ "dash3-tab5@375": {
+  "RESP-CHART-CLIP": 1,
+  "RESP-INNER-CLIP": 13,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 2,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash3-tab5@768": {
+  "PERF-STUCK-LOADER": 1,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 3,
+  "label-content-name-mismatch": 2,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash3@1440": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 15,
+  "color-contrast": 26,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1,
+  "scrollable-region-focusable": 1
+ },
+ "dash3@375": {
+  "A11Y-NO-FOCUS": 4,
+  "RESP-TAP-TARGET": 15,
+  "color-contrast": 7,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1,
+  "scrollable-region-focusable": 2,
+  "target-size": 1
+ },
+ "dash3@768": {
+  "A11Y-NO-FOCUS": 2,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 15,
+  "color-contrast": 21,
+  "label-content-name-mismatch": 1,
+  "nested-interactive": 14,
+  "page-has-heading-one": 1,
+  "scrollable-region-focusable": 2,
+  "target-size": 1
+ },
+ "dash8-tab1@1440": {
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-CHART-CLIP": 3,
+  "RESP-INNER-CLIP": 6,
+  "RESP-TAP-TARGET": 21,
+  "color-contrast": 3,
+  "nested-interactive": 20,
+  "page-has-heading-one": 1
+ },
+ "dash8-tab1@375": {
+  "RESP-INNER-CLIP": 10,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 21,
+  "nested-interactive": 20,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash8-tab1@768": {
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 21,
+  "color-contrast": 1,
+  "nested-interactive": 20,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash8-tab4@1440": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 5,
+  "PERF-STUCK-LOADER": 5,
+  "RESP-CHART-CLIP": 11,
+  "RESP-INNER-CLIP": 12,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 19,
+  "color-contrast": 3,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1
+ },
+ "dash8-tab4@375": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 4,
+  "RESP-CHART-CLIP": 8,
+  "RESP-INNER-CLIP": 25,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 21,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash8-tab4@768": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 4,
+  "RESP-CHART-CLIP": 4,
+  "RESP-INNER-CLIP": 9,
+  "RESP-TABLE-CLIP": 1,
+  "RESP-TAP-TARGET": 17,
+  "color-contrast": 1,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "page-has-heading-one": 1,
+  "target-size": 3
+ },
+ "dash8-tab5@1440": {
+  "A11Y-NO-FOCUS": 8,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 3,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "page-has-heading-one": 2
+ },
+ "dash8-tab5@375": {
+  "A11Y-NO-FOCUS": 12,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 1,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "target-size": 1
+ },
+ "dash8-tab5@768": {
+  "A11Y-NO-FOCUS": 7,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 2,
+  "landmark-unique": 1,
+  "nested-interactive": 10,
+  "target-size": 1
+ },
+ "dash8@1440": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 2,
+  "PERF-STUCK-LOADER": 4,
+  "RESP-CHART-CLIP": 5,
+  "RESP-INNER-CLIP": 6,
+  "RESP-TAP-TARGET": 22,
+  "color-contrast": 5,
+  "label-content-name-mismatch": 3,
+  "nested-interactive": 18,
+  "page-has-heading-one": 1
+ },
+ "dash8@375": {
+  "A11Y-NO-FOCUS": 3,
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 1,
+  "RESP-INNER-CLIP": 7,
+  "RESP-TAP-TARGET": 20,
+  "color-contrast": 2,
+  "label-content-name-mismatch": 3,
+  "nested-interactive": 18,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dash8@768": {
+  "A11Y-NO-FOCUS": 2,
+  "A11Y-NO-NAME": 1,
+  "PERF-STUCK-LOADER": 2,
+  "RESP-INNER-CLIP": 3,
+  "RESP-TAP-TARGET": 21,
+  "color-contrast": 3,
+  "label-content-name-mismatch": 3,
+  "link-in-text-block": 1,
+  "nested-interactive": 18,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "dashlist@1440": {
+  "A11Y-NO-FOCUS": 13,
+  "A11Y-NO-NAME": 10,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 11,
+  "empty-table-header": 1,
+  "page-has-heading-one": 1
+ },
+ "dashlist@375": {
+  "A11Y-NO-FOCUS": 17,
+  "A11Y-NO-NAME": 9,
+  "RESP-BLOCKER": 1,
+  "RESP-TAP-TARGET": 10,
+  "color-contrast": 8,
+  "empty-table-header": 1,
+  "region": 2
+ },
+ "dashlist@768": {
+  "A11Y-NO-FOCUS": 12,
+  "A11Y-NO-NAME": 10,
+  "RESP-BLOCKER": 1,
+  "RESP-TAP-TARGET": 11,
+  "color-contrast": 9,
+  "empty-table-header": 1,
+  "region": 2
+ },
+ "feedback@1440": {
+  "RESP-TAP-TARGET": 10
+ },
+ "feedback@375": {
+  "RESP-TAP-TARGET": 10
+ },
+ "feedback@768": {
+  "RESP-TAP-TARGET": 10
+ },
+ "home@1440": {
+  "RESP-TAP-TARGET": 1,
+  "color-contrast": 11,
+  "heading-order": 1,
+  "landmark-one-main": 1,
+  "link-in-text-block": 1,
+  "region": 22
+ },
+ "home@375": {
+  "RESP-TAP-TARGET": 1,
+  "color-contrast": 9,
+  "heading-order": 1,
+  "landmark-one-main": 1,
+  "link-in-text-block": 1,
+  "region": 22
+ },
+ "home@768": {
+  "RESP-TAP-TARGET": 1,
+  "color-contrast": 11,
+  "heading-order": 1,
+  "landmark-one-main": 1,
+  "link-in-text-block": 1,
+  "region": 22
+ },
+ "login@1440": {
+  "A11Y-NO-FOCUS": 7,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 4,
+  "aria-allowed-role": 1,
+  "page-has-heading-one": 1
+ },
+ "login@375": {
+  "A11Y-NO-FOCUS": 7,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 3,
+  "aria-allowed-role": 1,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "login@768": {
+  "A11Y-NO-FOCUS": 7,
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 3,
+  "aria-allowed-role": 1,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "tv@1440": {
+  "PERF-STUCK-LOADER": 8,
+  "region": 4
+ },
+ "tv@375": {
+  "RESP-TAP-TARGET": 9,
+  "region": 5,
+  "target-size": 4
+ },
+ "tv@768": {
+  "RESP-TAP-TARGET": 9,
+  "region": 5,
+  "target-size": 4
+ },
+ "welcome@1440": {
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 6,
+  "aria-required-children": 2,
+  "aria-required-parent": 8,
+  "color-contrast": 3,
+  "landmark-unique": 1,
+  "page-has-heading-one": 1
+ },
+ "welcome@375": {
+  "RESP-TAP-TARGET": 1,
+  "aria-required-children": 2,
+  "aria-required-parent": 8,
+  "landmark-unique": 1,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ },
+ "welcome@768": {
+  "A11Y-NO-NAME": 1,
+  "RESP-TAP-TARGET": 6,
+  "aria-required-children": 2,
+  "aria-required-parent": 8,
+  "color-contrast": 1,
+  "landmark-unique": 1,
+  "page-has-heading-one": 1,
+  "target-size": 1
+ }
+}

@@ -21,6 +21,8 @@ export const RESPONSIVE_DASHBOARD_MOBILE_CLASS = 'dashboard--responsive-mobile';
 export const RESPONSIVE_DASHBOARD_BODY_CLASS = 'moh-responsive-dashboard';
 export const RESPONSIVE_DASHBOARD_MOBILE_BODY_CLASS =
   'moh-responsive-dashboard-mobile';
+/** Set on dashboards that explicitly opted out; only these get the rotate overlay. */
+export const RESPONSIVE_DASHBOARD_OPTOUT_BODY_CLASS = 'moh-responsive-optout';
 
 export const RESPONSIVE_DASHBOARD_BREAKPOINTS = {
   mobile: 768,
@@ -29,30 +31,34 @@ export const RESPONSIVE_DASHBOARD_BREAKPOINTS = {
 };
 export const RESPONSIVE_DASHBOARD_MIN_CHART_WIDTH = 240;
 
-const RESPONSIVE_DASHBOARD_PILOT_IDS = new Set([3, 8]);
-const RESPONSIVE_DASHBOARD_METADATA_KEYS = [
-  'responsive_mobile_enabled',
-  'responsive_dashboard_enabled',
-];
+/**
+ * Responsive mode is ON for every dashboard. A dashboard can opt out by setting
+ * `responsive_dashboard_disabled: true` in its JSON metadata (no deploy needed).
+ * The older opt-in keys (`responsive_mobile_enabled`, `responsive_dashboard_enabled`)
+ * are still accepted and have no effect, so existing metadata stays valid.
+ */
+const RESPONSIVE_DASHBOARD_OPTOUT_METADATA_KEY =
+  'responsive_dashboard_disabled';
 
 type ResponsiveDashboardInfo = {
   id?: number;
   metadata?: Record<string, unknown>;
 };
 
+export function isResponsiveDashboardOptedOut(
+  dashboardInfo?: ResponsiveDashboardInfo,
+): boolean {
+  return (
+    dashboardInfo?.metadata?.[RESPONSIVE_DASHBOARD_OPTOUT_METADATA_KEY] === true
+  );
+}
+
 export function isResponsiveDashboardEnabled(
   dashboardInfo?: ResponsiveDashboardInfo,
 ): boolean {
-  const metadata = dashboardInfo?.metadata ?? {};
-  const metadataOptIn = RESPONSIVE_DASHBOARD_METADATA_KEYS.some(
-    key => metadata[key] === true,
-  );
-
-  return (
-    metadataOptIn ||
-    (dashboardInfo?.id != null &&
-      RESPONSIVE_DASHBOARD_PILOT_IDS.has(dashboardInfo.id))
-  );
+  // no dashboard loaded yet: not a dashboard view, nothing to enable
+  if (!dashboardInfo) return false;
+  return !isResponsiveDashboardOptedOut(dashboardInfo);
 }
 
 export function isResponsiveDashboardMobileViewport(

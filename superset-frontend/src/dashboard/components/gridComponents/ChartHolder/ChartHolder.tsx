@@ -64,6 +64,12 @@ import {
   getResponsiveChartWidth,
 } from 'src/dashboard/util/responsiveDashboard';
 
+/** Max height of the AI insight panel when it sits under the chart (phone layout). */
+const AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT = 220;
+
+/** Horizontal padding of the chart plot container, taken off the measured width. */
+const RESPONSIVE_CHART_INNER_PADDING = 24;
+
 export const CHART_MARGIN = 32;
 const PHEM_FILL_HEIGHT_CHART_IDS = new Set([153, 154]);
 const PHEM_TALL_VIEWPORT_CHART_OFFSET = 470;
@@ -151,6 +157,9 @@ const ChartHolder = ({
   const { chartId } = component.meta;
   const isFullSize = fullSizeChartId === chartId;
   const chartHolderRef = useRef<HTMLDivElement | null>(null);
+  // width of the column beside the AI insight panel, measured so the plot fits its box
+  const aiColumnRef = useRef<HTMLDivElement | null>(null);
+  const [aiColumnWidth, setAiColumnWidth] = useState<number | undefined>();
   const popupCardRef = useRef<HTMLDivElement | null>(null);
   const [responsiveChartWidth, setResponsiveChartWidth] = useState<
     number | undefined
@@ -356,7 +365,12 @@ const ChartHolder = ({
       Math.max(holderRect.left, 0) -
       horizontalPadding -
       2;
-    const nextWidth = getResponsiveChartWidth(measuredWidth, viewportWidth);
+    // chart plots sit inside a container with its own horizontal padding
+    // (12px each side); without this the canvas is 24px wider than its box
+    const nextWidth = getResponsiveChartWidth(
+      measuredWidth - RESPONSIVE_CHART_INNER_PADDING,
+      viewportWidth,
+    );
 
     setResponsiveChartWidth(current =>
       current === nextWidth ? current : nextWidth,
@@ -433,6 +447,23 @@ const ChartHolder = ({
 
     return () => observer.disconnect();
   }, [chartId, detectResponsiveKpiCard, responsiveLayout]);
+
+  useLayoutEffect(() => {
+    const column = aiColumnRef.current;
+    if (!column || typeof ResizeObserver === 'undefined') {
+      setAiColumnWidth(undefined);
+      return undefined;
+    }
+    const measure = () => {
+      const next =
+        Math.floor(column.clientWidth) - RESPONSIVE_CHART_INNER_PADDING;
+      setAiColumnWidth(current => (current === next ? current : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, [aiInsightsEnabled, isFullSize, responsiveLayout]);
 
   const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
@@ -663,16 +694,23 @@ const ChartHolder = ({
                 data-test="chart-with-ai-insight"
                 style={{
                   display: 'flex',
+                  // phone layout: each chart already takes a full row, so the insight
+                  // goes under it; a fixed side column would squeeze the chart to ~40px
+                  flexDirection: responsiveLayout ? 'column' : 'row',
                   gap: AI_INSIGHT_PANEL_GUTTER,
-                  height: '100%',
+                  height: responsiveLayout ? 'auto' : '100%',
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div ref={aiColumnRef} style={{ flex: 1, minWidth: 0 }}>
                   <Chart
                     componentId={component.id}
                     id={component.meta.chartId ?? 0}
                     dashboardId={dashboardId}
-                    width={chartWidth}
+                    width={
+                      !responsiveLayout && aiColumnWidth && aiColumnWidth > 0
+                        ? aiColumnWidth
+                        : chartWidth
+                    }
                     height={chartHeight}
                     sliceName={
                       component.meta.sliceNameOverride ||
@@ -700,8 +738,19 @@ const ChartHolder = ({
                     component.meta.sliceName ||
                     ''
                   }
-                  width={effectiveAiPanelWidth}
-                  height={chartHeight}
+                  width={
+                    responsiveLayout && chartWidth > 0
+                      ? chartWidth
+                      : effectiveAiPanelWidth
+                  }
+                  height={
+                    responsiveLayout
+                      ? Math.min(
+                          chartHeight,
+                          AI_INSIGHT_PANEL_STACKED_MAX_HEIGHT,
+                        )
+                      : chartHeight
+                  }
                   inView={isComponentVisible && isInView}
                   collapsed={aiInsightCollapsed}
                   onToggleCollapsed={handleToggleAiInsightCollapsed}

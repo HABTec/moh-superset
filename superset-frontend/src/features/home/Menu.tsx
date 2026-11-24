@@ -555,13 +555,10 @@ export function Menu({
   });
 
   return (
-    <StyledHeader
-      className="top"
-      id="main-menu"
-      role="navigation"
-      aria-label={t('Main navigation')}
-    >
-      <StyledRow>
+    <StyledHeader className="top" id="main-menu">
+      {/* the <header> element is the banner landmark and may not take role="navigation";
+          the navigation landmark goes on its inner row instead */}
+      <StyledRow role="navigation" aria-label={t('Main navigation')}>
         <StyledCol md={16} xs={24}>
           <Tooltip
             id="brand-tooltip"

@@ -55,7 +55,10 @@ under the License.
     .topbar > a { color: var(--heading); font-weight: 600; text-decoration: none; }
     .portal-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; }
     .portal-nav a { color: var(--heading); font-weight: 600; text-decoration: none; font-size: 14px; }
+    .portal-nav a { display: inline-flex; align-items: center; min-height: 24px; }
     .portal-nav a[aria-current] { color: var(--blue); }
+    /* WCAG 2.5.8: radio buttons and checkboxes at least 24x24 CSS px */
+    input[type="radio"], input[type="checkbox"] { width: 24px; height: 24px; }
     .portal-nav button { margin: 0; padding: 5px 11px; font-size: 13px; background: transparent;
                          color: var(--heading); border: 1px solid var(--line); }
     .wrap { max-width: 900px; margin: 20px auto 32px; padding: 0 16px;

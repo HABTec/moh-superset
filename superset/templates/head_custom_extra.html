@@ -822,8 +822,9 @@ _moh_roles %}
     var POLL_MS = 250;
 
     function isDashboardPage() {
+      // a dashboard view, not the dashboard list (/dashboard/list/)
       return (
-        /\/dashboard\//.test(window.location.pathname) ||
+        /\/dashboard\/(?!list(?:\/|$))[^/]+/.test(window.location.pathname) ||
         !!document.querySelector('[data-test="dashboard-header-container"]')
       );
     }
@@ -840,16 +841,15 @@ _moh_roles %}
       return !!document.body && document.body.contains(element);
     }
 
-    function isResponsiveDashboardPath() {
-      return /\/dashboard\/(?:3|8)(?:\/|$)/.test(window.location.pathname);
+    // Responsive mode is the default for every dashboard. The app marks the few
+    // dashboards that opted out (metadata responsive_dashboard_disabled) with a
+    // body class; that class is the only signal, there is no id list here.
+    function isResponsiveDashboardOptedOut() {
+      return bodyHasClass("moh-responsive-optout");
     }
 
     function isResponsiveMobileDashboard() {
-      return (
-        isMobileOrTablet() &&
-        (bodyHasClass("moh-responsive-dashboard-mobile") ||
-          isResponsiveDashboardPath())
-      );
+      return isMobileOrTablet() && !isResponsiveDashboardOptedOut();
     }
 
     function shouldDisableChartZoom() {
@@ -996,9 +996,33 @@ _moh_roles %}
 
     function initLandscapeOverlay() {
       if (!isDashboardPage()) return;
-      if (window.innerWidth > TABLET_BP) return;
-      if (isResponsiveMobileDashboard()) return;
-      if (document.getElementById("moh-rotate-overlay")) return;
+      // the opt-out class is set by the app after the dashboard mounts, so watch
+      // for it instead of deciding once
+      if (window.MutationObserver && document.body) {
+        new MutationObserver(syncLandscapeOverlay).observe(document.body, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+      window.addEventListener("resize", syncLandscapeOverlay);
+      syncLandscapeOverlay();
+    }
+
+    function syncLandscapeOverlay() {
+      var existing = document.getElementById("moh-rotate-overlay");
+      var wanted =
+        isDashboardPage() &&
+        window.innerWidth <= TABLET_BP &&
+        isResponsiveDashboardOptedOut();
+      if (!wanted) {
+        if (existing) existing.parentNode.removeChild(existing);
+        return;
+      }
+      if (existing) return;
+      showLandscapeOverlay();
+    }
+
+    function showLandscapeOverlay() {
 
       var el = document.createElement("div");
       el.id = "moh-rotate-overlay";
@@ -1718,5 +1742,119 @@ _moh_roles %}
     startResponsiveDashboardHelpers();
   })();
 </script>
+
+<style>
+  /* A11Y / touch targets (WCAG 2.5.8 needs 24x24 CSS px; phone and tablet widths get a roomier 40px for tabs).
+     Each rule only enlarges the hit area; nothing is hidden or moved. */
+  .dashboard .ant-tabs-tab-btn,
+  .dashboard-component-tabs .ant-tabs-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+  }
+  .ant-table-cell a[href]:not(.fave-unfave-icon),
+  .ant-table-cell .action-button,
+  .ant-table-cell .fave-unfave-icon,
+  .filters-search {
+    min-height: 24px;
+  }
+  .ant-table-cell .action-button,
+  .ant-table-cell .fave-unfave-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+  }
+  .ant-table-cell a[href]:not(.fave-unfave-icon) {
+    display: inline-flex;
+    align-items: center;
+  }
+  .ant-alert-close-icon,
+  .deckgl-reset-view button,
+  [data-test="chart-footer"] a[href] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+  .ant-alert-close-icon,
+  .deckgl-reset-view button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  [data-test="chart-footer"] a[href],
+  .maplibregl-ctrl-attrib a {
+    display: inline-block;
+    line-height: 24px;
+  }
+  .fave-unfave-icon,
+  [class*="card-actions"] button,
+  .ant-menu-title-content > a,
+  .ant-menu-title-content > .no-router,
+  .portal-nav a,
+  input.ant-input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 24px;
+  }
+  .fave-unfave-icon,
+  [class*="card-actions"] button,
+  .ant-menu-title-content > a,
+  .ant-menu-title-content > .no-router,
+  .portal-nav a {
+    display: inline-flex;
+    align-items: center;
+  }
+  .fave-unfave-icon {
+    justify-content: center;
+    min-width: 24px;
+  }
+  input[type="checkbox"]:not(.ant-checkbox-input),
+  input[type="radio"]:not(.ant-radio-input) {
+    width: 24px;
+    height: 24px;
+  }
+  /* A11Y: a visible keyboard focus ring where the app removes it (tabs, links, buttons, frames) */
+  .ant-tabs-tab-btn:focus-visible,
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  iframe:focus-visible {
+    outline: 2px solid #1a5cff !important;
+    outline-offset: 2px;
+  }
+  /* A11Y: contrast of list-page tags and avatars (green tag text 2.15:1, white on tan avatar 3.1:1) */
+  .ant-tag:has(.anticon-check-circle),
+  .ant-tag:has(.anticon-check-circle) > span {
+    color: #1a6e3c !important;
+  }
+  .ant-avatar {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.28));
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex="0"]:focus-visible,
+  iframe:focus {
+    outline: 2px solid #1a5cff !important;
+    outline-offset: 2px;
+  }
+  /* RESP: ECharts wrapper pads 12px each side but the canvas is sized to the full box, so it was clipped */
+  .slice_container [class*="echarts_"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  /* RESP: wide fixed-layout (pivot) tables were cut off by two overflow:hidden wrappers; let them scroll */
+  .slice_container div[role="table"][style*="overflow: hidden"] {
+    overflow: auto !important;
+  }
+  .slice_container div[role="table"] > div[role="presentation"][style*="overflow: hidden"] {
+    overflow: visible !important;
+  }
+  @media (max-width: 1100px) {
+    .dashboard .ant-tabs-tab-btn,
+    .dashboard-component-tabs .ant-tabs-tab-btn {
+      min-height: 40px;
+    }
+  }
+</style>
 
 {% include "moh_accessibility_head.html" %}

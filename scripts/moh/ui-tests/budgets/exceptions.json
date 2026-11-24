@@ -1,0 +1,4 @@
+{
+  "_doc": "Named, capped exceptions to a budget. Each needs a reason and a way out. Never raise a budget instead of adding an entry here, and remove the entry when the cause is fixed.",
+  "training": {}
+}

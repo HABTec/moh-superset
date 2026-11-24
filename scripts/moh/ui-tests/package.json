@@ -1,0 +1,21 @@
+{
+  "name": "moh-superset-ui-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Responsive + accessibility + smoke tests for the MoH Superset fork. Read-only against a running instance.",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test tests/smoke.spec.ts",
+    "test:quality": "playwright test tests/ui-quality.spec.ts",
+    "budget:update": "MOH_UI_UPDATE_BUDGET=1 playwright test tests/ui-quality.spec.ts",
+    "test:unit": "node tools/gate-summary.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "gate": "./run-gate.sh"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.60.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

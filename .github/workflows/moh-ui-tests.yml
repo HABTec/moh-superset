@@ -1,0 +1,43 @@
+name: MoH UI tests (static checks)
+
+# The live gate (scripts/moh/ui-tests/run-gate.sh) measures a RUNNING instance, i.e. what is
+# deployed, not this pull request, so it is not a merge check. It runs from deploy.sh
+# (--ui-gate) and by hand (deploy.sh --ui-check). These static checks run on every change.
+on:
+  pull_request:
+    paths:
+      - 'scripts/moh/**'
+      - '.github/workflows/moh-ui-tests.yml'
+  push:
+    branches: ['master']
+    paths:
+      - 'scripts/moh/**'
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: scripts/moh/ui-tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scripts/moh/ui-tests/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type-check the suite
+        run: npm run typecheck
+      - name: Gate verdict unit tests
+        run: npm run test:unit
+      - name: deploy.sh and run-gate.sh parse
+        working-directory: scripts/moh
+        run: |
+          bash -n deploy.sh
+          bash -n ui-tests/run-gate.sh
