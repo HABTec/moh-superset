@@ -356,6 +356,7 @@ def test_failed_request_does_not_leak_user_into_next_request(
     ("path", "function", "args"),
     [
         ("/organisationUnits?level=3", "list_units", ()),
+        ("/organisationUnits/search?q=bole", "search_units", ()),
         ("/organisationUnits/R1", "get_unit", ("R1",)),
         ("/me/organisationUnit", "get_my_unit", ()),
         ("/latest-period", "get_latest_period", ()),
@@ -513,3 +514,12 @@ def test_browser_api_still_accepts_session(client: FlaskClient) -> None:
 
     assert response.status_code == 200
     assert response.json["organisationUnit"]["id"] == "R1"
+
+
+def test_search_without_token_is_rejected_before_querying(
+    client: FlaskClient, mocker: MockerFixture
+) -> None:
+    search = mocker.patch.object(moh_orgunits_api, "search_units")
+
+    assert_unauthorized(client.get(f"{MOBILE}/organisationUnits/search?q=dabat"))
+    search.assert_not_called()

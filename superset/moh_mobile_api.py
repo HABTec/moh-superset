@@ -84,6 +84,12 @@ def list_units() -> Any:
     return orgunits.list_units()
 
 
+@moh_mobile_bp.route("/organisationUnits/search", methods=["GET"])
+def search_units() -> Any:
+    """Same as ``GET /api/v1/moh/dhis2/organisationUnits/search``."""
+    return orgunits.search_units()
+
+
 @moh_mobile_bp.route("/organisationUnits/<uid>", methods=["GET"])
 def get_unit(uid: str) -> Any:
     """Same as ``GET /api/v1/moh/dhis2/organisationUnits/<uid>``."""
