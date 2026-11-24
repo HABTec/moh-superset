@@ -157,6 +157,9 @@ const ChartHolder = ({
   const { chartId } = component.meta;
   const isFullSize = fullSizeChartId === chartId;
   const chartHolderRef = useRef<HTMLDivElement | null>(null);
+  // width of the column beside the AI insight panel, measured so the plot fits its box
+  const aiColumnRef = useRef<HTMLDivElement | null>(null);
+  const [aiColumnWidth, setAiColumnWidth] = useState<number | undefined>();
   const popupCardRef = useRef<HTMLDivElement | null>(null);
   const [responsiveChartWidth, setResponsiveChartWidth] = useState<
     number | undefined
@@ -445,6 +448,23 @@ const ChartHolder = ({
     return () => observer.disconnect();
   }, [chartId, detectResponsiveKpiCard, responsiveLayout]);
 
+  useLayoutEffect(() => {
+    const column = aiColumnRef.current;
+    if (!column || typeof ResizeObserver === 'undefined') {
+      setAiColumnWidth(undefined);
+      return undefined;
+    }
+    const measure = () => {
+      const next =
+        Math.floor(column.clientWidth) - RESPONSIVE_CHART_INNER_PADDING;
+      setAiColumnWidth(current => (current === next ? current : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, [aiInsightsEnabled, isFullSize, responsiveLayout]);
+
   const { chartWidth, chartHeight, effectiveHeightMultiple } = useMemo(() => {
     let width = 0;
     let height = 0;
@@ -469,12 +489,7 @@ const ChartHolder = ({
       );
       if (aiInsightsEnabled) {
         const aiPanelOffset = effectiveAiPanelWidth + AI_INSIGHT_PANEL_GUTTER;
-        // the plot container beside the panel has its own horizontal padding; without
-        // taking it off the canvas ends up 24px wider than its box and is clipped
-        width = Math.max(
-          width - aiPanelOffset - RESPONSIVE_CHART_INNER_PADDING,
-          0,
-        );
+        width = Math.max(width - aiPanelOffset, 0);
       }
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
@@ -686,12 +701,16 @@ const ChartHolder = ({
                   height: responsiveLayout ? 'auto' : '100%',
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div ref={aiColumnRef} style={{ flex: 1, minWidth: 0 }}>
                   <Chart
                     componentId={component.id}
                     id={component.meta.chartId ?? 0}
                     dashboardId={dashboardId}
-                    width={chartWidth}
+                    width={
+                      !responsiveLayout && aiColumnWidth && aiColumnWidth > 0
+                        ? aiColumnWidth
+                        : chartWidth
+                    }
                     height={chartHeight}
                     sliceName={
                       component.meta.sliceNameOverride ||
