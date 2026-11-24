@@ -12,7 +12,8 @@ git diff "$BASE" HEAD -- superset superset-frontend > /var/tmp/moh-a11y.patch
 scp -q /var/tmp/moh-a11y.patch "$HOST:/var/tmp/moh-a11y.patch"
 # every changed file under superset/ (templates, python) is copied to the replica as well as the built assets
 CHANGED=$(git diff --name-only "$BASE" HEAD -- superset | grep -v '^superset/static/' | tr '\n' ' ')
-ssh "$HOST" "CHANGED='$CHANGED'" 'set -e
+ssh "$HOST" "CHANGED='$CHANGED' bash -s" <<'REMOTE'
+set -e
 PROD=$(git -C /var/etls/moh-superset rev-parse HEAD)
 cd /var/etls/moh-superset-build
 [ "$(git rev-parse HEAD)" = "$PROD" ] || { echo "build tree is not at production commit ($PROD)"; exit 3; }
@@ -29,4 +30,5 @@ for f in $CHANGED; do mkdir -p "$(dirname $A/$f)"; cp -p "$R/$f" "$A/$f.new" && 
 P=$(systemctl show -p MainPID --value sst-web); kill -HUP $P; sleep 12
 systemctl is-active sst-web; curl -s -o /dev/null -m 20 -w "health %{http_code}\n" http://127.0.0.1:18189/health
 # leave the build tree clean so production deploys are not affected
-cd /var/etls/moh-superset-build && git checkout -q -- superset superset-frontend/src && git clean -fdq superset-frontend/src superset/templates && git status --short | head -3'
+cd /var/etls/moh-superset-build && git checkout -q -- superset superset-frontend/src && git clean -fdq superset-frontend/src superset/templates && git status --short | head -3
+REMOTE
