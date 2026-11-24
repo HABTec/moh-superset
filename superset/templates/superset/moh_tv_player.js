@@ -147,7 +147,7 @@
     var panel = document.createElement('div');
     panel.id = 'mohTvPanel';
     panel.innerHTML =
-      '<div id="mohTvScreen" role="main" aria-label="TV display">' +
+      '<div id="mohTvScreen" role="region" aria-label="TV display">' +
         '<div id="mohTvMast">' +
           '<img id="mohTvLogo" alt="Ministry of Health" src="/moh-static/logomohnewww.png">' +
           '<div>' +
