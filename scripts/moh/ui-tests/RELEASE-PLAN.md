@@ -93,3 +93,36 @@ Production release steps added:
 
 Not fixed, needs a decision: nested-interactive in dashboard tabs (hidden "Copy URL" button inside each tab), amber/green KPI colours,
 TV page at phone width, content inside embedded third-party frames.
+
+## Update 2026-11-24 (final): Groups A and B on the replica
+
+Final gate run on the replica: 75/75 checks within the re-baselined budgets (budgets total 1320 -> 994 issue counts).
+60 pages measured on production today, on the replica before the fixes, and on the replica after:
+
+| Issue | Production today | Replica before | Replica after |
+|---|---|---|---|
+| RESP-BLOCKER | 16 | 16 | 0 |
+| RESP-TABLE-CLIP | 8 | 10 | 0 |
+| RESP-INNER-CLIP | 191 | 168 | 9 |
+| RESP-TAP-TARGET | 599 | 714 | 41 |
+| RESP-TINY-TEXT | 53 | 42 | 0 |
+| A11Y-NO-FOCUS | 125 | 148 | 27 |
+| color-contrast | 327 | 157 | 24 |
+| region (content outside landmarks) | 111 | 111 | 0 |
+| scrollable-region-focusable | 20 | 19 | 0 |
+| RESP-CHART-CLIP | 30 | 33 | 11 |
+| nested-interactive | 421 | 429 | 429 |
+
+Unit tests (Menu, ChartHolder, responsiveDashboard, DashboardBuilder): the same 13 tests fail on clean `master` and with the patch;
+the patch adds 5 passing tests and no failures.
+
+Not fixed, with the reason:
+- RESP-CHART-CLIP (11): the dashboards' own stored CSS gives each chart card `padding: 8px 12px 18px 12px !important`, which the chart width does not
+  account for. A content change to dashboard CSS on production, not part of the code release.
+- nested-interactive (429): the hidden "Copy URL" button inside every dashboard tab. Needs a product decision.
+- aria-required-parent (36, welcome page): a tooltip attribute on the menu items makes the presentation fix invalid; needs a component change.
+- KPI colours (amber, green) and the TV page at phone width: design decisions.
+- Content inside embedded third-party frames.
+
+Release notes for the deploy: the changed files include two Flask templates (`landing.html`, feedback `layout.html`) and the TV player
+script as well as the head/tail templates and the frontend bundle. `deploy.sh` ships all of them; no database change is part of the code release.

@@ -41,14 +41,10 @@
   "dash10-tab1@1440": {
     "PERF-STUCK-LOADER": 4,
     "RESP-CHART-CLIP": 2,
-    "RESP-INNER-CLIP": 6,
-    "RESP-TABLE-CLIP": 1,
-    "RESP-TINY-TEXT": 3,
     "nested-interactive": 4
   },
   "dash10-tab1@375": {
     "RESP-CHART-CLIP": 2,
-    "RESP-TINY-TEXT": 1,
     "nested-interactive": 4
   },
   "dash10-tab1@768": {
@@ -58,8 +54,6 @@
   "dash10-tab4@1440": {
     "PERF-STUCK-LOADER": 4,
     "RESP-CHART-CLIP": 2,
-    "RESP-INNER-CLIP": 8,
-    "RESP-TABLE-CLIP": 2,
     "RESP-TAP-TARGET": 2,
     "nested-interactive": 4
   },
@@ -77,7 +71,6 @@
     "nested-interactive": 4
   },
   "dash10@375": {
-    "RESP-TINY-TEXT": 2,
     "nested-interactive": 4
   },
   "dash10@768": {
@@ -93,14 +86,11 @@
     "nested-interactive": 12
   },
   "dash14-tab1@768": {
-    "PERF-STUCK-LOADER": 6,
     "label-content-name-mismatch": 6,
     "nested-interactive": 12
   },
   "dash14-tab4@1440": {
-    "PERF-STUCK-LOADER": 4,
-    "RESP-INNER-CLIP": 8,
-    "RESP-TABLE-CLIP": 1,
+    "PERF-STUCK-LOADER": 2,
     "label-content-name-mismatch": 2,
     "nested-interactive": 7
   },
@@ -115,18 +105,14 @@
   "dash14-tab5@1440": {
     "PERF-STUCK-LOADER": 2,
     "color-contrast": 1,
-    "html-has-lang": 1,
     "label-content-name-mismatch": 6,
-    "landmark-one-main": 1,
-    "nested-interactive": 6,
-    "presentation-role-conflict": 1,
-    "region": 1
+    "nested-interactive": 6
   },
   "dash14-tab5@375": {
+    "RESP-TAP-TARGET": 1,
     "color-contrast": 1,
     "label-content-name-mismatch": 6,
-    "nested-interactive": 6,
-    "scrollable-region-focusable": 4
+    "nested-interactive": 6
   },
   "dash14-tab5@768": {
     "color-contrast": 1,
@@ -135,18 +121,15 @@
   },
   "dash14@1440": {
     "label-content-name-mismatch": 1,
-    "nested-interactive": 12,
-    "scrollable-region-focusable": 1
+    "nested-interactive": 12
   },
   "dash14@375": {
     "label-content-name-mismatch": 1,
-    "nested-interactive": 12,
-    "scrollable-region-focusable": 2
+    "nested-interactive": 12
   },
   "dash14@768": {
     "label-content-name-mismatch": 1,
-    "nested-interactive": 12,
-    "scrollable-region-focusable": 2
+    "nested-interactive": 12
   },
   "dash1@1440": {
     "PERF-STUCK-LOADER": 3,
@@ -163,7 +146,7 @@
     "nested-interactive": 12
   },
   "dash3-tab1@1440": {
-    "PERF-STUCK-LOADER": 15,
+    "PERF-STUCK-LOADER": 3,
     "label-content-name-mismatch": 6,
     "nested-interactive": 14
   },
@@ -184,19 +167,15 @@
   "dash3-tab4@375": {
     "color-contrast": 2,
     "label-content-name-mismatch": 6,
-    "nested-interactive": 8,
-    "scrollable-region-focusable": 4
+    "nested-interactive": 8
   },
   "dash3-tab4@768": {
-    "PERF-STUCK-LOADER": 5,
     "color-contrast": 2,
     "label-content-name-mismatch": 6,
     "nested-interactive": 8
   },
   "dash3-tab5@1440": {
     "PERF-STUCK-LOADER": 2,
-    "RESP-INNER-CLIP": 8,
-    "RESP-TABLE-CLIP": 1,
     "label-content-name-mismatch": 2,
     "nested-interactive": 10
   },
@@ -211,26 +190,22 @@
   "dash3@1440": {
     "color-contrast": 6,
     "label-content-name-mismatch": 1,
-    "nested-interactive": 14,
-    "scrollable-region-focusable": 1
+    "nested-interactive": 14
   },
   "dash3@375": {
     "color-contrast": 1,
     "label-content-name-mismatch": 1,
-    "nested-interactive": 14,
-    "scrollable-region-focusable": 2
+    "nested-interactive": 14
   },
   "dash3@768": {
     "color-contrast": 6,
     "label-content-name-mismatch": 1,
-    "nested-interactive": 14,
-    "scrollable-region-focusable": 2
+    "nested-interactive": 14
   },
   "dash8-tab1@1440": {
     "PERF-STUCK-LOADER": 4,
     "RESP-CHART-CLIP": 2,
-    "RESP-INNER-CLIP": 12,
-    "RESP-TABLE-CLIP": 1,
+    "RESP-INNER-CLIP": 4,
     "nested-interactive": 20
   },
   "dash8-tab1@375": {
@@ -240,24 +215,20 @@
     "nested-interactive": 20
   },
   "dash8-tab4@1440": {
-    "A11Y-NO-FOCUS": 1,
     "PERF-STUCK-LOADER": 5,
     "RESP-CHART-CLIP": 8,
-    "RESP-INNER-CLIP": 8,
-    "RESP-TABLE-CLIP": 1,
+    "RESP-INNER-CLIP": 2,
     "RESP-TAP-TARGET": 4,
     "landmark-unique": 1,
     "nested-interactive": 10
   },
   "dash8-tab4@375": {
-    "A11Y-NO-FOCUS": 1,
     "RESP-CHART-CLIP": 5,
     "RESP-TAP-TARGET": 2,
     "landmark-unique": 1,
     "nested-interactive": 10
   },
   "dash8-tab4@768": {
-    "A11Y-NO-FOCUS": 1,
     "RESP-CHART-CLIP": 2,
     "RESP-TAP-TARGET": 2,
     "landmark-unique": 1,
@@ -276,102 +247,78 @@
     "nested-interactive": 10
   },
   "dash8-tab5@768": {
-    "A11Y-NO-FOCUS": 10,
+    "A11Y-NO-FOCUS": 8,
+    "color-contrast": 1,
     "landmark-unique": 1,
     "nested-interactive": 10
   },
   "dash8@1440": {
-    "A11Y-NO-FOCUS": 1,
     "PERF-STUCK-LOADER": 4,
     "RESP-TAP-TARGET": 1,
     "label-content-name-mismatch": 3,
     "nested-interactive": 18
   },
   "dash8@375": {
-    "A11Y-NO-FOCUS": 1,
     "label-content-name-mismatch": 3,
     "nested-interactive": 18
   },
   "dash8@768": {
-    "A11Y-NO-FOCUS": 1,
     "label-content-name-mismatch": 3,
     "nested-interactive": 18
   },
   "dashlist@1440": {
-    "A11Y-NO-FOCUS": 9,
     "A11Y-NO-NAME": 1,
     "RESP-TAP-TARGET": 1,
-    "color-contrast": 9,
     "empty-table-header": 1
   },
   "dashlist@375": {
-    "A11Y-NO-FOCUS": 9,
     "A11Y-NO-NAME": 1,
-    "color-contrast": 9,
     "empty-table-header": 1
   },
   "dashlist@768": {
-    "A11Y-NO-FOCUS": 9,
     "A11Y-NO-NAME": 1,
     "RESP-TAP-TARGET": 1,
-    "color-contrast": 9,
     "empty-table-header": 1
   },
-  "feedback@1440": {
-    "RESP-TAP-TARGET": 10
-  },
-  "feedback@375": {
-    "RESP-TAP-TARGET": 10
-  },
-  "feedback@768": {
-    "RESP-TAP-TARGET": 10
-  },
+  "feedback@1440": {},
+  "feedback@375": {},
+  "feedback@768": {},
   "home@1440": {
     "RESP-TAP-TARGET": 1,
-    "color-contrast": 12,
     "heading-order": 1,
-    "landmark-one-main": 1,
-    "link-in-text-block": 1,
-    "region": 23
+    "link-in-text-block": 1
   },
   "home@375": {
     "RESP-TAP-TARGET": 1,
-    "color-contrast": 10,
     "heading-order": 1,
-    "landmark-one-main": 1,
-    "link-in-text-block": 1,
-    "region": 23
+    "link-in-text-block": 1
   },
   "home@768": {
     "RESP-TAP-TARGET": 1,
-    "color-contrast": 12,
     "heading-order": 1,
-    "landmark-one-main": 1,
-    "link-in-text-block": 1,
-    "region": 23
+    "link-in-text-block": 1
   },
   "login@1440": {
-    "A11Y-NO-FOCUS": 5,
     "RESP-TAP-TARGET": 1
   },
-  "login@375": {
-    "A11Y-NO-FOCUS": 7
-  },
-  "login@768": {
-    "A11Y-NO-FOCUS": 7
-  },
+  "login@375": {},
+  "login@768": {},
   "tv@1440": {
     "PERF-STUCK-LOADER": 8,
-    "region": 4
+    "landmark-main-is-top-level": 1,
+    "landmark-no-duplicate-main": 1
   },
   "tv@375": {
-    "PERF-STUCK-LOADER": 1,
     "RESP-TAP-TARGET": 9,
-    "region": 5
+    "landmark-main-is-top-level": 1,
+    "landmark-no-duplicate-main": 1,
+    "region": 1
   },
   "tv@768": {
     "RESP-TAP-TARGET": 9,
-    "region": 5
+    "landmark-main-is-top-level": 1,
+    "landmark-no-duplicate-main": 1,
+    "region": 1
   },
   "welcome@1440": {
     "RESP-INNER-CLIP": 1,
