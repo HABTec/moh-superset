@@ -21,6 +21,11 @@ import { addWarningToast } from 'src/components/MessageToasts/actions';
 import { registerThemePreview } from 'src/theme/lightModeExport';
 import downloadAsPdf from './downloadAsPdf';
 
+import { hideLegendSelectorsForExport } from 'src/utils/hideLegendSelectorsForExport';
+jest.mock('src/utils/hideLegendSelectorsForExport', () => ({
+  hideLegendSelectorsForExport: jest.fn(() => () => {}),
+}));
+
 jest.mock('dom-to-pdf', () => ({
   __esModule: true,
   default: jest.fn(),
@@ -95,4 +100,31 @@ test('warns when the element is missing', async () => {
   expect(addWarningToast).toHaveBeenCalledWith(
     'PDF download failed, please refresh and try again.',
   );
+});
+
+test('legend Select all / Invert buttons are hidden while the PDF is made and restored after', async () => {
+  const events: string[] = [];
+  const restore = jest.fn(() => events.push('restore'));
+  (hideLegendSelectorsForExport as jest.Mock).mockImplementation(() => {
+    events.push('hide');
+    return restore;
+  });
+  mockDomToPdf.mockImplementation(async () => {
+    events.push('capture');
+  });
+
+  await downloadAsPdf('.pdf-target', 'My Dashboard', true)({} as any);
+
+  expect(hideLegendSelectorsForExport).toHaveBeenCalledWith(target);
+  expect(events).toEqual(['hide', 'capture', 'restore']);
+});
+
+test('legend buttons are restored even when PDF generation fails', async () => {
+  const restore = jest.fn();
+  (hideLegendSelectorsForExport as jest.Mock).mockReturnValue(restore);
+  mockDomToPdf.mockRejectedValue(new Error('pdf failed'));
+
+  await downloadAsPdf('.pdf-target', 'My Dashboard', true)({} as any);
+
+  expect(restore).toHaveBeenCalledTimes(1);
 });

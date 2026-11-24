@@ -69,6 +69,7 @@ def _disposing(engine):
     finally:
         engine.dispose()
 
+
 moh_orgunits_bp = Blueprint(
     "moh_orgunits_dhis2",
     __name__,
@@ -81,6 +82,7 @@ moh_orgunits_bp = Blueprint(
 # code path works in Docker dev, native Ubuntu, and any future deployment.
 # Defaults match the MoH ClickHouse setup as currently registered in Superset.
 # ---------------------------------------------------------------------------
+
 
 def _db_name() -> str:
     return current_app.config.get("MOH_ORG_UNITS_DB_NAME", "MOH_Click_Hhouse")
@@ -150,14 +152,15 @@ def _get_database() -> Any:
     from superset.models.core import Database
 
     name = _db_name()
-    database = (
-        superset_db.session.query(Database).filter_by(database_name=name).first()
-    )
+    database = superset_db.session.query(Database).filter_by(database_name=name).first()
     if database is None:
         logger.error("Database connection %r is not registered in Superset", name)
-        abort(503, f"Database '{name}' is not configured. Add it in Superset → "
-                   f"Settings → Database Connections, or set MOH_ORG_UNITS_DB_NAME "
-                   f"to an existing connection name.")
+        abort(
+            503,
+            f"Database '{name}' is not configured. Add it in Superset → "
+            f"Settings → Database Connections, or set MOH_ORG_UNITS_DB_NAME "
+            f"to an existing connection name.",
+        )
     return database
 
 
@@ -270,8 +273,7 @@ def _assigned_unit() -> dict[str, Any] | None:
 
     username = str(getattr(current_user, "username", "") or "")
     cache_key = f"moh_ou:me:{username.strip().lower()}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
+    if (cached := _cache_get(cache_key)) is not None:
         unit = cached.get("unit")
     else:
         unit = _query_assigned_unit(username)
@@ -291,6 +293,7 @@ def _scope_unit() -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 def _require_authenticated() -> None:
     """Manual auth check.
@@ -400,8 +403,7 @@ def list_units():
         f"moh_ou:list:{level}:{scope['id'] if scope else ''}:"
         f"{','.join(_parse_cbmp_types())}"
     )
-    cached = _cache_get(cache_key)
-    if cached is not None:
+    if (cached := _cache_get(cache_key)) is not None:
         return jsonify(cached)
 
     database = _get_database()
@@ -442,8 +444,7 @@ def get_unit(uid: str):
     _require_authenticated()
     scope = _scope_unit()
     cache_key = f"moh_ou:unit:{uid}:{','.join(_parse_cbmp_types())}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
+    if (cached := _cache_get(cache_key)) is not None:
         if scope is not None and not _is_within_scope(cached["path"], scope["id"]):
             abort(404, f"Org unit '{uid}' not found")
         return jsonify(cached)
@@ -501,6 +502,137 @@ def get_unit(uid: str):
     return jsonify(response)
 
 
+_SEARCH_MIN_CHARS = 2
+# Longer queries cannot match a unit name; capping keeps cache keys bounded.
+_SEARCH_MAX_CHARS = 100
+
+
+def _search_limit() -> int:
+    """Maximum number of org units a name search returns."""
+    try:
+        return max(1, int(current_app.config.get("MOH_ORG_UNITS_SEARCH_LIMIT", 50)))
+    except (TypeError, ValueError):
+        return 50
+
+
+def _cbmp_any_level_clause(min_level: int) -> tuple[str, dict[str, Any]]:
+    """CBMP path clause for a query that spans every level from ``min_level``.
+
+    ORs the per-level clause from ``_cbmp_path_clause`` so each unit is kept
+    only when it lies on a path to a matching ``cbmp_type`` facility.
+    """
+    parts: list[str] = []
+    params: dict[str, Any] = {}
+    for level in range(min_level, _max_level() + 1):
+        clause, level_params = _cbmp_path_clause(level, param_prefix=f"cbmp_l{level}")
+        if not clause:
+            return "", {}
+        # Strip the leading " AND " the per-level helper emits.
+        parts.append(f"(level = {level} AND {clause.strip()[4:]})")
+        params.update(level_params)
+    return f" AND ({' OR '.join(parts)})", params
+
+
+@moh_orgunits_bp.route("/organisationUnits/search", methods=["GET"])
+def search_units() -> Response:
+    """Find org units by name at any level of the user's tree.
+
+    The tree lazy-loads children, so a client-side search would only see
+    nodes the user has already expanded. This searches the whole hierarchy.
+
+    Query params
+    ------------
+    q : str
+        Case-insensitive substring of the unit name (2-100 characters after
+        collapsing whitespace; longer input is truncated).
+    cbmp_type : str, optional, repeatable
+        Same semantics as the list endpoint.
+
+    Each result carries ``ancestors`` (id, displayName, level from the top of
+    the hierarchy down) so the UI can tell apart units sharing a name.
+    """
+    _require_authenticated()
+    query = " ".join(str(request.args.get("q", "")).split())[:_SEARCH_MAX_CHARS]
+    if len(query) < _SEARCH_MIN_CHARS:
+        return jsonify({"organisationUnits": []})
+
+    min_level = _root_level()
+    scope_clause = ""
+    scope_params: dict[str, Any] = {}
+    scope = _scope_unit()
+    if scope is not None:
+        min_level = _scoped_root_level(min_level, scope["level"], _max_level())
+        scope_clause = f" AND (id = :scope_id OR level{scope['level']}id = :scope_id)"
+        scope_params = {"scope_id": scope["id"]}
+
+    cache_key = (
+        f"moh_ou:search:{query.lower()}:{scope['id'] if scope else ''}:"
+        f"{','.join(_parse_cbmp_types())}"
+    )
+    if (cached := _cache_get(cache_key)) is not None:
+        return jsonify(cached)
+
+    cbmp_clause, cbmp_params = _cbmp_any_level_clause(min_level)
+    database = _get_database()
+    cols = ", ".join(_LEVEL_ID_COLS)
+    with database.get_sqla_engine() as engine, _disposing(engine):
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    f"SELECT id, name, level, {cols} "
+                    f"FROM {_qualified_table()} "
+                    f"WHERE level >= :min_lvl AND level <= :max_lvl "
+                    f"  AND positionCaseInsensitiveUTF8(name, :q) > 0 "
+                    f"{scope_clause} "
+                    f"{cbmp_clause} "
+                    f"ORDER BY level, name "
+                    f"LIMIT {_search_limit()}"
+                ),
+                {
+                    "min_lvl": min_level,
+                    "max_lvl": _max_level(),
+                    "q": query,
+                    **scope_params,
+                    **cbmp_params,
+                },
+            ).all()
+
+            units = [_row_to_dhis2(r) for r in rows]
+            ancestor_ids = sorted(
+                {
+                    part
+                    for unit in units
+                    for part in unit["path"].strip("/").split("/")[:-1]
+                    if part
+                }
+            )
+            names: dict[str, tuple[str, int]] = {}
+            if ancestor_ids:
+                placeholders = ", ".join(
+                    f":anc_{idx}" for idx in range(len(ancestor_ids))
+                )
+                for row in conn.execute(
+                    text(
+                        f"SELECT id, name, level FROM {_qualified_table()} "
+                        f"WHERE id IN ({placeholders})"
+                    ),
+                    {f"anc_{idx}": value for idx, value in enumerate(ancestor_ids)},
+                ).all():
+                    m = row._mapping
+                    names[str(m["id"])] = ((m["name"] or "").strip(), m["level"])
+
+    for unit in units:
+        unit["ancestors"] = [
+            {"id": part, "displayName": names[part][0], "level": names[part][1]}
+            for part in unit["path"].strip("/").split("/")[:-1]
+            if part in names
+        ]
+
+    payload = {"organisationUnits": units}
+    _cache_set(cache_key, payload)
+    return jsonify(payload)
+
+
 @moh_orgunits_bp.route("/me/organisationUnit", methods=["GET"])
 def get_my_unit() -> Response:
     """Return the org unit the logged-in user is assigned to.
@@ -547,9 +679,7 @@ def _query_latest_monthly_period(
     for future months, and a few early reports must not move "data as of"
     ahead of today.
     """
-    periods = _qualified(
-        current_app.config.get("MOH_PERIODS_TABLE", "monthly_periods")
-    )
+    periods = _qualified(current_app.config.get("MOH_PERIODS_TABLE", "monthly_periods"))
     values = _qualified(values_table)
     if before is not None:
         where_before = "WHERE p.period < :before "
@@ -792,11 +922,7 @@ def _query_reporting(context_request: ContextRequest) -> dict[str, Any] | None:
     return summarise_reporting(
         rows,
         context_request,
-        float(
-            config.get(
-                "MOH_COMPLETENESS_THRESHOLD", DEFAULT_COMPLETENESS_THRESHOLD
-            )
-        ),
+        float(config.get("MOH_COMPLETENESS_THRESHOLD", DEFAULT_COMPLETENESS_THRESHOLD)),
         current_period=current_period_key(date.today()),
     )
 
