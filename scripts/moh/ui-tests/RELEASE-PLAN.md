@@ -63,3 +63,33 @@ Size: 5 frontend files, 2 templates (`head_custom_extra.html`, `tail_js_custom_e
 | Tab buttons at 24 px minimum change tab-bar look | Low / cosmetic | Real-device check |
 | Restart downtime | Certain, short | Quiet window; existing health check and rollback |
 | Training and production differ more than assumed (training's tail template had drifted from master) | Low-medium | Step 5 measures production itself against its own baseline |
+
+## Update 2026-11-24: results on the production replica (training)
+
+Training was rebuilt as a verified replica of production (`tools/replica-parity.py`), then the branch was rebased on `master` and
+re-tested. Gate profile, 375/768/1440 px, 60 pages measured on production, the replica before the fixes, and the replica after.
+
+| Issue | Production today | Replica before | Replica after |
+|---|---|---|---|
+| RESP-BLOCKER | 16 | 16 | 0 |
+| RESP-CHART-CLIP | 30 | 33 | 11 |
+| RESP-INNER-CLIP | 191 | 168 | 39 |
+| RESP-TAP-TARGET | 599 | 714 | 70 |
+| RESP-TINY-TEXT | 53 | 42 | 6 |
+| A11Y-NO-NAME (probe corrected for image alt) | 89 | 249 | 3 |
+| A11Y-NO-FOCUS | 125 | 148 | 75 |
+| color-contrast | 327 | 157 | 76 |
+| nested-interactive | 421 | 429 | 341 |
+
+Additions since the first plan: hidden page `<h1>`, header landmark fix (`Menu.tsx`), plot width measured beside the AI panel
+(`ChartHolder.tsx`), control names and 24px hit areas (head/tail templates), focus ring, and stored-text fixes for KPI cards.
+
+Production release steps added:
+1. Code and templates: as before (deploy.sh, `--ui-check`).
+2. **Stored chart text (separate approval).** On production the same substitutions are a database content change:
+   run `tools/replica/45_fix_stored_text.py` adapted to production's metadata DB (dry run first, JSON backup of every changed row).
+   Not part of the code deploy; without it the KPI-card contrast and tiny text counts stay at production's level.
+3. Budgets: `budgets/prod.json` must be re-baselined after release (counts only ratchet down).
+
+Not fixed, needs a decision: nested-interactive in dashboard tabs (hidden "Copy URL" button inside each tab), amber/green KPI colours,
+TV page at phone width, content inside embedded third-party frames.
