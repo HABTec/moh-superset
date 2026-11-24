@@ -1821,6 +1821,34 @@ _moh_roles %}
     outline: 2px solid #1a5cff !important;
     outline-offset: 2px;
   }
+  /* A11Y: contrast of list-page tags and avatars (green tag text 2.15:1, white on tan avatar 3.1:1) */
+  .ant-tag:has(.anticon-check-circle),
+  .ant-tag:has(.anticon-check-circle) > span {
+    color: #1a6e3c !important;
+  }
+  .ant-avatar {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.28));
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex="0"]:focus-visible,
+  iframe:focus {
+    outline: 2px solid #1a5cff !important;
+    outline-offset: 2px;
+  }
+  /* RESP: ECharts wrapper pads 12px each side but the canvas is sized to the full box, so it was clipped */
+  .slice_container [class*="echarts_"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  /* RESP: wide fixed-layout (pivot) tables were cut off by two overflow:hidden wrappers; let them scroll */
+  .slice_container div[role="table"][style*="overflow: hidden"] {
+    overflow: auto !important;
+  }
+  .slice_container div[role="table"] > div[role="presentation"][style*="overflow: hidden"] {
+    overflow: visible !important;
+  }
   @media (max-width: 1100px) {
     .dashboard .ant-tabs-tab-btn,
     .dashboard-component-tabs .ant-tabs-tab-btn {

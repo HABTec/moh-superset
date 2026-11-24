@@ -147,7 +147,7 @@
     var panel = document.createElement('div');
     panel.id = 'mohTvPanel';
     panel.innerHTML =
-      '<div id="mohTvScreen">' +
+      '<div id="mohTvScreen" role="main" aria-label="TV display">' +
         '<div id="mohTvMast">' +
           '<img id="mohTvLogo" alt="Ministry of Health" src="/moh-static/logomohnewww.png">' +
           '<div>' +
@@ -190,6 +190,8 @@
 
     var controls = document.createElement('div');
     controls.id = 'mohTvControls';
+    controls.setAttribute('role', 'region');
+    controls.setAttribute('aria-label', 'Slideshow controls');
     controls.innerHTML =
       '<button id="mohTvPrev" type="button">◀ Prev</button>' +
       '<button id="mohTvFs" type="button">⛶ Fullscreen</button>' +

@@ -956,8 +956,27 @@
         ['ul.ant-menu[tabindex="0"]', function() { return 'Menu'; }]
       ];
       var timer = null;
+      /* big-number captions can be sized by the chart to under 11px; keep them readable */
+      function floorFonts() {
+        document.querySelectorAll('.subtitle-line, .subheader-line').forEach(function(el) {
+          if (parseFloat(getComputedStyle(el).fontSize) < 11) el.style.setProperty('font-size', '11px', 'important');
+        });
+      }
+      /* a scrolling region needs a keyboard stop if it has nothing focusable inside */
+      function focusableScrollers() {
+        document.querySelectorAll('[style*="overflow"]').forEach(function(el) {
+          if (el.hasAttribute('tabindex')) return;
+          var cs = getComputedStyle(el);
+          if (!/auto|scroll/.test(cs.overflowY + cs.overflowX)) return;
+          if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) return;
+          if (el.querySelector('a[href],button,input,select,textarea,[tabindex]')) return;
+          el.setAttribute('tabindex', '0');
+        });
+      }
       function label() {
         timer = null;
+        floorFonts();
+        focusableScrollers();
         RULES.forEach(function(rule) {
           document.querySelectorAll(rule[0]).forEach(function(el) {
             if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.getAttribute('title')) return;
