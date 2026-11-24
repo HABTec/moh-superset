@@ -147,8 +147,8 @@
     var panel = document.createElement('div');
     panel.id = 'mohTvPanel';
     panel.innerHTML =
-      '<div id="mohTvScreen" role="region" aria-label="TV display">' +
-        '<div id="mohTvMast">' +
+      '<div id="mohTvScreen">' +
+        '<div id="mohTvMast" role="region" aria-label="Masthead">' +
           '<img id="mohTvLogo" alt="Ministry of Health" src="/moh-static/logomohnewww.png">' +
           '<div>' +
             '<div class="w1" id="mohTvTitle">Ministry of Health</div>' +
@@ -158,7 +158,7 @@
             '<div class="c1" id="mohTvPeriod"></div>' +
           '</div>' +
         '</div>' +
-        '<div id="mohTvStrip">' +
+        '<div id="mohTvStrip" role="region" aria-label="Report details">' +
           '<div class="moh-tv-strip-item">' +
             '<div class="moh-tv-strip-k">Geography</div>' +
             '<div class="moh-tv-strip-v" id="mohTvGeo">National · Ethiopia</div>' +
@@ -177,7 +177,7 @@
             '<span class="dot"></span><span id="mohTvFreshText">Data as of …</span>' +
           '</div>' +
         '</div>' +
-        '<div id="mohTvHead">' +
+        '<div id="mohTvHead" role="region" aria-label="Current slide">' +
           '<div id="mohTvGlyph">TV</div>' +
           '<div id="mohTvSlideText">' +
             '<div id="mohTvSlideTitle"></div>' +
