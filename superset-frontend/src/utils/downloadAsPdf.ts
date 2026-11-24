@@ -24,6 +24,7 @@ import { logging } from '@apache-superset/core/utils';
 import { addWarningToast } from 'src/components/MessageToasts/actions';
 import getBootstrapData from 'src/utils/getBootstrapData';
 import { runInLightMode } from 'src/theme/lightModeExport';
+import { hideLegendSelectorsForExport } from 'src/utils/hideLegendSelectorsForExport';
 
 const pdfCompressionLevel = getBootstrapData().common.pdf_compression_level;
 
@@ -75,13 +76,16 @@ export default function downloadAsPdf(
         html2canvas: { scale: 2 },
         excludeClassNames: ['header-controls'],
       };
+      const restoreLegendSelectors =
+        hideLegendSelectorsForExport(elementToPrint);
       return domToPdf(elementToPrint, options)
         .then(() => {
           // nothing to be done
         })
         .catch((e: Error) => {
           logging.error('PDF generation failed', e);
-        });
+        })
+        .finally(restoreLegendSelectors);
     });
   };
 }

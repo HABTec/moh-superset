@@ -23,6 +23,7 @@ import { t } from '@apache-superset/core/translation';
 import { SupersetTheme } from '@apache-superset/core/theme';
 import { addWarningToast } from 'src/components/MessageToasts/actions';
 import { runInLightMode } from 'src/theme/lightModeExport';
+import { hideLegendSelectorsForExport } from 'src/utils/hideLegendSelectorsForExport';
 import type { AgGridContainerElement } from '@superset-ui/core/components';
 
 const IMAGE_DOWNLOAD_QUALITY = 0.95;
@@ -643,13 +644,18 @@ export default function downloadAsImageOptimized(
     const { currentTarget } = event;
     // Images are always light (see runInLightMode). The element is looked up
     // after the switch, since a dashboard with its own theme re-renders then.
-    await runInLightMode(lightTheme =>
-      captureElement(
-        isExactSelector
-          ? document.querySelector(selector)
-          : currentTarget.closest(selector),
-        lightTheme ?? theme,
-      ),
-    );
+    await runInLightMode(async lightTheme => {
+      const element = isExactSelector
+        ? document.querySelector(selector)
+        : currentTarget.closest(selector);
+      const restoreLegendSelectors = element
+        ? hideLegendSelectorsForExport(element)
+        : () => {};
+      try {
+        await captureElement(element, lightTheme ?? theme);
+      } finally {
+        restoreLegendSelectors();
+      }
+    });
   };
 }

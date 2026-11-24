@@ -23,6 +23,11 @@ import downloadAsImageOptimized, {
 } from './downloadAsImage';
 import { registerThemePreview } from 'src/theme/lightModeExport';
 
+import { hideLegendSelectorsForExport } from 'src/utils/hideLegendSelectorsForExport';
+jest.mock('src/utils/hideLegendSelectorsForExport', () => ({
+  hideLegendSelectorsForExport: jest.fn(() => () => {}),
+}));
+
 jest.mock('dom-to-image-more', () => ({
   __esModule: true,
   default: { toJpeg: jest.fn() },
@@ -921,4 +926,54 @@ test('text cut off with an ellipsis wraps in the image', async () => {
   ).toBe('');
 
   document.body.removeChild(container);
+});
+
+test('legend Select all / Invert buttons are hidden during the capture and restored after', async () => {
+  const events: string[] = [];
+  const restore = jest.fn(() => events.push('restore'));
+  (hideLegendSelectorsForExport as jest.Mock).mockImplementation(() => {
+    events.push('hide');
+    return restore;
+  });
+  mockToJpeg.mockImplementation(async () => {
+    events.push('capture');
+    return 'data:image/jpeg;base64,test';
+  });
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  await downloadAsImageOptimized(
+    'div',
+    'Bar Chart',
+  )(syntheticEventFor(container));
+
+  expect(hideLegendSelectorsForExport).toHaveBeenCalledWith(container);
+  expect(events).toEqual(['hide', 'capture', 'restore']);
+  document.body.removeChild(container);
+});
+
+test('legend buttons are restored even when the image capture fails', async () => {
+  const restore = jest.fn();
+  (hideLegendSelectorsForExport as jest.Mock).mockReturnValue(restore);
+  mockToJpeg.mockRejectedValue(new Error('capture failed'));
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  await downloadAsImageOptimized(
+    'div',
+    'Bar Chart',
+  )(syntheticEventFor(container));
+
+  expect(restore).toHaveBeenCalledTimes(1);
+  document.body.removeChild(container);
+});
+
+test('a missing element does not try to hide legend buttons', async () => {
+  await downloadAsImageOptimized(
+    '.nope',
+    'Bar Chart',
+    true,
+  )(syntheticEventFor(document.body));
+
+  expect(hideLegendSelectorsForExport).not.toHaveBeenCalled();
 });
