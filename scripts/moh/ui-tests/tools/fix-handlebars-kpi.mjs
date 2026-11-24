@@ -23,6 +23,9 @@ const MAP = [
   [/color:\s*#6b7280/gi, 'color:#4b5563'],
   [/color:\s*rgb\(\s*107,\s*114,\s*128\s*\)/gi, 'color:#4b5563'],
   [/color:\s*#9ca3af/gi, 'color:#5b6472'],
+  [/font-size:\s*10px/gi, 'font-size:11px'],
+  [/(?<=\{\{else\}\})#6b7280/gi, '#4b5563'],
+  [/(?<=\{\{else\}\})#9ca3af/gi, '#5b6472'],
 ];
 const b = await chromium.launch({channel:'chrome'});
 // Log in with the owner/admin account. Credentials: MOH_UI_USER/MOH_UI_PASS, or a file outside the

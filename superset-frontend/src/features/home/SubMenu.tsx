@@ -225,6 +225,9 @@ const SubMenuComponent: FunctionComponent<SubMenuProps> = props => {
             if ((props.usesRouter || hasHistory) && !!tab.usesRouter) {
               return {
                 key: tab.label,
+                // the menu item is only a wrapper: the tab role belongs to the inner link,
+                // and a tab must be owned by the tablist, not by a menuitem
+                role: 'presentation',
                 label: (
                   <Link
                     to={tab.url || ''}
@@ -242,6 +245,7 @@ const SubMenuComponent: FunctionComponent<SubMenuProps> = props => {
             }
             return {
               key: tab.label,
+              role: 'presentation',
               label: (
                 <div
                   className={cx('no-router', {

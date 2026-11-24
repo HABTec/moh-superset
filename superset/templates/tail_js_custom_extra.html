@@ -944,3 +944,33 @@
       if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
     })();
   </script>
+
+  <script nonce="{{ macros.get_nonce() }}">
+    /* A11Y: give names to a few built-in controls that render without one. Runs on DOM changes (debounced) and only
+       sets an attribute when it is missing, so it never overrides a label the app provides. */
+    (function() {
+      var RULES = [
+        ['button.ant-alert-close-icon', function() { return 'Close'; }],
+        ['[data-test="filter-bar__collapsable"][role="button"]', function() { return 'Show or hide the filter panel'; }],
+        ['.deck-widget-container', function() { return 'Map controls'; }],
+        ['ul.ant-menu[tabindex="0"]', function() { return 'Menu'; }]
+      ];
+      var timer = null;
+      function label() {
+        timer = null;
+        RULES.forEach(function(rule) {
+          document.querySelectorAll(rule[0]).forEach(function(el) {
+            if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.getAttribute('title')) return;
+            if (el.classList.contains('deck-widget-container')) el.setAttribute('role', 'group');
+            el.setAttribute('aria-label', rule[1](el));
+          });
+        });
+      }
+      function schedule() { if (!timer) timer = setTimeout(label, 400); }
+      function start() {
+        label();
+        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+      }
+      if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+    })();
+  </script>

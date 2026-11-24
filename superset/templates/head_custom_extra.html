@@ -1743,4 +1743,38 @@ _moh_roles %}
   })();
 </script>
 
+<style>
+  /* A11Y / touch targets (WCAG 2.5.8 needs 24x24 CSS px; phone and tablet widths get a roomier 40px for tabs).
+     Each rule only enlarges the hit area; nothing is hidden or moved. */
+  .dashboard .ant-tabs-tab-btn,
+  .dashboard-component-tabs .ant-tabs-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+  }
+  .ant-table-cell a[href]:not(.fave-unfave-icon),
+  .ant-table-cell .action-button,
+  .ant-table-cell .fave-unfave-icon,
+  .filters-search {
+    min-height: 24px;
+  }
+  .ant-table-cell .action-button,
+  .ant-table-cell .fave-unfave-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+  }
+  .ant-table-cell a[href]:not(.fave-unfave-icon) {
+    display: inline-flex;
+    align-items: center;
+  }
+  @media (max-width: 1100px) {
+    .dashboard .ant-tabs-tab-btn,
+    .dashboard-component-tabs .ant-tabs-tab-btn {
+      min-height: 40px;
+    }
+  }
+</style>
+
 {% include "moh_accessibility_head.html" %}

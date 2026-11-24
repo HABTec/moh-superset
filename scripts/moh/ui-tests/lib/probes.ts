@@ -170,17 +170,24 @@ export async function probe(page: Page, animated = false): Promise<Probe> {
       const r = e.getBoundingClientRect();
       return r.width < 24 || r.height < 24;
     });
-    const noName = interactive.filter(e => {
+    // accessible name: aria-label / labelledby / title / own text / label / alt, or the name of a descendant
+    // (an <img alt>, an icon with aria-label, an svg <title>) as for links and buttons that wrap an image
+    const hasName = (e: Element): boolean => {
       const h = e as HTMLInputElement;
-      return !(
+      if (
         e.getAttribute('aria-label') ||
         e.getAttribute('aria-labelledby') ||
         e.getAttribute('title') ||
         (e.textContent || '').trim() ||
         (h.labels && h.labels.length) ||
         e.getAttribute('alt')
+      )
+        return true;
+      return !!e.querySelector(
+        'img[alt]:not([alt=""]),[aria-label]:not([aria-label=""]),svg > title,[role=img][aria-labelledby]',
       );
-    });
+    };
+    const noName = interactive.filter(e => !hasName(e));
 
     const clip: { el: string; by: string }[] = [];
     for (const e of document.querySelectorAll('body *')) {
@@ -273,8 +280,11 @@ export async function probe(page: Page, animated = false): Promise<Probe> {
       innerClip: uniqClip.length,
       innerClipSample: uniqClip.slice(0, 3).map(c => `${c.el} by ${c.by}`),
       chartClip: chartClip.length,
+      chartClipSample: chartClip.slice(0, 3).map(c => `${desc(c)} in ${desc(c.closest('[data-test="dashboard-component-chart-holder"],.dashboard-chart,.chart-container') as Element)}`),
       tableClip: tableClip.length,
+      tableClipSample: tableClip.slice(0, 3).map(desc),
       tiny: tiny.length,
+      tinySample: tiny.slice(0, 3).map(e => `${desc(e)} "${(e.textContent || '').trim().slice(0, 20)}" ${getComputedStyle(e).fontSize}`),
       blocker: /rotate for a better view/i.test(document.body.innerText),
       fixedCover: Math.min(
         100,
@@ -285,11 +295,11 @@ export async function probe(page: Page, animated = false): Promise<Probe> {
 
   add('RESP-OVERFLOW-X', m.hOverflow ? 1 : 0, m.overflowEls);
   add('RESP-INNER-CLIP', m.innerClip, m.innerClipSample);
-  add('RESP-CHART-CLIP', m.chartClip);
-  add('RESP-TABLE-CLIP', m.tableClip);
+  add('RESP-CHART-CLIP', m.chartClip, m.chartClipSample);
+  add('RESP-TABLE-CLIP', m.tableClip, m.tableClipSample);
   add('RESP-BLOCKER', m.blocker ? 1 : 0);
   add('RESP-TAP-TARGET', m.small, m.smallSample);
-  add('RESP-TINY-TEXT', m.tiny);
+  add('RESP-TINY-TEXT', m.tiny, m.tinySample);
   add('A11Y-NO-NAME', m.noName, m.noNameSample);
 
   // Keyboard probe: 25 Tab presses; count stops with no visible focus ring.

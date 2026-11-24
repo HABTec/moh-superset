@@ -469,7 +469,12 @@ const ChartHolder = ({
       );
       if (aiInsightsEnabled) {
         const aiPanelOffset = effectiveAiPanelWidth + AI_INSIGHT_PANEL_GUTTER;
-        width = Math.max(width - aiPanelOffset, 0);
+        // the plot container beside the panel has its own horizontal padding; without
+        // taking it off the canvas ends up 24px wider than its box and is clipped
+        width = Math.max(
+          width - aiPanelOffset - RESPONSIVE_CHART_INNER_PADDING,
+          0,
+        );
       }
       height = Math.floor(
         (component.meta.height ?? 0) * GRID_BASE_UNIT - CHART_MARGIN,
