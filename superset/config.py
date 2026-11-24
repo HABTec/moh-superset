@@ -2353,8 +2353,13 @@ GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (Literal["None", "Lax", "Strict
     None
 )
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
-GLOBAL_ASYNC_QUERIES_JWT_SECRET = (
-    "eK7mTnY4vQ8sL2xP9rA5bC1dF6gH3jK8nM4pQ7rS2tV9wX5yZ1aB6cD3eF8gH2j"  # noqa: S105
+# Secret for the async-query JWT cookie. Set SUPERSET_GLOBAL_ASYNC_QUERIES_JWT_SECRET
+# (or override GLOBAL_ASYNC_QUERIES_JWT_SECRET in superset_config.py). The placeholder is
+# only long enough to satisfy Superset's 32-byte check; it is public and must never be
+# relied on in a deployment.
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = os.environ.get(
+    "SUPERSET_GLOBAL_ASYNC_QUERIES_JWT_SECRET",
+    "CHANGE-ME-set-SUPERSET_GLOBAL_ASYNC_QUERIES_JWT_SECRET",  # noqa: S105
 )
 GLOBAL_ASYNC_QUERIES_TRANSPORT: Literal["polling", "ws"] = "polling"
 GLOBAL_ASYNC_QUERIES_POLLING_DELAY = int(
