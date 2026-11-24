@@ -914,3 +914,33 @@
       });
     })();
   </script>
+
+  <script nonce="{{ macros.get_nonce() }}">
+    /* A11Y: pages rendered by the React app have no <h1>. Add one, visually hidden, that follows document.title,
+       inside a labelled region so it also satisfies the "content in landmarks" rule. Purely additive, outside the React root. */
+    (function() {
+      function ensure() {
+        if (document.getElementById('moh-page-h1')) return;
+        var host = document.createElement('div');
+        host.setAttribute('role', 'region');
+        host.setAttribute('aria-label', 'Page title');
+        host.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+        var h = document.createElement('h1');
+        h.id = 'moh-page-h1';
+        host.appendChild(h);
+        document.body.insertBefore(host, document.body.firstChild);
+      }
+      function sync() {
+        ensure();
+        var t = (document.title || '').trim();
+        var h = document.getElementById('moh-page-h1');
+        if (h && h.textContent !== t) h.textContent = t;
+      }
+      function start() {
+        sync();
+        var titleEl = document.querySelector('title');
+        if (titleEl) new MutationObserver(sync).observe(titleEl, { childList: true, characterData: true, subtree: true });
+      }
+      if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+    })();
+  </script>
