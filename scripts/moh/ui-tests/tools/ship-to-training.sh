@@ -10,7 +10,9 @@ BASE=${BASE:-origin/master}
 git diff "$BASE" HEAD -- superset superset-frontend > /var/tmp/moh-a11y.patch
 [[ -s /var/tmp/moh-a11y.patch ]] || { echo "empty patch against $BASE"; exit 2; }
 scp -q /var/tmp/moh-a11y.patch "$HOST:/var/tmp/moh-a11y.patch"
-ssh "$HOST" 'set -e
+# every changed file under superset/ (templates, python) is copied to the replica as well as the built assets
+CHANGED=$(git diff --name-only "$BASE" HEAD -- superset | grep -v '^superset/static/' | tr '\n' ' ')
+ssh "$HOST" "CHANGED='$CHANGED'" 'set -e
 PROD=$(git -C /var/etls/moh-superset rev-parse HEAD)
 cd /var/etls/moh-superset-build
 [ "$(git rev-parse HEAD)" = "$PROD" ] || { echo "build tree is not at production commit ($PROD)"; exit 3; }
@@ -22,7 +24,8 @@ B=/var/etls/moh-superset-build/superset; T=/var/etls/moh-sstraining/app/superset
 rsync -a --exclude manifest.json $B/static/assets/ $T/static/assets/
 cp -p $B/static/assets/manifest.json $T/static/assets/manifest.json.new && mv $T/static/assets/manifest.json.new $T/static/assets/manifest.json
 cp -p $B/static/service-worker.js $T/static/service-worker.js
-for f in head_custom_extra.html tail_js_custom_extra.html; do cp -p $B/templates/$f $T/templates/$f.new && mv $T/templates/$f.new $T/templates/$f; done
+R=/var/etls/moh-superset-build; A=/var/etls/moh-sstraining/app
+for f in $CHANGED; do mkdir -p "$(dirname $A/$f)"; cp -p "$R/$f" "$A/$f.new" && mv "$A/$f.new" "$A/$f"; done
 P=$(systemctl show -p MainPID --value sst-web); kill -HUP $P; sleep 12
 systemctl is-active sst-web; curl -s -o /dev/null -m 20 -w "health %{http_code}\n" http://127.0.0.1:18189/health
 # leave the build tree clean so production deploys are not affected
